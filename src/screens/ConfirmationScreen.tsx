@@ -63,7 +63,7 @@ export const ConfirmationScreen = ({ navigation }: any) => {
             variant="primary"
             size="lg"
             rightIcon={<Icon name="truck-fast" size={20} color="#FFF" />}
-            onPress={() => navigation.navigate('Collection')}
+            onPress={() => navigation.navigate('CollectorDashboard')}
           />
           <Button
             title="Return to Home"

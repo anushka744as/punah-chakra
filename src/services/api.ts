@@ -33,13 +33,15 @@ export interface UserProfile {
 
 export interface DonationItem {
   id: string;
+  donor_id?: string;
   category: string;
   weight_kg: number;
+  estimated_quantity_kg?: number;
   pickup_day: string;
   time_slot: string;
   instructions: string;
   address: string;
-  status: 'scheduled' | 'assigned' | 'collected' | 'assessed' | 'completed' | 'cancelled';
+  status: 'scheduled' | 'assigned' | 'in_transit' | 'collected' | 'assessed' | 'completed' | 'cancelled';
   points_awarded: number;
   created_at?: string;
 }
@@ -271,6 +273,16 @@ export async function fetchUserDonations(donorId: string): Promise<DonationItem[
     .from('donations')
     .select('*')
     .eq('donor_id', donorId)
+    .order('created_at', { ascending: false });
+
+  if (error) return [];
+  return data as DonationItem[];
+}
+
+export async function fetchAllScheduledDonations(): Promise<DonationItem[]> {
+  const { data, error } = await supabase
+    .from('donations')
+    .select('*')
     .order('created_at', { ascending: false });
 
   if (error) return [];

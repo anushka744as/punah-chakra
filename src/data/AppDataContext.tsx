@@ -10,10 +10,13 @@ import React, {
   useEffect,
   useCallback,
 } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { USER_LOGGED_IN_KEY, LAST_ROLE_KEY } from '../navigation/AppNavigator';
 import {
   supabase,
   fetchUserProfile,
   fetchUserDonations,
+  fetchAllScheduledDonations,
   fetchActivePickups,
   fetchUserNotifications,
   createDonationRequest,
@@ -96,14 +99,15 @@ export const AppDataProvider = ({ children }: { children: React.ReactNode }) => 
 
   const loadUserData = async (userId: string, email: string) => {
     try {
-      const [profileData, donationsData, pickupsData, notifData] = await Promise.all([
-        fetchUserProfile(userId),
-        fetchUserDonations(userId),
+      const profileData = await fetchUserProfile(userId);
+      const role: AppRole = (profileData?.role as AppRole) || 'donor';
+
+      const [donationsData, pickupsData, notifData] = await Promise.all([
+        role === 'collector' ? fetchAllScheduledDonations() : fetchUserDonations(userId),
         fetchActivePickups(),
         fetchUserNotifications(userId),
       ]);
 
-      const role: AppRole = (profileData?.role as AppRole) || 'donor';
       setAuthUser({
         id: userId,
         email: profileData?.email || email,
@@ -121,12 +125,16 @@ export const AppDataProvider = ({ children }: { children: React.ReactNode }) => 
 
   // ── Public actions ──────────────────────────────────────────────────────
   const signOut = useCallback(async () => {
+    try {
+      await AsyncStorage.removeItem(USER_LOGGED_IN_KEY);
+      await AsyncStorage.removeItem(LAST_ROLE_KEY);
+    } catch {}
     await supabase.auth.signOut();
   }, []);
 
   const refreshDonations = useCallback(async () => {
     if (!authUser) return;
-    const data = await fetchUserDonations(authUser.id);
+    const data = authUser.role === 'collector' ? await fetchAllScheduledDonations() : await fetchUserDonations(authUser.id);
     setDonations(data);
   }, [authUser]);
 

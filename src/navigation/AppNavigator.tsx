@@ -21,6 +21,7 @@ import { RoleSelectionScreen } from '../screens/RoleSelectionScreen';
 // Core Tabs
 import { TabNavigator } from './TabNavigator';
 import { CollectorDashboardScreen } from '../screens/CollectorDashboardScreen';
+import { CollectorProfileScreen } from '../screens/CollectorProfileScreen';
 
 // Modals & Action Screens
 import { ConfirmationScreen } from '../screens/ConfirmationScreen';
@@ -38,10 +39,12 @@ import { supabase, fetchUserProfile } from '../services/api';
 
 const Stack = createNativeStackNavigator();
 export const ONBOARDING_COMPLETE_KEY = '@punahchakra_onboarding_completed';
+export const USER_LOGGED_IN_KEY = '@punahchakra_user_logged_in';
+export const LAST_ROLE_KEY = '@punahchakra_last_role';
 
 export const AppNavigator = () => {
   const [loading, setLoading] = useState(true);
-  const [initialRoute, setInitialRoute] = useState<'MissionFoundations' | 'Landing' | 'MainTabs' | 'CollectorDashboard'>('MissionFoundations');
+  const [initialRoute, setInitialRoute] = useState<'MissionFoundations' | 'Landing' | 'MainTabs' | 'CollectorDashboard'>('Landing');
 
   useEffect(() => {
     checkInitialSession();
@@ -49,27 +52,54 @@ export const AppNavigator = () => {
 
   const checkInitialSession = async () => {
     try {
-      // 1. Check if user is already authenticated in Supabase
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        const profile = await fetchUserProfile(session.user.id);
-        if (profile?.role === 'collector') {
+      // 1. Check local session cache first for instant boot
+      const isUserLoggedIn = await AsyncStorage.getItem(USER_LOGGED_IN_KEY);
+      const lastRole = await AsyncStorage.getItem(LAST_ROLE_KEY);
+
+      if (isUserLoggedIn === 'true') {
+        if (lastRole === 'collector') {
           setInitialRoute('CollectorDashboard');
         } else {
           setInitialRoute('MainTabs');
         }
+      }
+
+      // 2. Check active Supabase Auth session
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        await AsyncStorage.setItem(USER_LOGGED_IN_KEY, 'true');
+        try {
+          const profile = await fetchUserProfile(session.user.id);
+          if (profile?.role === 'collector') {
+            await AsyncStorage.setItem(LAST_ROLE_KEY, 'collector');
+            setInitialRoute('CollectorDashboard');
+          } else {
+            await AsyncStorage.setItem(LAST_ROLE_KEY, 'donor');
+            setInitialRoute('MainTabs');
+          }
+        } catch {
+          // If profile fetch fails, user is still authenticated -> default to MainTabs/Dashboard
+          if (lastRole === 'collector') {
+            setInitialRoute('CollectorDashboard');
+          } else {
+            setInitialRoute('MainTabs');
+          }
+        }
         return;
       }
 
-      // 2. Otherwise check onboarding status
-      const value = await AsyncStorage.getItem(ONBOARDING_COMPLETE_KEY);
-      if (value === 'true') {
-        setInitialRoute('Landing');
-      } else {
-        setInitialRoute('MissionFoundations');
+      // 3. Not logged in -> check onboarding
+      if (isUserLoggedIn !== 'true') {
+        const onboardingDone = await AsyncStorage.getItem(ONBOARDING_COMPLETE_KEY);
+        if (onboardingDone === 'true') {
+          setInitialRoute('Landing');
+        } else {
+          setInitialRoute('MissionFoundations');
+        }
       }
     } catch (e) {
-      setInitialRoute('MissionFoundations');
+      // Graceful fallback to Landing
+      setInitialRoute('Landing');
     } finally {
       setLoading(false);
     }
@@ -108,6 +138,8 @@ export const AppNavigator = () => {
         {/* Main Application */}
         <Stack.Screen name="MainTabs" component={TabNavigator} />
         <Stack.Screen name="CollectorDashboard" component={CollectorDashboardScreen} />
+        <Stack.Screen name="Collection" component={CollectorDashboardScreen} />
+        <Stack.Screen name="CollectorProfile" component={CollectorProfileScreen} />
 
         {/* Action & Modal Screens */}
         <Stack.Screen name="Confirmation" component={ConfirmationScreen} />

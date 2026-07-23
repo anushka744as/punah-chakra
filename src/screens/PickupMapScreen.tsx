@@ -15,11 +15,59 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useAppData } from '../data/AppDataContext';
+
 export const PickupMapScreen = ({ navigation, route }: any) => {
   const insets = useSafeAreaInsets();
+  const { donations } = useAppData();
   const [locationGranted, setLocationGranted] = useState(false);
   const [mapType, setMapType] = useState<'street' | 'satellite'>('street');
+
   const mode = route.params?.mode === 'collector' ? 'collector' : 'donor';
+  const targetDonationId = route.params?.donationId;
+
+  const targetDonation = donations.find((d) => d.id === targetDonationId);
+
+  const parseCoords = (addressStr: string) => {
+    if (!addressStr) return { lat: 28.5833, lng: 77.3167 };
+    const match = addressStr.match(/Lat:\s*([0-9.-]+),\s*Long:\s*([0-9.-]+)/i);
+    if (match && match[1] && match[2]) {
+      const lat = parseFloat(match[1]);
+      const lng = parseFloat(match[2]);
+      if (!isNaN(lat) && !isNaN(lng)) return { lat, lng };
+    }
+    return { lat: 28.5833, lng: 77.3167 };
+  };
+
+  const confirmedDonations = useMemo(() => {
+    if (mode !== 'collector') return donations;
+    const confirmed = donations.filter((d) => ['assigned', 'in_transit', 'completed'].includes(d.status));
+    return confirmed.length > 0 ? confirmed : donations;
+  }, [donations, mode]);
+
+  const initialCenter = targetDonation ? parseCoords(targetDonation.address) : { lat: 28.5833, lng: 77.3167 };
+
+  const markersJs = useMemo(() => {
+    if (!confirmedDonations || confirmedDonations.length === 0) {
+      return `L.marker([28.5833, 77.3167]).addTo(map).bindPopup("<div class='popup-title'>Sector 15A Center</div>");`;
+    }
+
+    return confirmedDonations
+      .map((item) => {
+        const { lat, lng } = parseCoords(item.address);
+        const cleanAddress = item.address.replace(/\(Lat:.*?\)/gi, '').trim();
+        const isTarget = item.id === targetDonationId;
+        const weight = item.weight_kg || item.estimated_quantity_kg || 10;
+        return `
+          (function() {
+            var marker = L.marker([${lat}, ${lng}]).addTo(map)
+              .bindPopup("<div class='popup-title'>${item.category} Donor</div><div class='popup-sub'>${cleanAddress.replace(/"/g, '\\"')}</div><span class='popup-badge'>${weight} kg &bull; ${item.time_slot} &bull; ${item.status.toUpperCase()}</span>");
+            ${isTarget ? 'marker.openPopup();' : ''}
+          })();
+        `;
+      })
+      .join('\n');
+  }, [confirmedDonations, targetDonationId]);
 
   const requestLocationPermission = async () => {
     if (Platform.OS !== 'android') {
@@ -75,52 +123,25 @@ export const PickupMapScreen = ({ navigation, route }: any) => {
       attribution: '&copy; Esri'
     });
 
-    // Noida Center
     var map = L.map('map', {
-      center: [28.5721, 77.3261],
-      zoom: 13,
+      center: [${initialCenter.lat}, ${initialCenter.lng}],
+      zoom: ${targetDonation ? 16 : 14},
       layers: [${mapType === 'satellite' ? 'esriSat' : 'osm'}]
     });
 
-    // Noida Sector 15A Zone
-    var sec15 = L.circle([28.5833, 77.3167], {
-      color: '#15A800',
-      fillColor: '#6EE7B7',
-      fillOpacity: 0.25,
-      radius: 700
-    }).addTo(map).bindPopup("<div class='popup-title'>Noida Sector 15A</div><div class='popup-sub'>Active Service Zone</div><span class='popup-badge'>SERVICE COVERAGE</span>");
+    // Active Zones
+    L.circle([28.5833, 77.3167], { color: '#15A800', fillColor: '#6EE7B7', fillOpacity: 0.2, radius: 700 }).addTo(map);
 
-    // Noida Sector 44 Zone
-    var sec44 = L.circle([28.5611, 77.3389], {
-      color: '#15A800',
-      fillColor: '#6EE7B7',
-      fillOpacity: 0.25,
-      radius: 700
-    }).addTo(map).bindPopup("<div class='popup-title'>Noida Sector 44</div><div class='popup-sub'>Active Service Zone</div><span class='popup-badge'>SERVICE COVERAGE</span>");
-
-    // Donor & Collector Markers
-    L.marker([28.5833, 77.3167]).addTo(map)
-      .bindPopup("<div class='popup-title'>Johnathan Miller (#REC-9821)</div><div class='popup-sub'>42 Industrial Way, Unit B</div><span class='popup-badge'>45.5 kg Clothes & E-Waste</span>");
-
-    L.marker([28.5611, 77.3389]).addTo(map)
-      .bindPopup("<div class='popup-title'>K. Vance (#REC-9822)</div><div class='popup-sub'>Apt 4B, 128 North St.</div><span class='popup-badge'>12.4 kg Mixed Textiles</span>");
-
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(function(pos) {
-        var lat = pos.coords.latitude;
-        var lng = pos.coords.longitude;
-        map.setView([lat, lng], 14);
-        L.marker([lat, lng]).addTo(map).bindPopup("<div class='popup-title'>Your Location</div><span class='popup-badge'>Live Position</span>");
-      });
-    }
+    // Dynamic Real Donor Markers from Supabase
+    ${markersJs}
   </script>
 </body>
 </html>`,
-    [mapType],
+    [mapType, initialCenter.lat, initialCenter.lng, markersJs, targetDonation],
   );
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#15A800" />
 
       {/* Header Bar */}
@@ -131,7 +152,7 @@ export const PickupMapScreen = ({ navigation, route }: any) => {
         <Text style={styles.headerTitle}>
           {mode === 'collector' ? 'Pickup Routes & Map' : 'Donation Map'}
         </Text>
-        <TouchableOpacity onPress={() => { try { navigation.navigate('MainTabs', { screen: 'Profile' }); } catch { navigation.navigate('Profile'); } }} activeOpacity={0.7}>
+        <TouchableOpacity onPress={() => navigation.navigate('CollectorProfile')} activeOpacity={0.7}>
           <View style={styles.userAvatarCircle}>
             <Icon name="account-outline" size={20} color="#FFFFFF" />
           </View>
@@ -166,6 +187,40 @@ export const PickupMapScreen = ({ navigation, route }: any) => {
         </View>
       </View>
 
+      {/* Mode Specific Info Banner */}
+      {mode === 'collector' && !targetDonationId && (
+        <View style={styles.promptBanner}>
+          <Icon name="information-outline" size={20} color="#15A800" />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.promptTitle}>Choose a Confirmed Pickup</Text>
+            <Text style={styles.promptSub}>
+              Confirm a pickup on the Routes tab to navigate directly to a donor's doorstep!
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.promptActionBtn}
+            onPress={() => navigation.navigate('CollectorDashboard')}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.promptActionText}>Go to Routes</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {targetDonation && (
+        <View style={styles.targetBanner}>
+          <View style={styles.targetIconBg}>
+            <Icon name="navigation" size={20} color="#FFFFFF" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.targetTitle}>Doorstep Destination: {targetDonation.category}</Text>
+            <Text style={styles.targetAddress}>
+              {targetDonation.address.replace(/\(Lat:.*?\)/gi, '').trim()}
+            </Text>
+          </View>
+        </View>
+      )}
+
       {/* WebView Leaflet Map */}
       <View style={styles.mapFrame}>
         <WebView
@@ -182,10 +237,34 @@ export const PickupMapScreen = ({ navigation, route }: any) => {
       <View style={styles.bottomInfoPanel}>
         <Text style={styles.infoHeading}>CURRENT SERVICE COVERAGE</Text>
         <Text style={styles.infoBody}>
-          Doorstep pickups currently live in <Text style={styles.boldText}>Noida Sector 15A</Text> and <Text style={styles.boldText}>Noida Sector 44</Text>. Expanding to new sectors soon!
+          Doorstep pickups currently live in <Text style={styles.boldText}>Noida Sector 15A</Text> and <Text style={styles.boldText}>Noida Sector 44</Text>.
         </Text>
       </View>
-    </View>
+
+      {/* Bottom Navigation Tab Bar for Collector */}
+      {mode === 'collector' && (
+        <View style={styles.bottomTabBar}>
+          <TouchableOpacity style={styles.tabItem} activeOpacity={0.7} onPress={() => navigation.navigate('CollectorDashboard')}>
+            <Icon name="truck" size={24} color="#475569" />
+            <Text style={styles.tabLabel}>Routes</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.tabItem} activeOpacity={0.7}>
+            <View style={styles.tabIconActiveBg}>
+              <Icon name="map" size={24} color="#15A800" />
+            </View>
+            <Text style={styles.tabLabelActive}>Map</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.tabItem} activeOpacity={0.7} onPress={() => navigation.navigate('Quality')}>
+            <Icon name="shield-check-outline" size={24} color="#475569" />
+            <Text style={styles.tabLabel}>Quality</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.tabItem} activeOpacity={0.7} onPress={() => navigation.navigate('CollectorProfile')}>
+            <Icon name="account-outline" size={24} color="#475569" />
+            <Text style={styles.tabLabel}>Profile</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+    </SafeAreaView>
   );
 };
 
@@ -293,6 +372,98 @@ const styles = StyleSheet.create({
   boldText: {
     fontWeight: '800',
     color: '#15A800',
+  },
+  promptBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFBEB',
+    borderBottomWidth: 1,
+    borderBottomColor: '#FDE68A',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 10,
+  },
+  promptTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#92400E',
+  },
+  promptSub: {
+    fontSize: 11,
+    color: '#B45309',
+    marginTop: 2,
+    lineHeight: 15,
+  },
+  promptActionBtn: {
+    backgroundColor: '#15A800',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+  },
+  promptActionText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  targetBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    borderBottomWidth: 1,
+    borderBottomColor: '#A7F3D0',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 12,
+  },
+  targetIconBg: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#15A800',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  targetTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#065F46',
+  },
+  targetAddress: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#047857',
+    marginTop: 2,
+    flexWrap: 'wrap',
+  },
+  bottomTabBar: {
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+    justifyContent: 'space-between',
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+  },
+  tabItem: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  tabIconActiveBg: {
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 16,
+    paddingVertical: 4,
+    borderRadius: 20,
+  },
+  tabLabelActive: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  tabLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#475569',
   },
 });
 

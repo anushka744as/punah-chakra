@@ -21,11 +21,20 @@ const CONDITIONS = [
 ];
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAppData } from '../data/AppDataContext';
 
-export const QualityScreen = ({ navigation }: any) => {
+export const QualityScreen = ({ navigation, route }: any) => {
   const insets = useSafeAreaInsets();
+  const { donations } = useAppData();
   const [selectedConditions, setSelectedConditions] = useState<string[]>([]);
   const [notes, setNotes] = useState('');
+
+  const donationId = route.params?.donationId;
+  const currentDonation = donations.find(d => d.id === donationId);
+
+  const categoryName = currentDonation?.category || 'Mixed Textile';
+  const weightVal = currentDonation?.weight_kg || currentDonation?.estimated_quantity_kg || 12.4;
+  const originVal = currentDonation?.address ? currentDonation.address.split(',')[1] || 'Sector 15A' : 'Sector B-4';
 
   const toggleCondition = (item: string) => {
     if (selectedConditions.includes(item)) {
@@ -36,7 +45,7 @@ export const QualityScreen = ({ navigation }: any) => {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#15A800" />
 
       {/* Top Header */}
@@ -45,7 +54,7 @@ export const QualityScreen = ({ navigation }: any) => {
           <Icon name="arrow-left" size={24} color="#FFFFFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Quality</Text>
-        <TouchableOpacity onPress={() => { try { navigation.navigate('MainTabs', { screen: 'Profile' }); } catch { navigation.navigate('Profile'); } }} activeOpacity={0.7}>
+        <TouchableOpacity onPress={() => navigation.navigate('CollectorProfile')} activeOpacity={0.7}>
           <View style={styles.userAvatarCircle}>
             <Icon name="account-outline" size={20} color="#FFFFFF" />
           </View>
@@ -56,19 +65,19 @@ export const QualityScreen = ({ navigation }: any) => {
         {/* Batch Identifier Card */}
         <View style={styles.batchCard}>
           <Text style={styles.batchLabel}>BATCH IDENTIFIER</Text>
-          <Text style={styles.batchTitle}>Mixed Textile Cluster #REC-9821</Text>
+          <Text style={styles.batchTitle}>{categoryName} Cluster #REC-9821</Text>
 
           <View style={styles.pillsRow}>
             {/* Weight Pill */}
             <View style={styles.weightPill}>
               <Text style={styles.pillLabel}>WEIGHT</Text>
-              <Text style={styles.weightVal}>12.4 kg</Text>
+              <Text style={styles.weightVal}>{weightVal} kg</Text>
             </View>
 
             {/* Origin Pill */}
             <View style={styles.originPill}>
               <Text style={styles.pillLabelRed}>ORIGIN</Text>
-              <Text style={styles.originVal}>Sector B-4</Text>
+              <Text style={styles.originVal}>{originVal.trim()}</Text>
             </View>
           </View>
         </View>
@@ -112,7 +121,7 @@ export const QualityScreen = ({ navigation }: any) => {
         <View style={styles.actionBtnRow}>
           <TouchableOpacity
             style={styles.refuseBtn}
-            onPress={() => navigation.navigate('Collection')}
+            onPress={() => navigation.navigate('CollectorDashboard')}
             activeOpacity={0.8}
           >
             <Icon name="close-circle-outline" size={20} color="#DC2626" />
@@ -131,7 +140,29 @@ export const QualityScreen = ({ navigation }: any) => {
           </TouchableOpacity>
         </View>
       </ScrollView>
-    </View>
+
+      {/* Bottom Navigation Tab Bar */}
+      <View style={styles.bottomTabBar}>
+        <TouchableOpacity style={styles.tabItem} activeOpacity={0.7} onPress={() => navigation.navigate('CollectorDashboard')}>
+          <Icon name="truck" size={24} color="#475569" />
+          <Text style={styles.tabLabel}>Routes</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.tabItem} activeOpacity={0.7} onPress={() => navigation.navigate('PickupMap', { mode: 'collector' })}>
+          <Icon name="map-outline" size={24} color="#475569" />
+          <Text style={styles.tabLabel}>Map</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.tabItem} activeOpacity={0.7}>
+          <View style={styles.tabIconActiveBg}>
+            <Icon name="shield-check" size={24} color="#15A800" />
+          </View>
+          <Text style={styles.tabLabelActive}>Quality</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.tabItem} activeOpacity={0.7} onPress={() => navigation.navigate('CollectorProfile')}>
+          <Icon name="account-outline" size={24} color="#475569" />
+          <Text style={styles.tabLabel}>Profile</Text>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
   );
 };
 
@@ -335,6 +366,36 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '800',
     letterSpacing: 0.5,
+  },
+  bottomTabBar: {
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    justifyContent: 'space-between',
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+  },
+  tabItem: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  tabIconActiveBg: {
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 16,
+    paddingVertical: 4,
+    borderRadius: 20,
+  },
+  tabLabelActive: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  tabLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#475569',
   },
 });
 

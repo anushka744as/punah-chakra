@@ -17,6 +17,8 @@ import { Button } from '../components/Button';
 import { InputField } from '../components/InputField';
 
 import { signInUser } from '../services/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { USER_LOGGED_IN_KEY, LAST_ROLE_KEY } from '../navigation/AppNavigator';
 
 export const LoginScreen = ({ navigation }: any) => {
   const [email, setEmail] = useState('');
@@ -37,9 +39,13 @@ export const LoginScreen = ({ navigation }: any) => {
     try {
       const res = await signInUser(trimmedEmail, trimmedPassword);
       setLoading(false);
-      if ((res as any)?.profile?.role === 'collector') {
+      await AsyncStorage.setItem(USER_LOGGED_IN_KEY, 'true');
+      const role = (res as any)?.profile?.role;
+      if (role === 'collector') {
+        await AsyncStorage.setItem(LAST_ROLE_KEY, 'collector');
         navigation.replace('CollectorDashboard');
       } else {
+        await AsyncStorage.setItem(LAST_ROLE_KEY, 'donor');
         navigation.replace('MainTabs');
       }
     } catch (err: any) {
