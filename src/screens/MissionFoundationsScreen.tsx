@@ -1,11 +1,22 @@
 import React from 'react';
 import { View, Text, StyleSheet, SafeAreaView, ScrollView } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { theme } from '../theme/theme';
 import { Button } from '../components/Button';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { MissionHeader } from '../components/MissionHeader';
+import { ONBOARDING_COMPLETE_KEY } from '../navigation/AppNavigator';
 
 export const MissionFoundationsScreen = ({ navigation }: any) => {
+  const completeOnboarding = async (targetScreen: string) => {
+    try {
+      await AsyncStorage.setItem(ONBOARDING_COMPLETE_KEY, 'true');
+    } catch (e) {
+      console.warn('Failed to save onboarding completion state', e);
+    }
+    navigation.navigate(targetScreen);
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <MissionHeader />
@@ -45,9 +56,6 @@ export const MissionFoundationsScreen = ({ navigation }: any) => {
           </View>
           <Text style={styles.logoTextMain}>PunahChakra</Text>
           <Text style={styles.logoTextSub}>A Community Platform{'\n'}for Reuse, Redistribution, and Impact</Text>
-          <View style={styles.estBadge}>
-            <Text style={styles.estText}>EST. 2024</Text>
-          </View>
         </View>
       </ScrollView>
 
@@ -56,13 +64,13 @@ export const MissionFoundationsScreen = ({ navigation }: any) => {
           title="Skip"
           variant="outlined"
           style={styles.flex1}
-          onPress={() => navigation.navigate('MissionDeployment')} 
+          onPress={() => completeOnboarding('Landing')} 
         />
         <View style={{ width: theme.spacing.md }} />
         <Button 
-          title="Next →"
+          title="Next"
           style={styles.flex1}
-          onPress={() => navigation.navigate('MissionLogistics')} 
+          onPress={() => navigation.navigate('MissionCorePillars')} 
         />
       </View>
     </SafeAreaView>
@@ -141,7 +149,7 @@ const styles = StyleSheet.create({
     height: 80,
     borderRadius: 40,
     borderWidth: 3,
-    borderColor: '#3B82F6', // Blue color from logo
+    borderColor: '#3B82F6',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: theme.spacing.md,
@@ -153,7 +161,7 @@ const styles = StyleSheet.create({
   },
   logoTextMain: {
     fontSize: 24,
-    color: '#3B82F6', // Blue color from logo
+    color: '#3B82F6',
     fontWeight: 'bold',
   },
   logoTextSub: {

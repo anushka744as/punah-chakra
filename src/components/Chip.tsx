@@ -38,7 +38,7 @@ const styles = StyleSheet.create({
     paddingVertical: theme.spacing.xs,
     paddingHorizontal: theme.spacing.sm,
     backgroundColor: theme.colors.surfaceVariant, // Default slate background
-    borderRadius: theme.radius, // 0px
+    borderRadius: theme.radius.sm,
     alignSelf: 'flex-start',
   },
   collectedChip: {

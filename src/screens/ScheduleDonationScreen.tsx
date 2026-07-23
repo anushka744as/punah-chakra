@@ -1,12 +1,65 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity } from 'react-native';
+import { Alert, TextInput, View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { theme } from '../theme/theme';
 import { Button } from '../components/Button';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { supabase, createDonationRequest } from '../services/api';
 
 export const ScheduleDonationScreen = ({ navigation }: any) => {
   const [selectedType, setSelectedType] = useState('CLOTHES');
-  const [selectedDate, setSelectedDate] = useState('13');
+  const [selectedDate, setSelectedDate] = useState(0);
+  const [selectedWindow, setSelectedWindow] = useState('Morning');
+  const [address, setAddress] = useState('');
+  const [notes, setNotes] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const dateOptions = Array.from({ length: 4 }).map((_, index) => {
+    const value = new Date();
+    value.setDate(value.getDate() + index + 1);
+
+    return {
+      day: new Intl.DateTimeFormat('en-IN', { weekday: 'short' }).format(value),
+      date: new Intl.DateTimeFormat('en-IN', { day: '2-digit' }).format(value),
+      label: new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium' }).format(value),
+    };
+  });
+
+  const confirmRequest = async () => {
+    if (submitting) return;
+    const trimmedAddress = address.trim();
+
+    if (!trimmedAddress) {
+      Alert.alert('Pickup address required', 'Add the collection address before confirming the request.');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setSubmitting(false);
+        Alert.alert('Sign In Required', 'Please sign in to schedule a donation pickup.');
+        navigation.navigate('Login');
+        return;
+      }
+
+      await createDonationRequest({
+        category: selectedType,
+        pickup_day: dateOptions[selectedDate].label,
+        time_slot: selectedWindow,
+        address: trimmedAddress,
+        instructions: notes.trim(),
+        weight_kg: 5.0,
+      }, user.id);
+
+      setSubmitting(false);
+      Alert.alert('Pickup Scheduled', 'Your donation request has been successfully created!');
+      navigation.navigate('Home');
+    } catch (err: any) {
+      setSubmitting(false);
+      Alert.alert('Error Scheduling Pickup', err?.message || 'Could not create donation request.');
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -21,17 +74,6 @@ export const ScheduleDonationScreen = ({ navigation }: any) => {
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
-        {/* Hero Card */}
-        <View style={styles.heroCard}>
-          <View style={styles.heroCircle}>
-            <Text style={styles.heroHindiLogo}>पुनः</Text>
-          </View>
-          <View style={styles.saveBox}>
-            <Text style={styles.saveText}>SAVE</Text>
-            <Text style={styles.saveNumber}>68K</Text>
-          </View>
-        </View>
-
         <Text style={styles.sectionTitle}>Detail your items for the next pickup</Text>
 
         {/* Item Types Grid */}
@@ -72,39 +114,71 @@ export const ScheduleDonationScreen = ({ navigation }: any) => {
 
         {/* Collection Window */}
         <Text style={styles.label}>COLLECTION WINDOW</Text>
-        <TouchableOpacity style={styles.dropdown}>
-          <Text style={styles.dropdownText}>Morning</Text>
-          <Icon name="chevron-down" size={24} color={theme.colors.textSecondary} />
-        </TouchableOpacity>
-
-        {/* Date Selector */}
-        <Text style={styles.label}>SELECT DATE</Text>
-        <View style={styles.dateSelector}>
-          {[
-            { day: 'Thu', date: '13' },
-            { day: 'Fri', date: '14' },
-            { day: 'Sat', date: '15' },
-            { day: 'Sun', date: '16' }
-          ].map((item) => (
-            <TouchableOpacity 
-              key={item.date} 
-              style={[styles.dateItem, selectedDate === item.date && styles.dateItemSelected]}
-              onPress={() => setSelectedDate(item.date)}
+        <View style={styles.windowRow}>
+          {['Morning', 'Afternoon', 'Evening'].map(item => (
+            <TouchableOpacity
+              key={item}
+              style={[styles.windowOption, selectedWindow === item && styles.windowOptionSelected]}
+              onPress={() => setSelectedWindow(item)}
             >
-              <Text style={[styles.dateDay, selectedDate === item.date && styles.dateTextSelected]}>{item.day}</Text>
-              <Text style={[styles.dateNumber, selectedDate === item.date && styles.dateTextSelected]}>{item.date}</Text>
+              <Text style={[styles.windowText, selectedWindow === item && styles.windowTextSelected]}>{item}</Text>
             </TouchableOpacity>
           ))}
         </View>
 
+        {/* Date Selector */}
+        <Text style={styles.label}>SELECT DATE</Text>
+        <View style={styles.dateSelector}>
+          {dateOptions.map((item, index) => (
+            <TouchableOpacity 
+              key={item.label} 
+              style={[styles.dateItem, selectedDate === index && styles.dateItemSelected]}
+              onPress={() => setSelectedDate(index)}
+            >
+              <Text style={[styles.dateDay, selectedDate === index && styles.dateTextSelected]}>{item.day}</Text>
+              <Text style={[styles.dateNumber, selectedDate === index && styles.dateTextSelected]}>{item.date}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <Text style={styles.label}>PICKUP ADDRESS</Text>
+        <TextInput
+          style={styles.textInput}
+          value={address}
+          onChangeText={setAddress}
+          placeholder="Enter collection address"
+          placeholderTextColor={theme.colors.textSecondary}
+          multiline
+        />
+
+        <Text style={styles.label}>NOTES</Text>
+        <TextInput
+          style={[styles.textInput, styles.notesInput]}
+          value={notes}
+          onChangeText={setNotes}
+          placeholder="Optional pickup notes"
+          placeholderTextColor={theme.colors.textSecondary}
+          multiline
+        />
+
         <Button 
           title="CONFIRM REQUEST"
           style={styles.confirmBtn}
-          onPress={() => navigation.navigate('DonatorDashboard')}
+          onPress={confirmRequest}
         />
         
         <Text style={styles.footerNote}>COLLECTION HANDLED BY REGIONAL FLEET</Text>
       </ScrollView>
+
+      {submitting && (
+        <View style={styles.loadingOverlay}>
+          <View style={styles.loadingCard}>
+            <ActivityIndicator size="large" color={theme.colors.primary} />
+            <Text style={styles.loadingTitle}>Scheduling Pickup...</Text>
+            <Text style={styles.loadingSub}>Saving donation request to Supabase</Text>
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 };
@@ -139,46 +213,6 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: theme.spacing.xl,
-  },
-  heroCard: {
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    padding: theme.spacing.lg,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: theme.spacing.xl,
-  },
-  heroCircle: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    borderWidth: 2,
-    borderColor: theme.colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: theme.spacing.xl,
-  },
-  heroHindiLogo: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: theme.colors.primary,
-  },
-  saveBox: {
-    backgroundColor: theme.colors.primaryDark,
-    padding: theme.spacing.lg,
-    alignItems: 'center',
-  },
-  saveText: {
-    fontSize: 10,
-    color: theme.colors.textInverse,
-    fontWeight: 'bold',
-  },
-  saveNumber: {
-    fontSize: 24,
-    color: theme.colors.textInverse,
-    fontWeight: 'bold',
   },
   sectionTitle: {
     ...theme.typography.body,
@@ -219,18 +253,30 @@ const styles = StyleSheet.create({
   gridItemTextSelected: {
     color: theme.colors.primary,
   },
-  dropdown: {
+  windowRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    padding: theme.spacing.md,
     marginBottom: theme.spacing.xl,
+  },
+  windowOption: {
+    alignItems: 'center',
+    borderColor: theme.colors.border,
+    borderWidth: 1,
+    flex: 1,
+    marginRight: theme.spacing.sm,
+    paddingVertical: theme.spacing.md,
     borderRadius: 2,
   },
-  dropdownText: {
-    ...theme.typography.body,
+  windowOptionSelected: {
+    backgroundColor: theme.colors.primary,
+    borderColor: theme.colors.primary,
+  },
+  windowText: {
+    color: theme.colors.textSecondary,
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  windowTextSelected: {
+    color: theme.colors.textInverse,
   },
   dateSelector: {
     flexDirection: 'row',
@@ -262,6 +308,18 @@ const styles = StyleSheet.create({
   dateTextSelected: {
     color: theme.colors.textInverse,
   },
+  textInput: {
+    ...theme.typography.body,
+    borderColor: theme.colors.border,
+    borderWidth: 1,
+    marginBottom: theme.spacing.xl,
+    minHeight: 52,
+    padding: theme.spacing.md,
+    textAlignVertical: 'top',
+  },
+  notesInput: {
+    minHeight: 88,
+  },
   confirmBtn: {
     marginTop: theme.spacing.md,
     marginBottom: theme.spacing.lg,
@@ -271,5 +329,40 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: theme.colors.textSecondary,
     letterSpacing: 1,
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 9999,
+  },
+  loadingCard: {
+    width: '80%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 28,
+    alignItems: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 12,
+  },
+  loadingTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: theme.colors.text,
+    marginTop: 16,
+    marginBottom: 4,
+  },
+  loadingSub: {
+    fontSize: 13,
+    color: theme.colors.textSecondary,
+    textAlign: 'center',
   },
 });

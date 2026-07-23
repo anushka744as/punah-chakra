@@ -11,16 +11,14 @@ export const MissionHeader: React.FC<MissionHeaderProps> = ({ rightElement }) =>
   return (
     <View style={styles.header}>
       <View style={styles.logoContainer}>
-        <Icon name="recycle" size={20} color={theme.colors.textInverse} />
+        <Image
+          source={require('../assets/logo_icon.png')}
+          style={styles.logoImage}
+          resizeMode="contain"
+        />
         <Text style={styles.headerTitle}>PunahChakra</Text>
       </View>
-      {rightElement ? (
-        rightElement
-      ) : (
-        <View style={styles.avatarPlaceholder}>
-          <Icon name="account" size={20} color={theme.colors.textInverse} />
-        </View>
-      )}
+      {rightElement ? rightElement : null}
     </View>
   );
 };
@@ -36,6 +34,13 @@ const styles = StyleSheet.create({
   logoContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
+  },
+  logoImage: {
+    width: 32,
+    height: 32,
+    borderRadius: 6,
+    backgroundColor: '#FFFFFF',
   },
   headerTitle: {
     ...theme.typography.label,

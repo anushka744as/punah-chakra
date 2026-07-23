@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, ImageBackground } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, ScrollView } from 'react-native';
 import { theme } from '../theme/theme';
 import { Button } from '../components/Button';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -112,7 +112,7 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.surfaceVariant,
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: theme.radius, // 0px
+    borderRadius: theme.radius.md,
     marginRight: theme.spacing.md,
   },
   missionTextContainer: {

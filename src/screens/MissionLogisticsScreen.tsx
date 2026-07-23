@@ -23,8 +23,9 @@ export const MissionLogisticsScreen = ({ navigation }: any) => {
           We are engineering a new standard for surplus management through industrial precision and automated coordination.
         </Text>
 
-        <View style={styles.imagePlaceholder}>
-          <Text style={styles.imageOverlayText}>A New Standard for Surplus</Text>
+        <View style={styles.highlightBanner}>
+          <Icon name="shield-check" size={26} color="#15A800" />
+          <Text style={styles.highlightText}>A New Standard for Surplus</Text>
         </View>
 
         <View style={styles.chipsRow}>
@@ -48,35 +49,20 @@ export const MissionLogisticsScreen = ({ navigation }: any) => {
           </View>
         </View>
 
-        <Text style={styles.sectionTitle}>INFRASTRUCTURE CAPABILITY</Text>
-        <View style={styles.statsList}>
-          <View style={styles.statRow}>
-            <Text style={styles.statLabel}>Fleet Capacity</Text>
-            <Text style={styles.statValue}>14.2 Tons/Day</Text>
-          </View>
-          <View style={styles.statRow}>
-            <Text style={styles.statLabel}>Average Pickup Lead Time</Text>
-            <Text style={styles.statValue}>2.4 Hours</Text>
-          </View>
-          <View style={styles.statRowBorder}>
-            <Text style={styles.statLabel}>Logistics Efficiency Rating</Text>
-            <Text style={styles.statValueHighlight}>98.2%</Text>
-          </View>
-        </View>
       </ScrollView>
 
       <View style={styles.footerRow}>
         <Button 
-          title="← Back"
+          title="Back"
           variant="outlined"
           style={styles.flex1}
           onPress={() => navigation.goBack()} 
         />
         <View style={{ width: theme.spacing.md }} />
         <Button 
-          title="Next Pillar →"
+          title="Next: Deployment"
           style={styles.flex1}
-          onPress={() => navigation.navigate('MissionCorePillars')} 
+          onPress={() => navigation.navigate('MissionDeployment')} 
         />
       </View>
     </SafeAreaView>
@@ -117,17 +103,21 @@ const styles = StyleSheet.create({
     color: theme.colors.textSecondary,
     marginBottom: theme.spacing.xl,
   },
-  imagePlaceholder: {
-    height: 160,
-    backgroundColor: '#334155', // Slate 700
-    justifyContent: 'flex-end',
+  highlightBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
     padding: theme.spacing.md,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
     marginBottom: theme.spacing.xl,
+    gap: 10,
   },
-  imageOverlayText: {
-    ...theme.typography.label,
-    color: theme.colors.textInverse,
-    fontWeight: 'bold',
+  highlightText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#15A800',
   },
   chipsRow: {
     flexDirection: 'row',

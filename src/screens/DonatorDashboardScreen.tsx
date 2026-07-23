@@ -1,10 +1,17 @@
 import React from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, ScrollView } from 'react-native';
 import { theme } from '../theme/theme';
 import { Button } from '../components/Button';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { useAppData } from '../data/AppDataContext';
 
 export const DonatorDashboardScreen = ({ navigation }: any) => {
+  const { donations } = useAppData();
+  const latestDonation = donations[0];
+  const collectedCount = donations.filter(item => item.status === 'collected').length;
+  const totalKnownWeightKg = 0;
+  const impactPoints = collectedCount * 0;
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
@@ -21,13 +28,23 @@ export const DonatorDashboardScreen = ({ navigation }: any) => {
         <View style={styles.pickupCard}>
           <Icon name="truck" size={24} color={theme.colors.primaryDark} style={{ marginBottom: 8 }} />
           <Text style={styles.pickupLabel}>PICKUP STATUS</Text>
-          <Text style={styles.pickupTitle}>Scheduled for Tomorrow</Text>
-          <Text style={styles.pickupSubtitle}>Estimated window: 09:00 AM - 12:00 PM</Text>
+          <Text style={styles.pickupTitle}>
+            {latestDonation ? `${latestDonation.category} pickup scheduled` : 'No pickup scheduled'}
+          </Text>
+          <Text style={styles.pickupSubtitle}>
+            {latestDonation
+              ? `${latestDonation.pickup_day} · ${latestDonation.time_slot}`
+              : 'Schedule a new donation to create a pickup request.'}
+          </Text>
           <Button 
-            title="VIEW DETAILS" 
+            title={latestDonation ? 'VIEW PICKUP MAP' : 'VIEW DETAILS'} 
             style={styles.viewDetailsBtn} 
             textStyle={styles.viewDetailsBtnText}
-            onPress={() => {}}
+            onPress={() =>
+              latestDonation
+                ? navigation.navigate('PickupMap', { mode: 'donor', donationId: latestDonation.id })
+                : navigation.navigate('ProfileDetail', { type: 'history' })
+            }
           />
         </View>
 
@@ -39,85 +56,56 @@ export const DonatorDashboardScreen = ({ navigation }: any) => {
         />
 
         {/* Recent Contributions */}
-        <Text style={styles.sectionTitle}>RECENT CONTRIBUTIONS</Text>
-        <View style={styles.contributionList}>
-          <View style={styles.contributionItem}>
-            <View style={styles.contributionIcon}>
-              <Icon name="package-variant" size={24} color={theme.colors.primaryDark} />
-            </View>
-            <View style={styles.contributionDetails}>
-              <View style={styles.contributionHeader}>
-                <Text style={styles.contributionTitle}>Plastic & Paper</Text>
-                <View style={styles.badgeCollected}>
-                  <Text style={styles.badgeCollectedText}>COLLECTED</Text>
+        <Text style={styles.sectionTitle}>RECENT REQUESTS</Text>
+        {donations.length === 0 ? (
+          <View style={styles.emptyBox}>
+            <Icon name="package-variant-closed" size={24} color={theme.colors.textSecondary} />
+            <Text style={styles.emptyText}>No donation requests have been created yet.</Text>
+          </View>
+        ) : (
+          <View style={styles.contributionList}>
+            {donations.slice(0, 3).map(item => (
+              <View key={item.id} style={styles.contributionItem}>
+                <View style={styles.contributionIcon}>
+                  <Icon name="package-variant" size={24} color={theme.colors.primaryDark} />
+                </View>
+                <View style={styles.contributionDetails}>
+                  <View style={styles.contributionHeader}>
+                    <Text style={styles.contributionTitle}>{item.category}</Text>
+                    <View style={styles.badgeCollected}>
+                      <Text style={styles.badgeCollectedText}>{item.status.toUpperCase()}</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.contributionDate}>{item.pickup_day} · {item.time_slot}</Text>
+                  <Text style={styles.contributionPoints}>{item.address}</Text>
+                  <Button
+                    title="VIEW MAP"
+                    variant="outlined"
+                    style={styles.inlineMapButton}
+                    textStyle={styles.inlineMapButtonText}
+                    onPress={() => navigation.navigate('PickupMap', { mode: 'donor', donationId: item.id })}
+                  />
                 </View>
               </View>
-              <Text style={styles.contributionDate}>OCT 24, 2023 • 4.5 KG</Text>
-              <Text style={styles.contributionPoints}>+450 Points Earned</Text>
-            </View>
+            ))}
           </View>
-          
-          <View style={styles.contributionItem}>
-            <View style={[styles.contributionIcon, { backgroundColor: '#E0F2FE' }]}>
-              <Icon name="lightning-bolt" size={24} color="#0284C7" />
-            </View>
-            <View style={styles.contributionDetails}>
-              <View style={styles.contributionHeader}>
-                <Text style={styles.contributionTitle}>E-Waste Cluster</Text>
-                <View style={styles.badgeCollected}>
-                  <Text style={styles.badgeCollectedText}>COLLECTED</Text>
-                </View>
-              </View>
-              <Text style={styles.contributionDate}>OCT 18, 2023 • 12.0 KG</Text>
-              <Text style={styles.contributionPoints}>+1,200 Points Earned</Text>
-            </View>
-          </View>
-        </View>
+        )}
 
         {/* Total Impact Points */}
         <View style={styles.impactCard}>
           <Text style={styles.impactTitle}>TOTAL IMPACT POINTS</Text>
-          <Text style={styles.impactScore}>12,450</Text>
+          <Text style={styles.impactScore}>{impactPoints}</Text>
           <View style={styles.progressBarContainer}>
-            <View style={styles.progressBarFill} />
+            <View style={[styles.progressBarFill, { width: '0%' }]} />
           </View>
-          <Text style={styles.impactSubtitle}>Next Tier: Earth Warrior (750 points to go)</Text>
+          <Text style={styles.impactSubtitle}>Points appear after verified collections.</Text>
         </View>
 
         {/* CO2 Offset */}
         <View style={styles.co2Card}>
           <Icon name="pine-tree" size={32} color={theme.colors.primary} />
-          <Text style={styles.co2Score}>14.2 kg</Text>
+          <Text style={styles.co2Score}>{totalKnownWeightKg} kg</Text>
           <Text style={styles.co2Label}>CO2 OFFSET</Text>
-        </View>
-
-        {/* Your Local Contribution */}
-        <View style={styles.localCard}>
-          <Text style={styles.localTitle}>YOUR LOCAL CONTRIBUTION</Text>
-          <Text style={styles.localText}>
-            You are in the top 5% of recyclers in your metropolitan area. Your efforts have directly contributed to the restoration of the Evergreen Park project.
-          </Text>
-          
-          <View style={styles.localStatsRow}>
-            <View style={styles.localStatBox}>
-              <Text style={styles.localStatValue}>12</Text>
-              <Text style={styles.localStatLabel}>COLLECTIONS</Text>
-            </View>
-            <View style={styles.localStatBox}>
-              <Text style={styles.localStatValue}>03</Text>
-              <Text style={styles.localStatLabel}>BADGES</Text>
-            </View>
-          </View>
-          
-          <View style={styles.mapPlaceholder}>
-            <View style={styles.mapOverlay}>
-              <Button 
-                title="VIEW IMPACT MAP" 
-                style={styles.mapButton} 
-                textStyle={styles.mapButtonText}
-              />
-            </View>
-          </View>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -161,7 +149,7 @@ const styles = StyleSheet.create({
     padding: theme.spacing.lg,
     alignItems: 'center',
     marginBottom: theme.spacing.md,
-    borderRadius: theme.radius,
+    borderRadius: theme.radius.md,
   },
   pickupLabel: {
     fontSize: 10,
@@ -205,6 +193,18 @@ const styles = StyleSheet.create({
   contributionList: {
     marginBottom: theme.spacing.xl,
   },
+  emptyBox: {
+    alignItems: 'center',
+    borderColor: theme.colors.border,
+    borderWidth: 1,
+    marginBottom: theme.spacing.xl,
+    padding: theme.spacing.lg,
+  },
+  emptyText: {
+    ...theme.typography.bodySmall,
+    marginTop: theme.spacing.sm,
+    textAlign: 'center',
+  },
   contributionItem: {
     flexDirection: 'row',
     paddingVertical: theme.spacing.md,
@@ -218,7 +218,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: theme.spacing.md,
-    borderRadius: theme.radius,
+    borderRadius: theme.radius.md,
   },
   contributionDetails: {
     flex: 1,
@@ -254,6 +254,17 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: 'bold',
     color: theme.colors.primary,
+  },
+  inlineMapButton: {
+    alignSelf: 'flex-start',
+    borderColor: theme.colors.primary,
+    marginTop: theme.spacing.sm,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  inlineMapButtonText: {
+    color: theme.colors.primary,
+    fontSize: 10,
   },
   impactCard: {
     backgroundColor: theme.colors.primaryDark,
@@ -303,66 +314,5 @@ const styles = StyleSheet.create({
   co2Label: {
     fontSize: 10,
     color: theme.colors.textSecondary,
-  },
-  localCard: {
-    backgroundColor: '#0F172A', // Slate 900
-    padding: theme.spacing.lg,
-    marginBottom: theme.spacing.xl,
-  },
-  localTitle: {
-    fontSize: 10,
-    color: theme.colors.textInverse,
-    letterSpacing: 1,
-    fontWeight: 'bold',
-    marginBottom: theme.spacing.sm,
-  },
-  localText: {
-    fontSize: 12,
-    color: theme.colors.textInverse,
-    opacity: 0.8,
-    lineHeight: 18,
-    marginBottom: theme.spacing.md,
-  },
-  localStatsRow: {
-    flexDirection: 'row',
-    marginBottom: theme.spacing.md,
-  },
-  localStatBox: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
-    padding: theme.spacing.sm,
-    marginRight: theme.spacing.sm,
-  },
-  localStatValue: {
-    color: theme.colors.primaryLight,
-    fontWeight: 'bold',
-    fontSize: 16,
-  },
-  localStatLabel: {
-    fontSize: 8,
-    color: theme.colors.textInverse,
-    opacity: 0.8,
-  },
-  mapPlaceholder: {
-    height: 120,
-    backgroundColor: '#334155', // Slate 700
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  mapOverlay: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  mapButton: {
-    backgroundColor: theme.colors.primaryDark,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-  },
-  mapButtonText: {
-    fontSize: 10,
   },
 });

@@ -1,93 +1,141 @@
-import React from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  SafeAreaView,
+  TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
+  Image,
+  Alert,
+} from 'react-native';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { theme } from '../theme/theme';
 import { Button } from '../components/Button';
 import { InputField } from '../components/InputField';
-import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+
+import { signInUser } from '../services/api';
 
 export const LoginScreen = ({ navigation }: any) => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [secureText, setSecureText] = useState(true);
+
+  const handleLogin = async () => {
+    const trimmedEmail = email.trim();
+    const trimmedPassword = password.trim();
+
+    if (!trimmedEmail || !trimmedPassword) {
+      Alert.alert('Sign In Required', 'Please enter both your email address and password.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await signInUser(trimmedEmail, trimmedPassword);
+      setLoading(false);
+      if ((res as any)?.profile?.role === 'collector') {
+        navigation.replace('CollectorDashboard');
+      } else {
+        navigation.replace('MainTabs');
+      }
+    } catch (err: any) {
+      setLoading(false);
+      Alert.alert('Sign In Error', err?.message || 'Invalid email or password. Please try again.');
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
-        {/* Header Logo */}
-        <View style={styles.headerLogo}>
-          <Icon name="recycle" size={20} color={theme.colors.primary} />
-          <Text style={styles.logoText}>PUNAHCHAKRA</Text>
-        </View>
-
-        {/* Title Section */}
-        <View style={styles.titleSection}>
-          <Text style={styles.title}>Sign In</Text>
-          <Text style={styles.subtitle}>Enter your credentials to access the logistics dashboard.</Text>
-        </View>
-
-        {/* Form */}
-        <View style={styles.formSection}>
-          <InputField 
-            label="EMAIL ADDRESS"
-            placeholder="name@company.com"
-            keyboardType="email-address"
-            autoCapitalize="none"
-          />
-          
-          <View style={styles.passwordHeader}>
-            <Text style={styles.label}>PASSWORD</Text>
-            <TouchableOpacity>
-              <Text style={styles.forgotText}>FORGOT PASSWORD?</Text>
-            </TouchableOpacity>
-          </View>
-          
-          <View style={styles.passwordInputContainer}>
-            <InputField 
-              placeholder="••••••••"
-              secureTextEntry
-              containerStyle={{ marginBottom: 0 }}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+      >
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          {/* Header Banner */}
+          <View style={styles.topBanner}>
+            <Image
+              source={require('../assets/logo_icon.png')}
+              style={styles.logoIconImg}
+              resizeMode="contain"
             />
-            <Icon name="eye-outline" size={20} color={theme.colors.textSecondary} style={styles.eyeIcon} />
+            <Text style={styles.bannerTitle}>Sign In</Text>
+            <Text style={styles.bannerSubtitle}>
+              Enter your credentials to access the logistics dashboard.
+            </Text>
           </View>
 
-          <Button 
-            title="SIGN IN →"
-            style={styles.signInButton}
-            onPress={() => navigation.navigate('Welcome')}
-          />
-        </View>
+          {/* Form */}
+          <View style={styles.formContainer}>
+            <InputField
+              label="EMAIL ADDRESS"
+              placeholder="name@company.com"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
 
-        {/* Register Link */}
-        <View style={styles.registerContainer}>
-          <Text style={styles.registerText}>New to the platform? </Text>
-          <TouchableOpacity onPress={() => navigation.navigate('SignUp')}>
-            <Text style={styles.registerLink}>CREATE AN ACCOUNT</Text>
-          </TouchableOpacity>
-        </View>
+            <View style={styles.passwordLabelRow}>
+              <Text style={styles.label}>PASSWORD</Text>
+              <TouchableOpacity onPress={() => navigation.navigate('ForgotPassword')}>
+                <Text style={styles.forgotText}>Forgot?</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.passwordInputContainer}>
+              <InputField
+                placeholder="••••••••"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={secureText}
+                containerStyle={{ marginBottom: 0, flex: 1 }}
+                rightIcon={
+                  <TouchableOpacity onPress={() => setSecureText(!secureText)}>
+                    <Icon name={secureText ? 'eye-outline' : 'eye-off-outline'} size={20} color="#6C7A71" />
+                  </TouchableOpacity>
+                }
+              />
+            </View>
 
-        <View style={styles.spacer} />
+            <Button
+              title="SIGN IN"
+              variant="primary"
+              size="lg"
+              loading={loading}
+              onPress={handleLogin}
+              style={styles.submitBtn}
+            />
 
-        {/* Footer Badges */}
-        <View style={styles.badgesContainer}>
-          <View style={styles.badge}>
-            <Icon name="shield-check-outline" size={24} color={theme.colors.textSecondary} />
-            <Text style={styles.badgeText}>SECURE</Text>
-          </View>
-          <View style={styles.badge}>
-            <Icon name="factory" size={24} color={theme.colors.textSecondary} />
-            <Text style={styles.badgeText}>INDUSTRIAL</Text>
-          </View>
-          <View style={styles.badge}>
-            <Icon name="domain" size={24} color={theme.colors.textSecondary} />
-            <Text style={styles.badgeText}>ENTERPRISE</Text>
-          </View>
-        </View>
+            <View style={styles.divider} />
 
-        {/* Footer Text */}
-        <View style={styles.footerTextContainer}>
-          <Text style={styles.copyrightText}>© 2024 RECYCLE PRO LOGISTICS CORP.</Text>
-          <View style={styles.footerLinks}>
-            <Text style={styles.footerLink}>PRIVACY POLICY</Text>
-            <Text style={styles.footerLink}>TERMS OF SERVICE</Text>
+            <View style={styles.footerRow}>
+              <Text style={styles.footerText}>New to the platform? </Text>
+              <TouchableOpacity onPress={() => navigation.navigate('SignUp')}>
+                <Text style={styles.signupText}>CREATE AN ACCOUNT</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Platform Badges */}
+            <View style={styles.badgesRow}>
+              <View style={styles.badgeItem}>
+                <Icon name="shield-check-outline" size={24} color="#475569" />
+                <Text style={styles.badgeLabel}>SECURE</Text>
+              </View>
+              <View style={styles.badgeItem}>
+                <Icon name="robot-industrial-outline" size={24} color="#475569" />
+                <Text style={styles.badgeLabel}>INDUSTRIAL</Text>
+              </View>
+              <View style={styles.badgeItem}>
+                <Icon name="factory" size={24} color="#475569" />
+                <Text style={styles.badgeLabel}>ENTERPRISE</Text>
+              </View>
+            </View>
           </View>
-        </View>
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
@@ -95,119 +143,102 @@ export const LoginScreen = ({ navigation }: any) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.background,
+    backgroundColor: '#FFFFFF',
   },
-  content: {
+  scrollContent: {
     flexGrow: 1,
-    padding: theme.spacing.xl,
   },
-  headerLogo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: theme.spacing.xl,
-    marginTop: theme.spacing.md,
+  topBanner: {
+    backgroundColor: '#15A800',
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    padding: 24,
+    paddingTop: 36,
   },
-  logoText: {
-    ...theme.typography.label,
-    color: theme.colors.primaryDark,
-    fontWeight: 'bold',
-    marginLeft: 8,
-    letterSpacing: 1,
+  logoIconImg: {
+    width: 52,
+    height: 52,
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    marginBottom: 16,
   },
-  titleSection: {
-    marginBottom: theme.spacing.xl,
-  },
-  title: {
-    ...theme.typography.h1,
-    marginBottom: theme.spacing.sm,
-  },
-  subtitle: {
-    ...theme.typography.body,
-    color: theme.colors.textSecondary,
-  },
-  formSection: {
-    marginBottom: theme.spacing.xl,
-  },
-  label: {
-    ...theme.typography.label,
-    fontSize: 12,
-    color: theme.colors.textSecondary,
-    marginBottom: theme.spacing.xs,
-    textTransform: 'uppercase',
-  },
-  passwordHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    marginBottom: theme.spacing.xs,
-  },
-  forgotText: {
-    fontSize: 10,
-    fontWeight: 'bold',
-    color: theme.colors.textSecondary,
-    marginBottom: theme.spacing.xs,
-  },
-  passwordInputContainer: {
-    position: 'relative',
-    marginBottom: theme.spacing.lg,
-  },
-  eyeIcon: {
-    position: 'absolute',
-    right: 16,
-    top: 14,
-  },
-  signInButton: {
-    marginTop: theme.spacing.md,
-  },
-  registerContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: theme.spacing.xl,
-  },
-  registerText: {
-    ...theme.typography.bodySmall,
-    color: theme.colors.textSecondary,
-  },
-  registerLink: {
-    ...theme.typography.bodySmall,
-    color: theme.colors.primaryDark,
-    fontWeight: 'bold',
-  },
-  spacer: {
-    flex: 1,
-  },
-  badgesContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginBottom: theme.spacing.xl,
-  },
-  badge: {
-    alignItems: 'center',
-    marginHorizontal: theme.spacing.md,
-  },
-  badgeText: {
-    fontSize: 8,
-    color: theme.colors.textSecondary,
-    marginTop: 4,
-    fontWeight: 'bold',
-    letterSpacing: 0.5,
-  },
-  footerTextContainer: {
-    alignItems: 'center',
-    marginBottom: theme.spacing.md,
-  },
-  copyrightText: {
-    fontSize: 10,
-    color: theme.colors.textSecondary,
+  bannerTitle: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#FFFFFF',
     marginBottom: 8,
   },
-  footerLinks: {
-    flexDirection: 'row',
+  bannerSubtitle: {
+    fontSize: 14,
+    color: '#D1FAE5',
+    lineHeight: 20,
   },
-  footerLink: {
+  formContainer: {
+    padding: 24,
+  },
+  passwordLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  label: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#334155',
+    letterSpacing: 0.5,
+  },
+  forgotText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#15A800',
+  },
+  passwordInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  submitBtn: {
+    backgroundColor: '#15A800',
+    borderRadius: 24,
+    height: 52,
+    marginTop: 8,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#E2E8F0',
+    marginVertical: 24,
+  },
+  footerRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 36,
+  },
+  footerText: {
+    fontSize: 13,
+    color: '#64748B',
+  },
+  signupText: {
+    fontSize: 13,
+    color: '#15A800',
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  badgesRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    paddingTop: 12,
+  },
+  badgeItem: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  badgeLabel: {
     fontSize: 10,
-    color: theme.colors.textSecondary,
-    marginHorizontal: 8,
+    fontWeight: '700',
+    color: '#64748B',
+    letterSpacing: 0.5,
   },
 });

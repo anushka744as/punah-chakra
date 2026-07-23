@@ -49,11 +49,14 @@ const styles = StyleSheet.create({
     padding: theme.spacing.xl,
   },
   imagePlaceholder: {
-    height: 200,
-    backgroundColor: theme.colors.surfaceVariant,
+    height: 160,
+    backgroundColor: '#ECFDF5',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: theme.spacing.xl,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
   },
   title: {
     ...theme.typography.h2,

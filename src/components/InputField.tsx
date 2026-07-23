@@ -2,13 +2,22 @@ import React, { useState } from 'react';
 import { View, TextInput, Text, StyleSheet, TextInputProps, ViewStyle } from 'react-native';
 import { theme } from '../theme/theme';
 
-interface InputFieldProps extends TextInputProps {
+export interface InputFieldProps extends TextInputProps {
   label?: string;
   error?: string;
+  rightIcon?: React.ReactNode;
+  leftIcon?: React.ReactNode;
   containerStyle?: ViewStyle;
 }
 
-export const InputField: React.FC<InputFieldProps> = ({ label, error, containerStyle, ...props }) => {
+export const InputField: React.FC<InputFieldProps> = ({
+  label,
+  error,
+  rightIcon,
+  leftIcon,
+  containerStyle,
+  ...props
+}) => {
   const [isFocused, setIsFocused] = useState(false);
 
   return (
@@ -21,6 +30,7 @@ export const InputField: React.FC<InputFieldProps> = ({ label, error, containerS
           error ? styles.inputContainerError : null,
         ]}
       >
+        {leftIcon && <View style={styles.iconLeft}>{leftIcon}</View>}
         <TextInput
           style={styles.input}
           placeholderTextColor={theme.colors.textSecondary}
@@ -28,6 +38,7 @@ export const InputField: React.FC<InputFieldProps> = ({ label, error, containerS
           onBlur={() => setIsFocused(false)}
           {...props}
         />
+        {rightIcon && <View style={styles.iconRight}>{rightIcon}</View>}
       </View>
       {error && <Text style={styles.errorText}>{error}</Text>}
     </View>
@@ -40,27 +51,38 @@ const styles = StyleSheet.create({
   },
   label: {
     ...theme.typography.label,
-    fontSize: 12,
-    color: theme.colors.textSecondary,
-    marginBottom: theme.spacing.xs,
-    textTransform: 'uppercase',
+    fontSize: 13,
+    color: theme.colors.text,
+    marginBottom: 6,
+    fontWeight: '600',
   },
   inputContainer: {
-    backgroundColor: theme.colors.background,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.surface,
     borderWidth: 1,
     borderColor: theme.colors.border,
-    borderRadius: theme.radius,
+    borderRadius: theme.radius.md,
+    paddingHorizontal: theme.spacing.md,
   },
   inputContainerFocused: {
     borderColor: theme.colors.primary,
+    borderWidth: 1.5,
   },
   inputContainerError: {
     borderColor: theme.colors.error,
   },
   input: {
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.md,
+    flex: 1,
+    paddingVertical: theme.spacing.md - 2,
     ...theme.typography.body,
+    fontSize: 15,
+  },
+  iconLeft: {
+    marginRight: theme.spacing.sm,
+  },
+  iconRight: {
+    marginLeft: theme.spacing.sm,
   },
   errorText: {
     ...theme.typography.bodySmall,

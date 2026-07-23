@@ -1,10 +1,15 @@
 import React from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity } from 'react-native';
 import { theme } from '../theme/theme';
 import { Button } from '../components/Button';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { useAppData } from '../data/AppDataContext';
 
 export const UserProfileScreen = ({ navigation }: any) => {
+  const { donations, profile } = useAppData();
+  const scheduledCount = donations.filter(item => item.status === 'scheduled').length;
+  const collectedCount = donations.filter(item => item.status === 'collected').length;
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
@@ -16,28 +21,28 @@ export const UserProfileScreen = ({ navigation }: any) => {
               <Icon name="account" size={40} color={theme.colors.textInverse} />
             </View>
           </View>
-          <Text style={styles.userName}>Marcus Thorne</Text>
-          <Text style={styles.userEmail}>marcus.thorne@company.com</Text>
+          <Text style={styles.userName}>{profile?.full_name || 'PunahChakra User'}</Text>
+          <Text style={styles.userEmail}>{profile?.email || 'No email added'}</Text>
           <Button 
             title="EDIT PROFILE" 
             variant="outlined"
             style={styles.editBtn}
             textStyle={styles.editBtnText}
-            onPress={() => {}}
+            onPress={() => navigation.navigate('ProfileDetail', { type: 'personal' })}
           />
         </View>
 
         {/* Points Card */}
         <View style={styles.pointsCard}>
           <Text style={styles.pointsLabel}>TOTAL IMPACT POINTS</Text>
-          <Text style={styles.pointsValue}>14,280 <Text style={styles.pointsUnit}>POINTS</Text></Text>
+          <Text style={styles.pointsValue}>0 <Text style={styles.pointsUnit}>POINTS</Text></Text>
           
           <View style={styles.statsRow}>
             <View style={styles.statBox}>
-              <Text style={styles.statValue}>642 kg</Text>
+              <Text style={styles.statValue}>{scheduledCount} scheduled</Text>
             </View>
             <View style={styles.statBox}>
-              <Text style={styles.statValue}>1.2 t</Text>
+              <Text style={styles.statValue}>{collectedCount} collected</Text>
             </View>
           </View>
         </View>
@@ -45,45 +50,46 @@ export const UserProfileScreen = ({ navigation }: any) => {
         {/* Recent Activity */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>RECENT ACTIVITY</Text>
-          <TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate('ProfileDetail', { type: 'history' })}>
             <Text style={styles.viewAll}>VIEW ALL</Text>
           </TouchableOpacity>
         </View>
 
-        <View style={styles.activityList}>
-          <View style={styles.activityItem}>
-            <View style={styles.activityIcon}>
-              <Icon name="package" size={24} color={theme.colors.primaryDark} />
-            </View>
-            <View style={styles.activityDetails}>
-              <Text style={styles.activityTitle}>Bulk Purchase of Recyclables</Text>
-              <Text style={styles.activityDate}>Yesterday</Text>
-            </View>
-            <Text style={styles.activityAmount}>+$4.20</Text>
+        {donations.length === 0 ? (
+          <View style={styles.emptyActivity}>
+            <Text style={styles.emptyActivityText}>No recent activity yet.</Text>
           </View>
-          
-          <View style={styles.activityItem}>
-            <View style={styles.activityIcon}>
-              <Icon name="factory" size={24} color={theme.colors.primaryDark} />
-            </View>
-            <View style={styles.activityDetails}>
-              <Text style={styles.activityTitle}>Industrial Scale...</Text>
-              <Text style={styles.activityDate}>Oct 24</Text>
-            </View>
-            <Text style={styles.activityAmount}>+$1.00</Text>
+        ) : (
+          <View style={styles.activityList}>
+            {donations.slice(0, 2).map(item => (
+              <View key={item.id} style={styles.activityItem}>
+                <View style={styles.activityIcon}>
+                  <Icon name="package" size={24} color={theme.colors.primaryDark} />
+                </View>
+                <View style={styles.activityDetails}>
+                  <Text style={styles.activityTitle}>{item.category}</Text>
+                  <Text style={styles.activityDate}>{item.pickup_day} · {item.time_slot}</Text>
+                </View>
+                <Text style={styles.activityAmount}>{item.status.toUpperCase()}</Text>
+              </View>
+            ))}
           </View>
-        </View>
+        )}
 
         {/* Account Settings */}
         <Text style={styles.sectionTitle}>ACCOUNT SETTINGS</Text>
         <View style={styles.settingsList}>
           {[
-            { icon: 'account-outline', label: 'Personal Information' },
-            { icon: 'history', label: 'Collection History' },
-            { icon: 'shield-check-outline', label: 'Privacy & Security' },
-            { icon: 'help-circle-outline', label: 'Help Center' }
+            { icon: 'account-outline', label: 'Personal Information', type: 'personal' },
+            { icon: 'history', label: 'Collection History', type: 'history' },
+            { icon: 'shield-check-outline', label: 'Privacy & Security', type: 'privacy' },
+            { icon: 'help-circle-outline', label: 'Help Center', type: 'help' }
           ].map((item, index) => (
-            <TouchableOpacity key={index} style={styles.settingsItem}>
+            <TouchableOpacity
+              key={index}
+              style={styles.settingsItem}
+              onPress={() => navigation.navigate('ProfileDetail', { type: item.type })}
+            >
               <Icon name={item.icon} size={24} color={theme.colors.textSecondary} />
               <Text style={styles.settingsLabel}>{item.label}</Text>
               <Icon name="chevron-right" size={24} color={theme.colors.textSecondary} />
@@ -157,7 +163,7 @@ const styles = StyleSheet.create({
     padding: theme.spacing.xl,
     alignItems: 'center',
     marginBottom: theme.spacing.xl,
-    borderRadius: theme.radius,
+    borderRadius: theme.radius.md,
   },
   pointsLabel: {
     fontSize: 10,
@@ -208,6 +214,15 @@ const styles = StyleSheet.create({
   activityList: {
     marginBottom: theme.spacing.xl,
   },
+  emptyActivity: {
+    borderColor: theme.colors.border,
+    borderWidth: 1,
+    marginBottom: theme.spacing.xl,
+    padding: theme.spacing.md,
+  },
+  emptyActivityText: {
+    ...theme.typography.bodySmall,
+  },
   activityItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -222,7 +237,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: theme.spacing.md,
-    borderRadius: theme.radius,
+    borderRadius: theme.radius.md,
   },
   activityDetails: {
     flex: 1,

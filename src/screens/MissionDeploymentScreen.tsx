@@ -1,10 +1,21 @@
 import React from 'react';
 import { View, Text, StyleSheet, SafeAreaView, ScrollView } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { theme } from '../theme/theme';
 import { Button } from '../components/Button';
 import { MissionHeader } from '../components/MissionHeader';
+import { ONBOARDING_COMPLETE_KEY } from '../navigation/AppNavigator';
 
 export const MissionDeploymentScreen = ({ navigation }: any) => {
+  const completeOnboardingAndNavigate = async (targetScreen: string) => {
+    try {
+      await AsyncStorage.setItem(ONBOARDING_COMPLETE_KEY, 'true');
+    } catch (e) {
+      console.warn('Failed to save onboarding completion state', e);
+    }
+    navigation.navigate(targetScreen);
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <MissionHeader />
@@ -25,15 +36,15 @@ export const MissionDeploymentScreen = ({ navigation }: any) => {
 
       <View style={styles.footerContainer}>
         <Button 
-          title="JOIN AS PROVIDER 🏢"
+          title="CREATE AN ACCOUNT"
           style={styles.primaryButton}
-          onPress={() => navigation.navigate('SignUp')} 
+          onPress={() => completeOnboardingAndNavigate('SignUp')} 
         />
         <Button 
-          title="JOIN AS RECYCLER ♻️"
+          title="I already have an account"
           style={styles.secondaryButton}
           textStyle={styles.secondaryButtonText}
-          onPress={() => navigation.navigate('SignUp')} 
+          onPress={() => completeOnboardingAndNavigate('Login')} 
         />
       </View>
     </SafeAreaView>
@@ -43,7 +54,7 @@ export const MissionDeploymentScreen = ({ navigation }: any) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F172A', // Slate 900
+    backgroundColor: '#0F172A',
   },
   content: {
     padding: theme.spacing.xl,
@@ -85,10 +96,9 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.md,
   },
   secondaryButton: {
-    backgroundColor: 'transparent',
     borderWidth: 1,
     borderColor: theme.colors.primaryDark,
-    backgroundColor: theme.colors.primaryDark, // It looks like dark green bg
+    backgroundColor: theme.colors.primaryDark,
   },
   secondaryButtonText: {
     color: theme.colors.textInverse,
