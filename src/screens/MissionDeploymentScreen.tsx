@@ -1,12 +1,14 @@
 import React from 'react';
 import { View, Text, StyleSheet, SafeAreaView, ScrollView } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '../theme/theme';
 import { Button } from '../components/Button';
 import { MissionHeader } from '../components/MissionHeader';
 import { ONBOARDING_COMPLETE_KEY } from '../navigation/AppNavigator';
 
 export const MissionDeploymentScreen = ({ navigation }: any) => {
+  const insets = useSafeAreaInsets();
   const completeOnboardingAndNavigate = async (targetScreen: string) => {
     try {
       await AsyncStorage.setItem(ONBOARDING_COMPLETE_KEY, 'true');
@@ -34,7 +36,7 @@ export const MissionDeploymentScreen = ({ navigation }: any) => {
         <View style={{ flex: 1 }} />
       </ScrollView>
 
-      <View style={styles.footerContainer}>
+      <View style={[styles.footerContainer, { paddingBottom: Math.max(insets.bottom, theme.spacing.xl) }]}>
         <Button 
           title="CREATE AN ACCOUNT"
           style={styles.primaryButton}

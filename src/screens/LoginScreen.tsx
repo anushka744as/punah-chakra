@@ -12,15 +12,16 @@ import {
   Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '../theme/theme';
 import { Button } from '../components/Button';
 import { InputField } from '../components/InputField';
-
 import { signInUser } from '../services/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { USER_LOGGED_IN_KEY, LAST_ROLE_KEY } from '../navigation/AppNavigator';
 
 export const LoginScreen = ({ navigation }: any) => {
+  const insets = useSafeAreaInsets();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -62,7 +63,7 @@ export const LoginScreen = ({ navigation }: any) => {
       >
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           {/* Header Banner */}
-          <View style={styles.topBanner}>
+          <View style={[styles.topBanner, { paddingTop: Math.max(insets.top, 24) }]}>
             <Image
               source={require('../assets/logo_icon.png')}
               style={styles.logoIconImg}
@@ -75,7 +76,7 @@ export const LoginScreen = ({ navigation }: any) => {
           </View>
 
           {/* Form */}
-          <View style={styles.formContainer}>
+          <View style={[styles.formContainer, { paddingBottom: Math.max(insets.bottom, 24) + 16 }]}>
             <InputField
               label="EMAIL ADDRESS"
               placeholder="name@company.com"

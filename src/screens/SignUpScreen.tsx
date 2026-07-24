@@ -8,17 +8,18 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '../theme/theme';
 import { Button } from '../components/Button';
 import { InputField } from '../components/InputField';
 import { Card } from '../components/Card';
-
 import { signUpUser } from '../services/api';
-import { Alert } from 'react-native';
 
 export const SignupScreen = ({ navigation }: any) => {
+  const insets = useSafeAreaInsets();
   const [role, setRole] = useState<'donor' | 'collector'>('donor');
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -71,7 +72,16 @@ export const SignupScreen = ({ navigation }: any) => {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
       >
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={[
+            styles.scrollContent,
+            {
+              paddingTop: Math.max(insets.top, theme.spacing.lg),
+              paddingBottom: Math.max(insets.bottom, theme.spacing.xl) + 16,
+            },
+          ]}
+          showsVerticalScrollIndicator={false}
+        >
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
             <Icon name="arrow-left" size={24} color={theme.colors.text} />
           </TouchableOpacity>

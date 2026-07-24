@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '../theme/theme';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
@@ -58,6 +59,7 @@ const ROLES: RoleOption[] = [
 ];
 
 export const RoleSelectionScreen = ({ navigation }: any) => {
+  const insets = useSafeAreaInsets();
   const [selectedRole, setSelectedRole] = useState('citizen');
 
   const handleConfirm = () => {
@@ -72,7 +74,16 @@ export const RoleSelectionScreen = ({ navigation }: any) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContent,
+          {
+            paddingTop: Math.max(insets.top, theme.spacing.lg),
+            paddingBottom: Math.max(insets.bottom, theme.spacing.xl) + 16,
+          },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Icon name="arrow-left" size={24} color={theme.colors.text} />
         </TouchableOpacity>

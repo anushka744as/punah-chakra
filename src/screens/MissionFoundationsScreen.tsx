@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, SafeAreaView, ScrollView } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '../theme/theme';
 import { Button } from '../components/Button';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -8,6 +9,7 @@ import { MissionHeader } from '../components/MissionHeader';
 import { ONBOARDING_COMPLETE_KEY } from '../navigation/AppNavigator';
 
 export const MissionFoundationsScreen = ({ navigation }: any) => {
+  const insets = useSafeAreaInsets();
   const completeOnboarding = async (targetScreen: string) => {
     try {
       await AsyncStorage.setItem(ONBOARDING_COMPLETE_KEY, 'true');
@@ -59,7 +61,7 @@ export const MissionFoundationsScreen = ({ navigation }: any) => {
         </View>
       </ScrollView>
 
-      <View style={styles.footerRow}>
+      <View style={[styles.footerRow, { paddingBottom: Math.max(insets.bottom, theme.spacing.md) }]}>
         <Button 
           title="Skip"
           variant="outlined"

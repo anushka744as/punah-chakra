@@ -1,11 +1,13 @@
 import React from 'react';
 import { View, Text, StyleSheet, SafeAreaView, ScrollView } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '../theme/theme';
 import { Button } from '../components/Button';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { MissionHeader } from '../components/MissionHeader';
 
 export const MissionLogisticsScreen = ({ navigation }: any) => {
+  const insets = useSafeAreaInsets();
   return (
     <SafeAreaView style={styles.container}>
       <MissionHeader />
@@ -51,7 +53,7 @@ export const MissionLogisticsScreen = ({ navigation }: any) => {
 
       </ScrollView>
 
-      <View style={styles.footerRow}>
+      <View style={[styles.footerRow, { paddingBottom: Math.max(insets.bottom, theme.spacing.md) }]}>
         <Button 
           title="Back"
           variant="outlined"

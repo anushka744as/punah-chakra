@@ -10,6 +10,7 @@ import {
   Image,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '../theme/theme';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
@@ -18,10 +19,20 @@ import { Badge } from '../components/Badge';
 const { width } = Dimensions.get('window');
 
 export const LandingScreen = ({ navigation }: any) => {
+  const insets = useSafeAreaInsets();
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={theme.colors.background} />
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContent,
+          {
+            paddingTop: Math.max(insets.top, theme.spacing.lg),
+            paddingBottom: Math.max(insets.bottom, theme.spacing.xl) + 16,
+          },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Header Branding */}
         <View style={styles.topHeader}>
           <View style={styles.logoRow}>

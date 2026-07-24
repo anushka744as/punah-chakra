@@ -1,13 +1,15 @@
 import React from 'react';
 import { View, Text, StyleSheet, SafeAreaView, ScrollView } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '../theme/theme';
 import { Button } from '../components/Button';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
 export const MissionOverviewScreen = ({ navigation }: any) => {
+  const insets = useSafeAreaInsets();
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: Math.max(insets.top, theme.spacing.md) }]}>
         <Icon name="arrow-left" size={24} color={theme.colors.textInverse} onPress={() => navigation.goBack()} />
         <Text style={styles.headerTitle}>Missions</Text>
         <View style={{ width: 24 }} />
@@ -53,7 +55,7 @@ export const MissionOverviewScreen = ({ navigation }: any) => {
         </View>
       </ScrollView>
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, theme.spacing.md) }]}>
         <Button 
           title="Start Learning"
           onPress={() => navigation.navigate('MissionPillars1')} // Proceed to next screen

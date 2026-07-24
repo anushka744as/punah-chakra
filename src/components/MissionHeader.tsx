@@ -2,14 +2,16 @@ import React from 'react';
 import { View, Text, StyleSheet, Image } from 'react-native';
 import { theme } from '../theme/theme';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface MissionHeaderProps {
   rightElement?: React.ReactNode;
 }
 
 export const MissionHeader: React.FC<MissionHeaderProps> = ({ rightElement }) => {
+  const insets = useSafeAreaInsets();
   return (
-    <View style={styles.header}>
+    <View style={[styles.header, { paddingTop: Math.max(insets.top, 14) }]}>
       <View style={styles.logoContainer}>
         <Image
           source={require('../assets/logo_icon.png')}
