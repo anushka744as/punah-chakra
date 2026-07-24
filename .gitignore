@@ -31,9 +31,11 @@ local.properties
 *.iml
 *.hprof
 .cxx/
-*.keystore
-!debug.keystore
 .kotlin/
+
+# Allow env & keystore files explicitly
+!*.keystore
+!.env*
 
 # node.js
 #
