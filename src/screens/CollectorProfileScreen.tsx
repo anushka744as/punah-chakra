@@ -22,11 +22,31 @@ import { useState, useMemo } from 'react';
 export const CollectorProfileScreen = ({ navigation }: any) => {
   const { profile, authUser, donations, signOut, refreshProfile } = useAppData();
   const [cachedCompleted, setCachedCompleted] = useState<any[]>([]);
+  const [dbProfileData, setDbProfileData] = useState<{ full_name?: string; email?: string } | null>(null);
+
+  const fetchDirectProfile = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data } = await supabase
+          .from('profiles')
+          .select('full_name, email')
+          .eq('id', user.id)
+          .single();
+
+        setDbProfileData({
+          full_name: data?.full_name || user.user_metadata?.full_name || user.email?.split('@')[0],
+          email: data?.email || user.email,
+        });
+      }
+    } catch {}
+  };
 
   useFocusEffect(
     useCallback(() => {
       refreshProfile();
       loadCachedCompleted();
+      fetchDirectProfile();
     }, [])
   );
 
@@ -39,8 +59,8 @@ export const CollectorProfileScreen = ({ navigation }: any) => {
     } catch {}
   };
 
-  const displayName = profile?.full_name || authUser?.full_name || (authUser?.email ? authUser.email.split('@')[0] : 'Collector');
-  const displayEmail = profile?.email || authUser?.email || '';
+  const displayName = dbProfileData?.full_name || profile?.full_name || authUser?.full_name || (authUser?.email ? authUser.email.split('@')[0] : 'Collector');
+  const displayEmail = dbProfileData?.email || profile?.email || authUser?.email || '';
 
   // Combine completed donations from Supabase with cached local completed pickups
   const completedDonations = useMemo(() => {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,69 +11,57 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { supabase, fetchUserProfile, updateUserProfile } from '../services/api';
-
 import { useAppData } from '../data/AppDataContext';
 
 export const PersonalSettingsScreen = ({ navigation }: any) => {
   const insets = useSafeAreaInsets();
   const { profile, authUser, refreshProfile, updateProfile } = useAppData();
 
-  const initialName = profile?.full_name || authUser?.full_name || 'Collector User';
-  const initialEmail = profile?.email || authUser?.email || 'collector@punahchakra.org';
-  const initialPhone = profile?.phone || '+91 98765 43210';
-  const initialAddress = profile?.address || 'House #194, Sector 15A, Noida, UP 201301';
-
-  const [fullName, setFullName] = useState(initialName);
-  const [email, setEmail] = useState(initialEmail);
-  const [phone, setPhone] = useState(initialPhone);
-  const [address, setAddress] = useState(initialAddress);
+  const [fullName, setFullName] = useState(profile?.full_name || authUser?.full_name || '');
+  const [email, setEmail] = useState(profile?.email || authUser?.email || '');
+  const [phone, setPhone] = useState(profile?.phone || '');
+  const [address, setAddress] = useState(profile?.address || '');
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    loadProfile();
-  }, []);
-
-  useEffect(() => {
-    if (profile) {
-      if (profile.full_name) setFullName(profile.full_name);
-      if (profile.email) setEmail(profile.email);
-      if (profile.phone) setPhone(profile.phone);
-      if (profile.address) setAddress(profile.address);
-    } else if (authUser) {
-      if (authUser.full_name) setFullName(authUser.full_name);
-      if (authUser.email) setEmail(authUser.email);
-    }
-  }, [profile, authUser]);
-
-  const loadProfile = async () => {
+  const loadProfile = useCallback(async () => {
     try {
-      const userId = authUser?.id;
-      if (userId) {
-        const p = await fetchUserProfile(userId);
-        if (p) {
-          if (p.full_name) setFullName(p.full_name);
-          if (p.email) setEmail(p.email);
-          if (p.phone) setPhone(p.phone);
-          if (p.address) setAddress(p.address);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: dbProfile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+
+        if (dbProfile) {
+          if (dbProfile.full_name) setFullName(dbProfile.full_name);
+          else if (user.user_metadata?.full_name) setFullName(user.user_metadata.full_name);
+
+          if (dbProfile.email) setEmail(dbProfile.email);
+          else if (user.email) setEmail(user.email);
+
+          if (dbProfile.phone) setPhone(dbProfile.phone);
+          if (dbProfile.address) setAddress(dbProfile.address);
+        } else {
+          if (user.user_metadata?.full_name) setFullName(user.user_metadata.full_name);
+          if (user.email) setEmail(user.email);
         }
-      } else {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          const p = await fetchUserProfile(user.id);
-          if (p) {
-            if (p.full_name) setFullName(p.full_name);
-            if (p.email) setEmail(p.email);
-            if (p.phone) setPhone(p.phone);
-            if (p.address) setAddress(p.address);
-          } else {
-            setEmail(user.email || '');
-            setFullName(user.user_metadata?.full_name || '');
-          }
-        }
+      } else if (profile) {
+        if (profile.full_name) setFullName(profile.full_name);
+        if (profile.email) setEmail(profile.email);
+        if (profile.phone) setPhone(profile.phone);
+        if (profile.address) setAddress(profile.address);
       }
     } catch { /* silent */ }
-  };
+  }, [profile]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadProfile();
+    }, [loadProfile])
+  );
 
   const handleProfileNav = () => {
     try {
@@ -84,17 +72,27 @@ export const PersonalSettingsScreen = ({ navigation }: any) => {
   };
 
   const handleSave = async () => {
-    const userId = authUser?.id || profile?.id;
     setSaving(true);
     try {
-      if (userId) {
-        await updateUserProfile(userId, {
+      const { data: { user } } = await supabase.auth.getUser();
+      const userId = user?.id || authUser?.id || profile?.id;
+      if (!userId) {
+        Alert.alert('Session Expired', 'Please sign in again.');
+        setSaving(false);
+        return;
+      }
+
+      await supabase
+        .from('profiles')
+        .upsert({
+          id: userId,
           full_name: fullName.trim(),
           email: email.trim(),
           phone: phone.trim(),
           address: address.trim(),
+          updated_at: new Date().toISOString(),
         });
-      }
+
       if (updateProfile) {
         await updateProfile({
           full_name: fullName.trim(),
