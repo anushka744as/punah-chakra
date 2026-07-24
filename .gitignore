@@ -32,6 +32,8 @@ local.properties
 *.hprof
 .cxx/
 .kotlin/
+*.apk
+*.aab
 
 # Allow env & keystore files explicitly
 !*.keystore
