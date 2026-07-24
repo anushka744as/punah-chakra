@@ -13,8 +13,73 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useAppData } from '../data/AppDataContext';
 import { supabase } from '../services/api';
 
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback } from 'react';
+
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useState, useMemo } from 'react';
+
 export const CollectorProfileScreen = ({ navigation }: any) => {
-  const { profile, authUser, signOut } = useAppData();
+  const { profile, authUser, donations, signOut, refreshProfile } = useAppData();
+  const [cachedCompleted, setCachedCompleted] = useState<any[]>([]);
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshProfile();
+      loadCachedCompleted();
+    }, [])
+  );
+
+  const loadCachedCompleted = async () => {
+    try {
+      const raw = await AsyncStorage.getItem('@completed_collector_pickups');
+      if (raw) {
+        setCachedCompleted(JSON.parse(raw));
+      }
+    } catch {}
+  };
+
+  const displayName = profile?.full_name || authUser?.full_name || (authUser?.email ? authUser.email.split('@')[0] : 'Collector');
+  const displayEmail = profile?.email || authUser?.email || '';
+
+  // Combine completed donations from Supabase with cached local completed pickups
+  const completedDonations = useMemo(() => {
+    const list: any[] = [];
+    const seen = new Set<string>();
+
+    donations
+      .filter(d => d.is_picked_up || d.status === 'completed')
+      .forEach(d => {
+        const key = d.id || d.request_id || '';
+        if (key && !seen.has(key)) {
+          seen.add(key);
+          list.push(d);
+        }
+      });
+
+    cachedCompleted.forEach(c => {
+      const key = c.id || c.request_id || '';
+      if (key && !seen.has(key)) {
+        seen.add(key);
+        list.push(c);
+      }
+    });
+
+    return list;
+  }, [donations, cachedCompleted]);
+
+  // Calculate stats from accepted/completed pickups
+  const totalKg = completedDonations.reduce((sum, d) => sum + Number(d.weight_kg || d.estimated_quantity_kg || 10), 0);
+  const computedPoints = completedDonations.reduce((sum, d) => sum + Number(d.points_awarded || Math.round((d.weight_kg || 10) * 20)), 0);
+  const computedCo2 = completedDonations.reduce((sum, d) => sum + Math.round(Number(d.weight_kg || 10) * 2.5 * 10) / 10, 0);
+
+  const totalPoints = Math.max(Number(profile?.points || 0), computedPoints);
+  const co2Offset = Math.max(Number(profile?.co2_offset_kg || 0), computedCo2);
+  const wasteDivertedText = totalKg >= 1000
+    ? `${(totalKg / 1000).toFixed(2)} t`
+    : totalKg > 0
+      ? `${totalKg.toFixed(1)} kg`
+      : '0.0 kg';
 
   const handleSignOut = async () => {
     Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
@@ -55,30 +120,25 @@ export const CollectorProfileScreen = ({ navigation }: any) => {
           <View style={styles.avatarCircle}>
             <Icon name="account-outline" size={42} color="#15A800" />
           </View>
-          <Text style={styles.userName}>{profile?.full_name || authUser?.full_name || 'Marcus Thorne'}</Text>
-          <Text style={styles.userEmail}>{profile?.email || authUser?.email || 'm.thorne@logistics-pro.com'}</Text>
-
-          <View style={styles.badgePill}>
-            <Icon name="check-decagram" size={14} color="#15A800" />
-            <Text style={styles.badgeText}>CERTIFIED CONTRIBUTOR</Text>
-          </View>
+          <Text style={styles.userName}>{displayName}</Text>
+          <Text style={styles.userEmail}>{displayEmail}</Text>
         </View>
 
         {/* Environmental Impact Card */}
         <View style={styles.impactCard}>
           <Text style={styles.impactTitle}>ENVIRONMENTAL IMPACT</Text>
-          <Text style={styles.impactPts}>{profile?.points ? profile.points.toLocaleString() : '14,280'} <Text style={styles.impactPtsSub}>PTS</Text></Text>
+          <Text style={styles.impactPts}>{totalPoints.toLocaleString()} <Text style={styles.impactPtsSub}>PTS</Text></Text>
 
           <View style={styles.divider} />
 
           <View style={styles.impactStatsRow}>
             <View style={styles.impactStat}>
               <Text style={styles.statLabel}>CO₂ OFFSET</Text>
-              <Text style={styles.statVal}>{profile?.co2_offset_kg || 842} kg</Text>
+              <Text style={styles.statVal}>{co2Offset} kg</Text>
             </View>
             <View style={styles.impactStat}>
               <Text style={styles.statLabel}>WASTE DIVERTED</Text>
-              <Text style={styles.statVal}>1.2 t</Text>
+              <Text style={styles.statVal}>{wasteDivertedText}</Text>
             </View>
           </View>
         </View>
@@ -87,27 +147,27 @@ export const CollectorProfileScreen = ({ navigation }: any) => {
         <View style={styles.sectionCard}>
           <Text style={styles.sectionHeader}>Recent activity</Text>
 
-          <View style={styles.activityItem}>
-            <View style={styles.activityIconBg}>
-              <Icon name="package-variant-closed" size={20} color="#15A800" />
+          {completedDonations.length === 0 ? (
+            <View style={styles.emptyActivityContainer}>
+              <Icon name="history" size={28} color="#94A3B8" />
+              <Text style={styles.emptyActivityText}>No completed pickup activity yet.</Text>
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.activityTitle}>Bulk Cardboard Collection</Text>
-              <Text style={styles.activitySub}>Mar 12, 2024 • Site B-12</Text>
-            </View>
-            <Text style={styles.activityPts}>+450 pts</Text>
-          </View>
-
-          <View style={styles.activityItemBordered}>
-            <View style={styles.activityIconBg}>
-              <Icon name="archive-outline" size={20} color="#15A800" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.activityTitle}>Industrial Scrap Metal</Text>
-              <Text style={styles.activitySub}>Mar 08, 2024 • Main Hub</Text>
-            </View>
-            <Text style={styles.activityPts}>+1,200 pts</Text>
-          </View>
+          ) : (
+            completedDonations.slice(0, 5).map((item, idx) => (
+              <View key={item.id || idx} style={idx === 0 ? styles.activityItem : styles.activityItemBordered}>
+                <View style={styles.activityIconBg}>
+                  <Icon name="package-variant-closed" size={20} color="#15A800" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.activityTitle}>{item.category || 'Recycling'} Pickup</Text>
+                  <Text style={styles.activitySub}>
+                    {item.pickup_day || 'Today'} • {item.address ? item.address.split(',')[0] : 'Noida'}
+                  </Text>
+                </View>
+                <Text style={styles.activityPts}>+{item.points_awarded || Math.round((item.weight_kg || 10) * 20)} pts</Text>
+              </View>
+            ))
+          )}
         </View>
 
         {/* Account Settings Section */}
@@ -345,6 +405,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '800',
     color: '#15A800',
+  },
+  emptyActivityContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 20,
+    gap: 6,
+  },
+  emptyActivityText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#94A3B8',
   },
   settingRow: {
     flexDirection: 'row',

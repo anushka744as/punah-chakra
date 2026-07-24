@@ -7,13 +7,16 @@ import {
   StatusBar,
   TouchableOpacity,
   Image,
+  Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fetchActivePickups, updatePickupStatus, type PickupJob } from '../services/api';
+import { useAppData } from '../data/AppDataContext';
 
 export const CollectionScreen = ({ navigation }: any) => {
   const insets = useSafeAreaInsets();
+  const { authUser, confirmPickup } = useAppData();
   const [pickups, setPickups] = useState<PickupJob[]>([]);
   const [totalWeight, setTotalWeight] = useState('0 kg');
 
@@ -35,12 +38,30 @@ export const CollectionScreen = ({ navigation }: any) => {
     }
   };
 
-  const handleConfirmPickup = async (pickup: PickupJob) => {
+  const handleConfirmPickup = (pickup: PickupJob) => {
+    Alert.alert(
+      'Confirm Pickup Assignment? 🚚',
+      'Only confirm if you want to pickup this donation. Please refuse it after confirming if you change your decision.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Confirm Pickup',
+          onPress: () => executeConfirmPickup(pickup),
+        },
+      ]
+    );
+  };
+
+  const executeConfirmPickup = async (pickup: PickupJob) => {
     try {
-      await updatePickupStatus(pickup.id, 'collected');
+      if (confirmPickup) {
+        await confirmPickup(pickup.id);
+      } else {
+        await updatePickupStatus(pickup.id, 'in_transit');
+      }
       await loadPickups();
     } catch { /* silent */ }
-    navigation.navigate('Confirmation');
+    navigation.navigate('PickupMap', { mode: 'collector', donationId: pickup.id });
   };
 
   return (

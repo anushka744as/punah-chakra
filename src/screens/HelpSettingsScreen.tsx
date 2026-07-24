@@ -7,6 +7,7 @@ import {
   SafeAreaView,
   StatusBar,
   TouchableOpacity,
+  Linking,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
@@ -43,6 +44,10 @@ export const HelpSettingsScreen = ({ navigation }: any) => {
     setExpandedIndex(expandedIndex === index ? null : index);
   };
 
+  const handleEmailSupport = () => {
+    Linking.openURL('mailto:info.punahchakra@gmail.com').catch(() => {});
+  };
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#15A800" />
@@ -66,17 +71,14 @@ export const HelpSettingsScreen = ({ navigation }: any) => {
           <Text style={styles.bannerTitle}>Need a hand?</Text>
           <Text style={styles.bannerSubtitle}>Search our FAQs or contact support directly.</Text>
 
-          <View style={styles.btnRow}>
-            <TouchableOpacity style={styles.chatBtn} activeOpacity={0.8}>
-              <Icon name="message-outline" size={18} color="#FFFFFF" />
-              <Text style={styles.chatBtnText}>Chat</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.emailBtn} activeOpacity={0.8}>
-              <Icon name="email-outline" size={18} color="#15A800" />
-              <Text style={styles.emailBtnText}>Email</Text>
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            style={styles.emailBtn}
+            onPress={handleEmailSupport}
+            activeOpacity={0.85}
+          >
+            <Icon name="email-outline" size={20} color="#15A800" />
+            <Text style={styles.emailBtnText}>Email Support (info.punahchakra@gmail.com)</Text>
+          </TouchableOpacity>
         </View>
 
         {/* FAQs */}

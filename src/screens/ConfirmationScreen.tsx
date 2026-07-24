@@ -12,7 +12,28 @@ import { Button } from '../components/Button';
 import { Card } from '../components/Card';
 import { Badge } from '../components/Badge';
 
-export const ConfirmationScreen = ({ navigation }: any) => {
+import { useAppData } from '../data/AppDataContext';
+
+export const ConfirmationScreen = ({ navigation, route }: any) => {
+  const { donations } = useAppData();
+
+  const donationId = route.params?.donationId;
+  const currentDonation = donations.find(d => d.id === donationId) || donations[0];
+
+  const requestId = currentDonation?.request_id || '#PC-88942';
+  const category = currentDonation?.category || 'Mixed Plastics & E-Waste';
+  const weight = (currentDonation?.weight_kg || currentDonation?.estimated_quantity_kg || 15) + ' kg';
+  const slot = (currentDonation?.pickup_day || 'Tomorrow') + ', ' + (currentDonation?.time_slot || '10:00 AM - 12:00 PM');
+  const points = '+' + (currentDonation?.points_awarded || 150) + ' PTS';
+
+  const handleReturnHome = () => {
+    try {
+      navigation.navigate('MainTabs', { screen: 'Home' });
+    } catch {
+      navigation.navigate('Home');
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -22,7 +43,7 @@ export const ConfirmationScreen = ({ navigation }: any) => {
 
         <Text style={styles.title}>Pickup Scheduled Successfully!</Text>
         <Text style={styles.subtitle}>
-          Request ID <Text style={styles.boldText}>#PC-88942</Text> has been dispatched to nearby logistics partners.
+          Request ID <Text style={styles.boldText}>{requestId}</Text> has been dispatched to nearby logistics partners.
         </Text>
 
         <Card variant="outlined" style={styles.receiptCard}>
@@ -33,43 +54,31 @@ export const ConfirmationScreen = ({ navigation }: any) => {
 
           <View style={styles.infoRow}>
             <Text style={styles.label}>Material Category</Text>
-            <Text style={styles.val}>Mixed Plastics & E-Waste</Text>
+            <Text style={styles.val}>{category}</Text>
           </View>
 
           <View style={styles.infoRow}>
             <Text style={styles.label}>Estimated Weight</Text>
-            <Text style={styles.val}>15 kg</Text>
+            <Text style={styles.val}>{weight}</Text>
           </View>
 
           <View style={styles.infoRow}>
             <Text style={styles.label}>Scheduled Slot</Text>
-            <Text style={styles.val}>Tomorrow, 10:00 AM - 12:00 PM</Text>
+            <Text style={styles.val}>{slot}</Text>
           </View>
 
           <View style={styles.infoRow}>
             <Text style={styles.label}>Estimated EcoPoints</Text>
-            <Text style={styles.valGreen}>+150 PTS</Text>
-          </View>
-
-          <View style={styles.qrPlaceholder}>
-            <Icon name="qrcode-scan" size={48} color={theme.colors.textSecondary} />
-            <Text style={styles.qrText}>Show QR code to driver during collection</Text>
+            <Text style={styles.valGreen}>{points}</Text>
           </View>
         </Card>
 
         <View style={styles.btnGroup}>
           <Button
-            title="Track Live Dispatch"
+            title="Return to Home"
             variant="primary"
             size="lg"
-            rightIcon={<Icon name="truck-fast" size={20} color="#FFF" />}
-            onPress={() => navigation.navigate('CollectorDashboard')}
-          />
-          <Button
-            title="Return to Home"
-            variant="outlined"
-            size="lg"
-            onPress={() => navigation.navigate('Home')}
+            onPress={handleReturnHome}
           />
         </View>
       </ScrollView>

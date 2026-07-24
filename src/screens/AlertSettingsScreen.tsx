@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -13,10 +13,31 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 export const AlertSettingsScreen = ({ navigation }: any) => {
   const insets = useSafeAreaInsets();
   const [pickupReminders, setPickupReminders] = useState(true);
   const [statusUpdates, setStatusUpdates] = useState(true);
+
+  useEffect(() => {
+    AsyncStorage.getItem('@alert_pickup_reminders').then(v => {
+      if (v !== null) setPickupReminders(v === 'true');
+    });
+    AsyncStorage.getItem('@alert_status_updates').then(v => {
+      if (v !== null) setStatusUpdates(v === 'true');
+    });
+  }, []);
+
+  const togglePickupReminders = async (val: boolean) => {
+    setPickupReminders(val);
+    await AsyncStorage.setItem('@alert_pickup_reminders', String(val));
+  };
+
+  const toggleStatusUpdates = async (val: boolean) => {
+    setStatusUpdates(val);
+    await AsyncStorage.setItem('@alert_status_updates', String(val));
+  };
 
   const handleProfileNav = () => {
     try {
@@ -56,7 +77,7 @@ export const AlertSettingsScreen = ({ navigation }: any) => {
             </View>
             <Switch
               value={pickupReminders}
-              onValueChange={setPickupReminders}
+              onValueChange={togglePickupReminders}
               trackColor={{ false: '#CBD5E1', true: '#15A800' }}
               thumbColor="#FFFFFF"
             />
@@ -75,7 +96,7 @@ export const AlertSettingsScreen = ({ navigation }: any) => {
             </View>
             <Switch
               value={statusUpdates}
-              onValueChange={setStatusUpdates}
+              onValueChange={toggleStatusUpdates}
               trackColor={{ false: '#CBD5E1', true: '#15A800' }}
               thumbColor="#FFFFFF"
             />

@@ -21,6 +21,8 @@ import {
   fetchUserNotifications,
   createDonationRequest,
   updateUserProfile as apiUpdateProfile,
+  confirmPickupInSupabase,
+  refusePickupInSupabase,
   type UserProfile,
   type DonationItem,
   type PickupJob,
@@ -50,6 +52,8 @@ type AppState = {
   refreshProfile: () => Promise<void>;
   saveDonation: (d: Omit<DonationItem, 'id' | 'status' | 'points_awarded'>) => Promise<void>;
   updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
+  confirmPickup: (pickupId: string, requestId?: string) => Promise<void>;
+  refusePickup: (pickupId: string, requestId?: string) => Promise<void>;
 };
 
 const AppDataContext = createContext<AppState | undefined>(undefined);
@@ -103,7 +107,7 @@ export const AppDataProvider = ({ children }: { children: React.ReactNode }) => 
       const role: AppRole = (profileData?.role as AppRole) || 'donor';
 
       const [donationsData, pickupsData, notifData] = await Promise.all([
-        role === 'collector' ? fetchAllScheduledDonations() : fetchUserDonations(userId),
+        fetchAllScheduledDonations(),
         fetchActivePickups(),
         fetchUserNotifications(userId),
       ]);
@@ -167,6 +171,26 @@ export const AppDataProvider = ({ children }: { children: React.ReactNode }) => 
     [authUser]
   );
 
+  const confirmPickup = useCallback(
+    async (pickupId: string, requestId?: string) => {
+      if (!authUser) return;
+      await confirmPickupInSupabase(pickupId, authUser.id, requestId);
+      await refreshDonations();
+      await refreshPickups();
+    },
+    [authUser, refreshDonations, refreshPickups]
+  );
+
+  const refusePickup = useCallback(
+    async (pickupId: string, requestId?: string) => {
+      if (!authUser) return;
+      await refusePickupInSupabase(pickupId, authUser.id, requestId);
+      await refreshDonations();
+      await refreshPickups();
+    },
+    [authUser, refreshDonations, refreshPickups]
+  );
+
   return (
     <AppDataContext.Provider
       value={{
@@ -182,6 +206,8 @@ export const AppDataProvider = ({ children }: { children: React.ReactNode }) => 
         refreshProfile,
         saveDonation,
         updateProfile,
+        confirmPickup,
+        refusePickup,
       }}
     >
       {children}

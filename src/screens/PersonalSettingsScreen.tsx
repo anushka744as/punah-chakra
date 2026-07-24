@@ -13,30 +13,63 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase, fetchUserProfile, updateUserProfile } from '../services/api';
 
+import { useAppData } from '../data/AppDataContext';
+
 export const PersonalSettingsScreen = ({ navigation }: any) => {
   const insets = useSafeAreaInsets();
-  const [fullName, setFullName] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-  const [address, setAddress] = useState('');
+  const { profile, authUser, refreshProfile, updateProfile } = useAppData();
+
+  const initialName = profile?.full_name || authUser?.full_name || 'Collector User';
+  const initialEmail = profile?.email || authUser?.email || 'collector@punahchakra.org';
+  const initialPhone = profile?.phone || '+91 98765 43210';
+  const initialAddress = profile?.address || 'House #194, Sector 15A, Noida, UP 201301';
+
+  const [fullName, setFullName] = useState(initialName);
+  const [email, setEmail] = useState(initialEmail);
+  const [phone, setPhone] = useState(initialPhone);
+  const [address, setAddress] = useState(initialAddress);
   const [saving, setSaving] = useState(false);
-  const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
     loadProfile();
   }, []);
 
+  useEffect(() => {
+    if (profile) {
+      if (profile.full_name) setFullName(profile.full_name);
+      if (profile.email) setEmail(profile.email);
+      if (profile.phone) setPhone(profile.phone);
+      if (profile.address) setAddress(profile.address);
+    } else if (authUser) {
+      if (authUser.full_name) setFullName(authUser.full_name);
+      if (authUser.email) setEmail(authUser.email);
+    }
+  }, [profile, authUser]);
+
   const loadProfile = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        setUserId(user.id);
-        const profile = await fetchUserProfile(user.id);
-        if (profile) {
-          setFullName(profile.full_name || '');
-          setEmail(profile.email || '');
-          setPhone(profile.phone || '');
-          setAddress(profile.address || '');
+      const userId = authUser?.id;
+      if (userId) {
+        const p = await fetchUserProfile(userId);
+        if (p) {
+          if (p.full_name) setFullName(p.full_name);
+          if (p.email) setEmail(p.email);
+          if (p.phone) setPhone(p.phone);
+          if (p.address) setAddress(p.address);
+        }
+      } else {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const p = await fetchUserProfile(user.id);
+          if (p) {
+            if (p.full_name) setFullName(p.full_name);
+            if (p.email) setEmail(p.email);
+            if (p.phone) setPhone(p.phone);
+            if (p.address) setAddress(p.address);
+          } else {
+            setEmail(user.email || '');
+            setFullName(user.user_metadata?.full_name || '');
+          }
         }
       }
     } catch { /* silent */ }
@@ -51,15 +84,32 @@ export const PersonalSettingsScreen = ({ navigation }: any) => {
   };
 
   const handleSave = async () => {
-    if (!userId) { Alert.alert('Saved', 'Personal information saved successfully!'); return; }
+    const userId = authUser?.id || profile?.id;
     setSaving(true);
     try {
-      await updateUserProfile(userId, { full_name: fullName, phone, address });
+      if (userId) {
+        await updateUserProfile(userId, {
+          full_name: fullName.trim(),
+          email: email.trim(),
+          phone: phone.trim(),
+          address: address.trim(),
+        });
+      }
+      if (updateProfile) {
+        await updateProfile({
+          full_name: fullName.trim(),
+          email: email.trim(),
+          phone: phone.trim(),
+          address: address.trim(),
+        });
+      }
+      await refreshProfile();
       setSaving(false);
-      Alert.alert('Saved', 'Personal information saved successfully!');
-    } catch {
+      Alert.alert('Success 🎉', 'Personal information saved successfully in Supabase!');
+      navigation.goBack();
+    } catch (err: any) {
       setSaving(false);
-      Alert.alert('Saved', 'Personal information saved successfully!');
+      Alert.alert('Save Error', err?.message || 'Could not save profile details to Supabase.');
     }
   };
 

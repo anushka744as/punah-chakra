@@ -34,6 +34,13 @@ export interface UserProfile {
 export interface DonationItem {
   id: string;
   donor_id?: string;
+  collector_id?: string;
+  confirmed_by?: string;
+  confirmed_at?: string;
+  refused_by?: string;
+  refused_at?: string;
+  request_id?: string;
+  is_picked_up?: boolean;
   category: string;
   weight_kg: number;
   estimated_quantity_kg?: number;
@@ -48,6 +55,10 @@ export interface DonationItem {
 
 export interface PickupJob {
   id: string;
+  donation_id?: string;
+  collector_id?: string;
+  confirmed_by?: string;
+  refused_by?: string;
   donor_name: string;
   donor_phone: string;
   address: string;
@@ -202,12 +213,16 @@ export async function createDonationRequest(donation: Omit<DonationItem, 'id' | 
     donation.weight_kg || 1
   );
 
+  const generatedRequestId = `#PC-${Math.floor(10000 + Math.random() * 90000)}`;
+
   // 2. Insert into donations table in Supabase
   const { data, error } = await supabase
     .from('donations')
     .insert([
       {
         donor_id: donorId,
+        request_id: generatedRequestId,
+        is_picked_up: false,
         category: donation.category,
         weight_kg: donation.weight_kg || 1,
         estimated_quantity_kg: donation.weight_kg || 1,
@@ -333,6 +348,97 @@ export async function updatePickupStatus(pickupId: string, status: PickupJob['st
   } catch {}
 
   return data;
+}
+
+export async function confirmPickupInSupabase(pickupOrDonationId: string, userId: string, requestId?: string) {
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(pickupOrDonationId);
+  const now = new Date().toISOString();
+
+  // 1. Update donations table
+  try {
+    if (isUuid) {
+      await supabase
+        .from('donations')
+        .update({
+          confirmed_by: userId,
+          collector_id: userId,
+          confirmed_at: now,
+          status: 'in_transit',
+        })
+        .eq('id', pickupOrDonationId);
+    } else if (requestId) {
+      await supabase
+        .from('donations')
+        .update({
+          confirmed_by: userId,
+          collector_id: userId,
+          confirmed_at: now,
+          status: 'in_transit',
+        })
+        .eq('request_id', requestId);
+    }
+  } catch {}
+
+  // 2. Update pickups table
+  try {
+    if (isUuid) {
+      await supabase
+        .from('pickups')
+        .update({
+          collector_id: userId,
+          confirmed_by: userId,
+          status: 'in_transit',
+        })
+        .or(`id.eq.${pickupOrDonationId},donation_id.eq.${pickupOrDonationId}`);
+    }
+  } catch {}
+}
+
+export async function refusePickupInSupabase(pickupOrDonationId: string, userId: string, requestId?: string) {
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(pickupOrDonationId);
+  const now = new Date().toISOString();
+
+  // 1. Reset donations table status so any collector can confirm again
+  try {
+    if (isUuid) {
+      await supabase
+        .from('donations')
+        .update({
+          status: 'scheduled',
+          confirmed_by: null,
+          collector_id: null,
+          refused_by: userId,
+          refused_at: now,
+        })
+        .eq('id', pickupOrDonationId);
+    } else if (requestId) {
+      await supabase
+        .from('donations')
+        .update({
+          status: 'scheduled',
+          confirmed_by: null,
+          collector_id: null,
+          refused_by: userId,
+          refused_at: now,
+        })
+        .eq('request_id', requestId);
+    }
+  } catch {}
+
+  // 2. Reset pickups table status
+  try {
+    if (isUuid) {
+      await supabase
+        .from('pickups')
+        .update({
+          status: 'pending',
+          collector_id: null,
+          confirmed_by: null,
+          refused_by: userId,
+        })
+        .or(`id.eq.${pickupOrDonationId},donation_id.eq.${pickupOrDonationId}`);
+    }
+  } catch {}
 }
 
 // ---------------------------------------------------------------------------
