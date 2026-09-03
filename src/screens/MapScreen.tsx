@@ -19,7 +19,7 @@ const HUBS = [
     name: 'GreenLoop Processing Hub #04',
     address: 'Sector 18, Industrial Area',
     distance: '1.2 km away',
-    types: ['Plastics', 'E-Waste'],
+    types: ['Clothes', 'Shoes'],
     status: 'Open Today',
   },
   {
@@ -27,7 +27,7 @@ const HUBS = [
     name: 'EcoRecycle Material Depot',
     address: 'Plot 45, Tech Zone Phase 2',
     distance: '3.5 km away',
-    types: ['Metals', 'Glass', 'Paper'],
+    types: ['Blankets/Bedsheets', 'Bags'],
     status: 'Open Today',
   },
 ];

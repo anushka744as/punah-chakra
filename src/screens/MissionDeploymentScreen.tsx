@@ -24,20 +24,20 @@ export const MissionDeploymentScreen = ({ navigation }: any) => {
       
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.subtitleBox}>
-          <Text style={styles.subtitleText}>MISSION 04/04: DEPLOYMENT</Text>
+          <Text style={styles.subtitleText}>LET'S GET STARTED</Text>
         </View>
 
-        <Text style={styles.title}>Ready to Scale Your Impact?</Text>
+        <Text style={styles.title}>Ready to Give Your{'\n'}Donations a Second Life?</Text>
 
         <Text style={styles.bodyText}>
-          Join the industrial revolution in textile circularity. Harness our logistics network to transform waste into wealth at scale.
+          Join PunahChakra and get your donations to the right place — from your door to their need.
         </Text>
 
         <View style={{ flex: 1 }} />
       </ScrollView>
 
       <View style={[styles.footerContainer, { paddingBottom: Math.max(insets.bottom, theme.spacing.xl) }]}>
-        <Button 
+        <Button
           title="CREATE AN ACCOUNT"
           style={styles.primaryButton}
           onPress={() => completeOnboardingAndNavigate('SignUp')} 

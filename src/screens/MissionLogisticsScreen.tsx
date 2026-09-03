@@ -15,39 +15,39 @@ export const MissionLogisticsScreen = ({ navigation }: any) => {
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.subtitleContainer}>
           <View style={styles.line} />
-          <Text style={styles.subtitle}>MISSION STEP 03</Text>
+          <Text style={styles.subtitle}>STEP 3: REDISTRIBUTION</Text>
           <View style={styles.line} />
         </View>
 
-        <Text style={styles.title}>Seamless Logistics</Text>
+        <Text style={styles.title}>Giving Items a Second Life</Text>
 
         <Text style={styles.bodyText}>
-          We are engineering a new standard for surplus management through industrial precision and automated coordination.
+          Once sorted, your donations are redirected to charities and thrift channels — so they reach someone who needs them instead of a landfill.
         </Text>
 
         <View style={styles.highlightBanner}>
-          <Icon name="shield-check" size={26} color="#15A800" />
-          <Text style={styles.highlightText}>A New Standard for Surplus</Text>
+          <Icon name="shield-check" size={26} color={theme.colors.primary} />
+          <Text style={styles.highlightText}>Nothing Goes to Waste</Text>
         </View>
 
         <View style={styles.chipsRow}>
           <View style={styles.chip}>
             <Icon name="leaf" size={24} color={theme.colors.primary} />
-            <Text style={styles.chipTitle}>0% Landfill Policy</Text>
-            <Text style={styles.chipText}>Guaranteed diversion of all collected materials to certified processing centers.</Text>
+            <Text style={styles.chipTitle}>0% Landfill Goal</Text>
+            <Text style={styles.chipText}>Every donation is redirected to reuse — never sent to a landfill.</Text>
           </View>
           <View style={styles.chip}>
-            <Icon name="routes" size={24} color={theme.colors.primary} />
-            <Text style={styles.chipTitle}>Optimized Routing</Text>
-            <Text style={styles.chipText}>AI-driven fleet management to minimize carbon footprint per kilogram of cargo.</Text>
+            <Icon name="account-group-outline" size={24} color={theme.colors.primary} />
+            <Text style={styles.chipTitle}>Local Partners</Text>
+            <Text style={styles.chipText}>We work with charities and thrift channels to find the right home for each item.</Text>
           </View>
         </View>
 
         <View style={styles.banner}>
-          <Icon name="transit-connection-variant" size={32} color={theme.colors.textInverse} />
+          <Icon name="heart-outline" size={32} color={theme.colors.textInverse} />
           <View style={styles.bannerTextContainer}>
-            <Text style={styles.bannerTitle}>B2B Integration</Text>
-            <Text style={styles.bannerText}>Enterprise-grade API connectivity for real-time surplus tracking and automated compliance reporting.</Text>
+            <Text style={styles.bannerTitle}>A Student-Led Initiative</Text>
+            <Text style={styles.bannerText}>Founded by Vivaan Mansukhani to make reuse and redistribution simple, organized, and accessible to everyone.</Text>
           </View>
         </View>
 
@@ -62,7 +62,7 @@ export const MissionLogisticsScreen = ({ navigation }: any) => {
         />
         <View style={{ width: theme.spacing.md }} />
         <Button 
-          title="Next: Deployment"
+          title="Next: Get Started"
           style={styles.flex1}
           onPress={() => navigation.navigate('MissionDeployment')} 
         />
@@ -118,8 +118,8 @@ const styles = StyleSheet.create({
   },
   highlightText: {
     fontSize: 14,
-    fontWeight: '800',
-    color: '#15A800',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.primary,
   },
   chipsRow: {
     flexDirection: 'row',

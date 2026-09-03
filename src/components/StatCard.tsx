@@ -65,8 +65,8 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.xs,
   },
   title: {
+    fontFamily: theme.fonts.bodyMedium,
     fontSize: 13,
-    fontWeight: '500',
     color: theme.colors.textSecondary,
   },
   iconWrapper: {
@@ -83,13 +83,13 @@ const styles = StyleSheet.create({
     marginVertical: 4,
   },
   value: {
+    fontFamily: theme.fonts.heading,
     fontSize: 26,
-    fontWeight: '700',
     color: theme.colors.text,
   },
   unit: {
+    fontFamily: theme.fonts.bodyMedium,
     fontSize: 14,
-    fontWeight: '500',
     color: theme.colors.textSecondary,
     marginLeft: 4,
   },
@@ -99,8 +99,8 @@ const styles = StyleSheet.create({
     marginTop: theme.spacing.xs,
   },
   trend: {
+    fontFamily: theme.fonts.bodySemiBold,
     fontSize: 12,
-    fontWeight: '600',
     marginRight: 6,
   },
   trendUp: {

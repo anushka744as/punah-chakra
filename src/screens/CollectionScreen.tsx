@@ -10,6 +10,7 @@ import {
   Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { theme } from '../theme/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fetchActivePickups, updatePickupStatus, type PickupJob } from '../services/api';
 import { useAppData } from '../data/AppDataContext';
@@ -61,12 +62,12 @@ export const CollectionScreen = ({ navigation }: any) => {
       }
       await loadPickups();
     } catch { /* silent */ }
-    navigation.navigate('PickupMap', { mode: 'collector', donationId: pickup.id });
+    navigation.navigate('PickupMap', { mode: 'admin', donationId: pickup.id });
   };
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#15A800" />
+      <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
 
       {/* Top Header */}
       <View style={[styles.headerBar, { paddingTop: Math.max(insets.top, 14) }]}>
@@ -80,7 +81,7 @@ export const CollectionScreen = ({ navigation }: any) => {
         </View>
         <TouchableOpacity onPress={() => { try { navigation.navigate('MainTabs', { screen: 'Profile' }); } catch { navigation.navigate('Profile'); } }} activeOpacity={0.7}>
           <View style={styles.userAvatarCircle}>
-            <Icon name="account-outline" size={20} color="#FFFFFF" />
+            <Icon name="account-outline" size={20} color={theme.colors.surface} />
           </View>
         </TouchableOpacity>
       </View>
@@ -110,13 +111,13 @@ export const CollectionScreen = ({ navigation }: any) => {
           activeOpacity={0.8}
         >
           <View style={styles.mapIconBg}>
-            <Icon name="map-outline" size={24} color="#FFFFFF" />
+            <Icon name="map-outline" size={24} color={theme.colors.surface} />
           </View>
           <View style={styles.routeTextCol}>
             <Text style={styles.routeTitle}>Route map</Text>
             <Text style={styles.routeSubtitle}>View optimized pickup route</Text>
           </View>
-          <Icon name="arrow-right" size={24} color="#FFFFFF" />
+          <Icon name="arrow-right" size={24} color={theme.colors.surface} />
         </TouchableOpacity>
 
         {/* Today's Pickups Section */}
@@ -124,7 +125,7 @@ export const CollectionScreen = ({ navigation }: any) => {
 
         {pickups.length === 0 ? (
           <View style={styles.emptyState}>
-            <Icon name="truck-check-outline" size={48} color="#CBD5E1" />
+            <Icon name="truck-check-outline" size={48} color={theme.colors.border} />
             <Text style={styles.emptyText}>No pickups assigned yet for today.</Text>
           </View>
         ) : (
@@ -132,7 +133,7 @@ export const CollectionScreen = ({ navigation }: any) => {
             <View key={item.id} style={styles.pickupCard}>
               <View style={styles.cardTopRow}>
                 <View style={styles.userAvatar}>
-                  <Icon name="account-outline" size={22} color="#15A800" />
+                  <Icon name="account-outline" size={22} color={theme.colors.primary} />
                 </View>
                 <View style={styles.userInfoCol}>
                   <Text style={styles.userName}>{item.donor_name}</Text>
@@ -143,11 +144,11 @@ export const CollectionScreen = ({ navigation }: any) => {
 
               <View style={styles.infoMetaRow}>
                 <View style={styles.metaItem}>
-                  <Icon name="map-marker-outline" size={16} color="#64748B" />
+                  <Icon name="map-marker-outline" size={16} color={theme.colors.textSecondary} />
                   <Text style={styles.metaText}>{item.address}</Text>
                 </View>
                 <View style={styles.metaItem}>
-                  <Icon name="clock-outline" size={16} color="#64748B" />
+                  <Icon name="clock-outline" size={16} color={theme.colors.textSecondary} />
                   <Text style={styles.metaText}>{item.time_window}</Text>
                 </View>
               </View>
@@ -159,7 +160,7 @@ export const CollectionScreen = ({ navigation }: any) => {
                   activeOpacity={0.8}
                 >
                   <View style={styles.badgeCheckIconCircle}>
-                    <Icon name="checkbox-marked-circle-outline" size={18} color="#15A800" />
+                    <Icon name="checkbox-marked-circle-outline" size={18} color={theme.colors.primary} />
                   </View>
                   <Text style={styles.assessBtnText}>Assess</Text>
                 </TouchableOpacity>
@@ -170,7 +171,7 @@ export const CollectionScreen = ({ navigation }: any) => {
                   activeOpacity={0.8}
                 >
                   <View style={styles.confirmCheckIconCircle}>
-                    <Icon name="check-circle-outline" size={18} color="#15A800" />
+                    <Icon name="check-circle-outline" size={18} color={theme.colors.primary} />
                   </View>
                   <Text style={styles.confirmBtnText}>Confirm</Text>
                 </TouchableOpacity>
@@ -186,13 +187,13 @@ export const CollectionScreen = ({ navigation }: any) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F9FE',
+    backgroundColor: theme.colors.background,
   },
   headerBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#15A800',
+    backgroundColor: theme.colors.primary,
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
@@ -205,12 +206,12 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.colors.surface,
   },
   headerTitle: {
     fontSize: 22,
-    fontWeight: '800',
-    color: '#FFFFFF',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.surface,
     letterSpacing: -0.3,
   },
   userAvatarCircle: {
@@ -227,20 +228,20 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   dashboardCard: {
-    backgroundColor: '#15A800',
+    backgroundColor: theme.colors.primary,
     borderRadius: 24,
     padding: 22,
     marginBottom: 16,
   },
   dashboardTitle: {
     fontSize: 26,
-    fontWeight: '800',
-    color: '#FFFFFF',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.surface,
     marginBottom: 4,
   },
   dashboardSubtitle: {
     fontSize: 14,
-    color: '#D1FAE5',
+    color: theme.colors.primaryContainer,
     marginBottom: 20,
   },
   statsRow: {
@@ -252,20 +253,20 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     fontSize: 10,
-    fontWeight: '800',
-    color: '#A7F3D0',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.primaryContainer,
     letterSpacing: 0.8,
     marginBottom: 2,
   },
   statValue: {
     fontSize: 34,
-    fontWeight: '800',
-    color: '#FFFFFF',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.surface,
   },
   routeMapCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#0F5B37',
+    backgroundColor: theme.colors.primaryDark,
     borderRadius: 20,
     padding: 18,
     marginBottom: 24,
@@ -278,25 +279,25 @@ const styles = StyleSheet.create({
   },
   routeTitle: {
     fontSize: 18,
-    fontWeight: '800',
-    color: '#FFFFFF',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.surface,
   },
   routeSubtitle: {
     fontSize: 13,
-    color: '#D1FAE5',
+    color: theme.colors.primaryContainer,
     marginTop: 2,
   },
   sectionTitle: {
     fontSize: 22,
-    fontWeight: '800',
-    color: '#0F172A',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.text,
     marginBottom: 14,
   },
   pickupCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.colors.surface,
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: theme.colors.border,
     padding: 18,
     marginBottom: 14,
   },
@@ -309,7 +310,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#ECFDF5',
+    backgroundColor: theme.colors.primaryContainer,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -319,19 +320,19 @@ const styles = StyleSheet.create({
   },
   userName: {
     fontSize: 18,
-    fontWeight: '800',
-    color: '#0F172A',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.text,
   },
   userId: {
     fontSize: 12,
-    color: '#64748B',
+    color: theme.colors.textSecondary,
     marginTop: 2,
-    fontWeight: '600',
+    fontFamily: theme.fonts.bodySemiBold,
   },
   weightText: {
     fontSize: 22,
-    fontWeight: '800',
-    color: '#15A800',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.primary,
   },
   infoMetaRow: {
     gap: 6,
@@ -344,8 +345,8 @@ const styles = StyleSheet.create({
   },
   metaText: {
     fontSize: 14,
-    color: '#475569',
-    fontWeight: '500',
+    color: theme.colors.textSecondary,
+    fontFamily: theme.fonts.bodyMedium,
   },
   actionBtnRow: {
     flexDirection: 'row',
@@ -356,9 +357,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.colors.surface,
     borderWidth: 1.5,
-    borderColor: '#15A800',
+    borderColor: theme.colors.primary,
     borderRadius: 25,
     height: 46,
     gap: 8,
@@ -367,16 +368,16 @@ const styles = StyleSheet.create({
     marginRight: 2,
   },
   assessBtnText: {
-    color: '#15A800',
+    color: theme.colors.primary,
     fontSize: 15,
-    fontWeight: '800',
+    fontFamily: theme.fonts.bodyBold,
   },
   confirmBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#15A800',
+    backgroundColor: theme.colors.primary,
     borderRadius: 25,
     height: 46,
     gap: 8,
@@ -385,14 +386,14 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
     borderRadius: 11,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
   confirmBtnText: {
-    color: '#FFFFFF',
+    color: theme.colors.surface,
     fontSize: 15,
-    fontWeight: '800',
+    fontFamily: theme.fonts.bodyBold,
   },
   emptyState: {
     alignItems: 'center',
@@ -401,7 +402,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 15,
-    color: '#94A3B8',
+    color: theme.colors.textSecondary,
     textAlign: 'center',
   },
 });

@@ -36,7 +36,7 @@ export const OnboardingPillarsScreen = ({ navigation }: any) => {
             </View>
             <Text style={styles.pillarTitle}>1. Segregation at Source</Text>
             <Text style={styles.pillarDesc}>
-              Categorization into plastics, e-waste, metals, and organics right at donor locations for minimum contamination.
+              Categorization into clothes, shoes, blankets/bedsheets, and bags right at donor locations for minimum contamination.
             </Text>
           </Card>
 

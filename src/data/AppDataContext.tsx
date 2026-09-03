@@ -29,7 +29,7 @@ import {
 } from '../services/api';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
-export type AppRole = 'donor' | 'collector' | 'recycler';
+export type AppRole = 'user' | 'admin';
 
 export type AuthUser = {
   id: string;
@@ -104,10 +104,10 @@ export const AppDataProvider = ({ children }: { children: React.ReactNode }) => 
   const loadUserData = async (userId: string, email: string) => {
     try {
       const profileData = await fetchUserProfile(userId);
-      const role: AppRole = (profileData?.role as AppRole) || 'donor';
+      const role: AppRole = (profileData?.role as AppRole) || 'user';
 
       const [donationsData, pickupsData, notifData] = await Promise.all([
-        fetchAllScheduledDonations(),
+        role === 'admin' ? fetchAllScheduledDonations() : fetchUserDonations(userId),
         fetchActivePickups(),
         fetchUserNotifications(userId),
       ]);
@@ -138,7 +138,7 @@ export const AppDataProvider = ({ children }: { children: React.ReactNode }) => 
 
   const refreshDonations = useCallback(async () => {
     if (!authUser) return;
-    const data = authUser.role === 'collector' ? await fetchAllScheduledDonations() : await fetchUserDonations(authUser.id);
+    const data = authUser.role === 'admin' ? await fetchAllScheduledDonations() : await fetchUserDonations(authUser.id);
     setDonations(data);
   }, [authUser]);
 

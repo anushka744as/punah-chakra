@@ -13,12 +13,13 @@ import {
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useAppData } from '../data/AppDataContext';
 import { supabase, createNotification, DonationItem } from '../services/api';
+import { theme } from '../theme/theme';
 
 const PERMANENT_DONATIONS: DonationItem[] = [
   {
     id: 'rec-9821',
     request_id: '#REC-9821',
-    category: 'E-Waste',
+    category: 'Clothes',
     weight_kg: 3,
     estimated_quantity_kg: 3,
     pickup_day: 'Today',
@@ -32,7 +33,7 @@ const PERMANENT_DONATIONS: DonationItem[] = [
   {
     id: 'rec-9822',
     request_id: '#REC-9822',
-    category: 'E-Waste',
+    category: 'Shoes',
     weight_kg: 5.5,
     estimated_quantity_kg: 5.5,
     pickup_day: 'Today',
@@ -129,7 +130,7 @@ export const CollectorDashboardScreen = ({ navigation }: any) => {
     }
     const existingIds = new Set(donations.map(d => d.id || d.request_id));
     const extraDefaults = PERMANENT_DONATIONS.filter(p => !existingIds.has(p.id) && !existingIds.has(p.request_id));
-    return [...donations, ...extraDefaults];
+    return [...donations, ...extraDefaults].filter(d => d.status !== 'cancelled');
   }, [donations]);
 
   const pendingCount = allDonations.filter(item => !item.is_picked_up && item.status !== 'completed').length;
@@ -220,16 +221,16 @@ export const CollectorDashboardScreen = ({ navigation }: any) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#15A800" />
+      <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
       
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Icon name="recycle" size={26} color="#FFFFFF" />
+          <Icon name="recycle" size={26} color={theme.colors.surface} />
           <Text style={styles.headerTitle}>Routes</Text>
         </View>
         <TouchableOpacity style={styles.profileBtn} onPress={() => navigation.navigate('CollectorProfile')} activeOpacity={0.7}>
-          <Icon name="account-circle-outline" size={26} color="#FFFFFF" />
+          <Icon name="account-circle-outline" size={26} color={theme.colors.surface} />
         </TouchableOpacity>
       </View>
 
@@ -256,16 +257,16 @@ export const CollectorDashboardScreen = ({ navigation }: any) => {
         <TouchableOpacity 
           style={styles.routeMapBtn}
           activeOpacity={0.85}
-          onPress={() => navigation.navigate('PickupMap', { mode: 'collector' })}
+          onPress={() => navigation.navigate('PickupMap', { mode: 'admin' })}
         >
           <View style={styles.routeMapLeft}>
-            <Icon name="map-outline" size={28} color="#FFFFFF" />
+            <Icon name="map-outline" size={28} color={theme.colors.surface} />
             <View>
               <Text style={styles.routeMapTitle}>Route map</Text>
               <Text style={styles.routeMapSub}>View optimized pickup route</Text>
             </View>
           </View>
-          <Icon name="arrow-right" size={24} color="#FFFFFF" />
+          <Icon name="arrow-right" size={24} color={theme.colors.surface} />
         </TouchableOpacity>
 
         <Text style={styles.sectionTitle}>All Pickups</Text>
@@ -273,7 +274,7 @@ export const CollectorDashboardScreen = ({ navigation }: any) => {
         {/* Pickup List */}
         {allDonations.length === 0 ? (
           <View style={styles.emptyState}>
-            <Icon name="check-circle-outline" size={48} color="#15A800" />
+            <Icon name="check-circle-outline" size={48} color={theme.colors.primary} />
             <Text style={styles.emptyStateText}>No pickup requests available.</Text>
           </View>
         ) : (
@@ -300,7 +301,7 @@ export const CollectorDashboardScreen = ({ navigation }: any) => {
                 <View style={styles.cardHeader}>
                   <View style={styles.cardHeaderLeft}>
                     <View style={[styles.avatar, isPickedUp && styles.avatarDisabled]}>
-                      <Icon name="account-outline" size={24} color={isPickedUp ? "#94A3B8" : "#15A800"} />
+                      <Icon name="account-outline" size={24} color={isPickedUp ? theme.colors.textSecondary : theme.colors.primary} />
                     </View>
                     <View>
                       <Text style={[styles.donorName, isPickedUp && styles.textMuted]}>{item.category} Donor</Text>
@@ -316,17 +317,17 @@ export const CollectorDashboardScreen = ({ navigation }: any) => {
                 <View style={styles.cardInfoBox}>
                   <TouchableOpacity
                     style={styles.infoItemAddress}
-                    onPress={() => navigation.navigate('PickupMap', { mode: 'collector', donationId: item.id })}
+                    onPress={() => navigation.navigate('PickupMap', { mode: 'admin', donationId: item.id })}
                     activeOpacity={0.7}
                   >
-                    <Icon name="map-marker-outline" size={18} color={isPickedUp ? "#94A3B8" : "#15A800"} style={{ marginTop: 2 }} />
+                    <Icon name="map-marker-outline" size={18} color={isPickedUp ? theme.colors.textSecondary : theme.colors.primary} style={{ marginTop: 2 }} />
                     <Text style={[styles.infoTextAddress, isPickedUp && styles.textMuted]}>
                       {item.address.replace(/\(Lat:.*?\)/gi, '').trim()}
                     </Text>
                   </TouchableOpacity>
 
                   <View style={styles.infoItemTime}>
-                    <Icon name="clock-outline" size={16} color="#475569" />
+                    <Icon name="clock-outline" size={16} color={theme.colors.textSecondary} />
                     <Text style={styles.infoTextTime}>{item.time_slot}</Text>
                   </View>
                 </View>
@@ -335,7 +336,7 @@ export const CollectorDashboardScreen = ({ navigation }: any) => {
                 <View style={styles.cardActions}>
                   {isPickedUp ? (
                     <View style={styles.alreadyPickedUpBtn}>
-                      <Icon name="check-circle" size={18} color="#059669" />
+                      <Icon name="check-circle" size={18} color={theme.colors.success} />
                       <Text style={styles.alreadyPickedUpText}>This is already picked up</Text>
                     </View>
                   ) : (
@@ -358,7 +359,7 @@ export const CollectorDashboardScreen = ({ navigation }: any) => {
                           navigation.navigate('Quality', { donationId: item.id });
                         }}
                       >
-                        <Icon name="decagram-outline" size={18} color="#15A800" />
+                        <Icon name="decagram-outline" size={18} color={theme.colors.primary} />
                         <Text style={styles.assessBtnText}>Assess</Text>
                       </TouchableOpacity>
                       
@@ -366,14 +367,14 @@ export const CollectorDashboardScreen = ({ navigation }: any) => {
                         <TouchableOpacity
                           style={styles.viewMapBtn}
                           activeOpacity={0.8}
-                          onPress={() => navigation.navigate('PickupMap', { mode: 'collector', donationId: item.id })}
+                          onPress={() => navigation.navigate('PickupMap', { mode: 'admin', donationId: item.id })}
                         >
-                          <Icon name="map-marker-path" size={18} color="#FFFFFF" />
+                          <Icon name="map-marker-path" size={18} color={theme.colors.surface} />
                           <Text style={styles.viewMapBtnText}>View Map</Text>
                         </TouchableOpacity>
                       ) : isConfirmedByOther ? (
-                        <View style={[styles.confirmBtn, styles.btnDisabled, { backgroundColor: '#94A3B8' }]}>
-                          <Icon name="account-lock-outline" size={18} color="#FFFFFF" />
+                        <View style={[styles.confirmBtn, styles.btnDisabled, { backgroundColor: theme.colors.textSecondary }]}>
+                          <Icon name="account-lock-outline" size={18} color={theme.colors.surface} />
                           <Text style={styles.confirmBtnText}>Confirmed</Text>
                         </View>
                       ) : (
@@ -384,10 +385,10 @@ export const CollectorDashboardScreen = ({ navigation }: any) => {
                           onPress={() => handleConfirmPickup(item)}
                         >
                           {confirmingId === item.id ? (
-                            <ActivityIndicator size="small" color="#FFFFFF" />
+                            <ActivityIndicator size="small" color={theme.colors.surface} />
                           ) : (
                             <>
-                              <Icon name="check-circle-outline" size={18} color="#FFFFFF" />
+                              <Icon name="check-circle-outline" size={18} color={theme.colors.surface} />
                               <Text style={styles.confirmBtnText}>Confirm</Text>
                             </>
                           )}
@@ -407,20 +408,20 @@ export const CollectorDashboardScreen = ({ navigation }: any) => {
       <View style={styles.bottomTabBar}>
         <TouchableOpacity style={styles.tabItem} activeOpacity={0.7}>
           <View style={styles.tabIconActiveBg}>
-            <Icon name="truck" size={24} color="#15A800" />
+            <Icon name="truck" size={24} color={theme.colors.primary} />
           </View>
           <Text style={styles.tabLabelActive}>Routes</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.tabItem} activeOpacity={0.7} onPress={() => navigation.navigate('PickupMap', { mode: 'collector' })}>
-          <Icon name="map-outline" size={24} color="#475569" />
+        <TouchableOpacity style={styles.tabItem} activeOpacity={0.7} onPress={() => navigation.navigate('PickupMap', { mode: 'admin' })}>
+          <Icon name="map-outline" size={24} color={theme.colors.textSecondary} />
           <Text style={styles.tabLabel}>Map</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.tabItem} activeOpacity={0.7} onPress={() => navigation.navigate('Quality')}>
-          <Icon name="shield-check-outline" size={24} color="#475569" />
+          <Icon name="shield-check-outline" size={24} color={theme.colors.textSecondary} />
           <Text style={styles.tabLabel}>Quality</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.tabItem} activeOpacity={0.7} onPress={() => navigation.navigate('CollectorProfile')}>
-          <Icon name="account-outline" size={24} color="#475569" />
+          <Icon name="account-outline" size={24} color={theme.colors.textSecondary} />
           <Text style={styles.tabLabel}>Profile</Text>
         </TouchableOpacity>
       </View>
@@ -431,10 +432,10 @@ export const CollectorDashboardScreen = ({ navigation }: any) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: theme.colors.background,
   },
   header: {
-    backgroundColor: '#15A800',
+    backgroundColor: theme.colors.primary,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -448,8 +449,8 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 22,
-    fontWeight: '800',
-    color: '#FFFFFF',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.surface,
   },
   profileBtn: {
     padding: 4,
@@ -459,21 +460,21 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   dashboardCard: {
-    backgroundColor: '#15A800',
+    backgroundColor: theme.colors.primary,
     borderRadius: 20,
     padding: 24,
     marginBottom: 16,
   },
   dashTitle: {
     fontSize: 24,
-    fontWeight: '800',
-    color: '#FFFFFF',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.surface,
     marginBottom: 4,
   },
   dashSub: {
     fontSize: 14,
-    color: '#DCFCE7',
-    fontWeight: '500',
+    color: theme.colors.primaryContainer,
+    fontFamily: theme.fonts.bodyMedium,
     marginBottom: 24,
   },
   dashStatsRow: {
@@ -483,18 +484,18 @@ const styles = StyleSheet.create({
   dashStat: {},
   dashStatLabel: {
     fontSize: 11,
-    fontWeight: '800',
-    color: '#DCFCE7',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.primaryContainer,
     marginBottom: 4,
     letterSpacing: 0.5,
   },
   dashStatValue: {
     fontSize: 28,
-    fontWeight: '800',
-    color: '#FFFFFF',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.surface,
   },
   routeMapBtn: {
-    backgroundColor: '#128800',
+    backgroundColor: theme.colors.primaryDark,
     borderRadius: 20,
     padding: 20,
     flexDirection: 'row',
@@ -509,27 +510,27 @@ const styles = StyleSheet.create({
   },
   routeMapTitle: {
     fontSize: 18,
-    fontWeight: '800',
-    color: '#FFFFFF',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.surface,
     marginBottom: 2,
   },
   routeMapSub: {
     fontSize: 13,
-    color: '#DCFCE7',
+    color: theme.colors.primaryContainer,
   },
   sectionTitle: {
     fontSize: 20,
-    fontWeight: '800',
-    color: '#0F172A',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.text,
     marginBottom: 16,
   },
   pickupCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.colors.surface,
     borderRadius: 20,
     padding: 20,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: theme.colors.border,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -546,25 +547,25 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#ECFDF5',
+    backgroundColor: theme.colors.primaryContainer,
     alignItems: 'center',
     justifyContent: 'center',
   },
   donorName: {
     fontSize: 16,
-    fontWeight: '800',
-    color: '#0F172A',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.text,
     marginBottom: 2,
   },
   donorId: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#64748B',
+    fontFamily: theme.fonts.bodySemiBold,
+    color: theme.colors.textSecondary,
   },
   weightText: {
     fontSize: 20,
-    fontWeight: '800',
-    color: '#15A800',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.primary,
   },
   cardInfoBox: {
     gap: 8,
@@ -583,16 +584,16 @@ const styles = StyleSheet.create({
   },
   infoTextAddress: {
     fontSize: 13,
-    fontWeight: '500',
-    color: '#475569',
+    fontFamily: theme.fonts.bodyMedium,
+    color: theme.colors.textSecondary,
     flex: 1,
     flexWrap: 'wrap',
     lineHeight: 19,
   },
   infoTextTime: {
     fontSize: 13,
-    fontWeight: '600',
-    color: '#64748B',
+    fontFamily: theme.fonts.bodySemiBold,
+    color: theme.colors.textSecondary,
   },
   cardActions: {
     flexDirection: 'row',
@@ -605,14 +606,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 12,
     borderWidth: 1.5,
-    borderColor: '#15A800',
+    borderColor: theme.colors.primary,
     borderRadius: 24,
     gap: 6,
   },
   assessBtnText: {
     fontSize: 14,
-    fontWeight: '700',
-    color: '#15A800',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.primary,
   },
   confirmBtn: {
     flex: 1,
@@ -620,7 +621,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 12,
-    backgroundColor: '#15A800',
+    backgroundColor: theme.colors.primary,
     borderRadius: 24,
     gap: 6,
   },
@@ -630,7 +631,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 12,
-    backgroundColor: '#0EA5E9',
+    backgroundColor: theme.colors.secondary,
     borderRadius: 24,
     gap: 6,
   },
@@ -639,13 +640,13 @@ const styles = StyleSheet.create({
   },
   confirmBtnText: {
     fontSize: 14,
-    fontWeight: '700',
-    color: '#FFFFFF',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.surface,
   },
   viewMapBtnText: {
     fontSize: 14,
-    fontWeight: '700',
-    color: '#FFFFFF',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.surface,
   },
   emptyState: {
     alignItems: 'center',
@@ -654,22 +655,22 @@ const styles = StyleSheet.create({
   },
   emptyStateText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#64748B',
+    fontFamily: theme.fonts.bodySemiBold,
+    color: theme.colors.textSecondary,
     marginTop: 12,
   },
   pickupCardDisabled: {
-    backgroundColor: '#F8FAFC',
-    borderColor: '#E2E8F0',
+    backgroundColor: theme.colors.background,
+    borderColor: theme.colors.border,
   },
   avatarDisabled: {
-    backgroundColor: '#F1F5F9',
+    backgroundColor: theme.colors.surfaceContainer,
   },
   textMuted: {
-    color: '#64748B',
+    color: theme.colors.textSecondary,
   },
   weightTextDisabled: {
-    color: '#64748B',
+    color: theme.colors.textSecondary,
   },
   alreadyPickedUpBtn: {
     flex: 1,
@@ -677,25 +678,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 12,
-    backgroundColor: '#ECFDF5',
+    backgroundColor: theme.colors.primaryContainer,
     borderWidth: 1,
-    borderColor: '#A7F3D0',
+    borderColor: theme.colors.primaryContainer,
     borderRadius: 24,
     gap: 8,
   },
   alreadyPickedUpText: {
     fontSize: 14,
-    fontWeight: '800',
-    color: '#059669',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.success,
   },
   bottomTabBar: {
     flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.colors.surface,
     paddingVertical: 12,
     paddingHorizontal: 24,
     justifyContent: 'space-between',
     borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
+    borderTopColor: theme.colors.border,
   },
   tabItem: {
     alignItems: 'center',
@@ -703,19 +704,19 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   tabIconActiveBg: {
-    backgroundColor: '#ECFDF5',
+    backgroundColor: theme.colors.primaryContainer,
     paddingHorizontal: 16,
     paddingVertical: 4,
     borderRadius: 20,
   },
   tabLabelActive: {
     fontSize: 12,
-    fontWeight: '800',
-    color: '#0F172A',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.text,
   },
   tabLabel: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#475569',
+    fontFamily: theme.fonts.bodySemiBold,
+    color: theme.colors.textSecondary,
   },
 });

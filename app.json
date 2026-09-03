@@ -1,4 +1,7 @@
 {
   "name": "PunahChakra",
-  "displayName": "PunahChakra"
+  "displayName": "PunahChakra",
+  "plugins": [
+    "expo-font"
+  ]
 }

@@ -51,10 +51,10 @@ const styles = StyleSheet.create({
   },
   label: {
     ...theme.typography.label,
+    fontFamily: theme.fonts.bodySemiBold,
     fontSize: 13,
     color: theme.colors.text,
     marginBottom: 6,
-    fontWeight: '600',
   },
   inputContainer: {
     flexDirection: 'row',

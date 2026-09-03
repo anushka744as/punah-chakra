@@ -20,7 +20,6 @@ import { signUpUser } from '../services/api';
 
 export const SignupScreen = ({ navigation }: any) => {
   const insets = useSafeAreaInsets();
-  const [role, setRole] = useState<'donor' | 'collector'>('donor');
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -46,18 +45,12 @@ export const SignupScreen = ({ navigation }: any) => {
 
     setLoading(true);
     try {
-      await signUpUser(trimmedEmail, trimmedPassword, trimmedName, role);
+      await signUpUser(trimmedEmail, trimmedPassword, trimmedName, 'user');
       setLoading(false);
-      Alert.alert('Account Created', `Successfully registered as a ${role.toUpperCase()}!`, [
+      Alert.alert('Account Created', 'Successfully registered!', [
         {
           text: 'Continue',
-          onPress: () => {
-            if (role === 'collector') {
-              navigation.replace('CollectorDashboard');
-            } else {
-              navigation.replace('MainTabs');
-            }
-          },
+          onPress: () => navigation.replace('MainTabs'),
         },
       ]);
     } catch (err: any) {
@@ -88,35 +81,7 @@ export const SignupScreen = ({ navigation }: any) => {
 
           <View style={styles.header}>
             <Text style={styles.title}>Create Account</Text>
-            <Text style={styles.subtitle}>Select your role and join the reuse network.</Text>
-          </View>
-
-          {/* Role Selection */}
-          <Text style={styles.roleHeaderLabel}>CHOOSE YOUR ROLE</Text>
-          <View style={styles.roleSelectionRow}>
-            <TouchableOpacity
-              style={[styles.roleCard, role === 'donor' && styles.roleCardActive]}
-              onPress={() => setRole('donor')}
-              activeOpacity={0.8}
-            >
-              <View style={styles.roleIconBg}>
-                <Icon name="hand-heart" size={26} color={role === 'donor' ? theme.colors.primary : '#64748B'} />
-              </View>
-              <Text style={[styles.roleTitle, role === 'donor' && { color: theme.colors.primary }]}>Donor</Text>
-              <Text style={styles.roleSub}>Donate items & schedule pickups</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.roleCard, role === 'collector' && styles.roleCardActive]}
-              onPress={() => setRole('collector')}
-              activeOpacity={0.8}
-            >
-              <View style={styles.roleIconBg}>
-                <Icon name="truck-delivery" size={26} color={role === 'collector' ? theme.colors.primary : '#64748B'} />
-              </View>
-              <Text style={[styles.roleTitle, role === 'collector' && { color: theme.colors.primary }]}>Collector</Text>
-              <Text style={styles.roleSub}>Collect items & run routes</Text>
-            </TouchableOpacity>
+            <Text style={styles.subtitle}>Join the reuse network and start donating.</Text>
           </View>
 
           <Card variant="outlined" style={styles.formCard}>
@@ -129,7 +94,7 @@ export const SignupScreen = ({ navigation }: any) => {
 
             <InputField
               label="EMAIL ADDRESS"
-              placeholder="you@company.io"
+              placeholder="you@example.com"
               value={email}
               onChangeText={setEmail}
               keyboardType="email-address"
@@ -190,43 +155,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: theme.colors.textSecondary,
     lineHeight: 20,
-  },
-  roleHeaderLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: theme.colors.textSecondary,
-    letterSpacing: 1,
-    marginBottom: theme.spacing.sm,
-  },
-  roleSelectionRow: {
-    flexDirection: 'row',
-    gap: theme.spacing.md,
-    marginBottom: theme.spacing.lg,
-  },
-  roleCard: {
-    flex: 1,
-    padding: theme.spacing.md,
-    borderRadius: theme.radius.md,
-    borderWidth: 1.5,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surfaceContainerLow,
-  },
-  roleCardActive: {
-    borderColor: theme.colors.primary,
-    backgroundColor: '#ECFDF5',
-  },
-  roleIconBg: {
-    marginBottom: 8,
-  },
-  roleTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: theme.colors.text,
-    marginBottom: 2,
-  },
-  roleSub: {
-    fontSize: 12,
-    color: theme.colors.textSecondary,
   },
   formCard: {
     padding: theme.spacing.lg,

@@ -10,6 +10,7 @@ import {
   Switch,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { theme } from '../theme/theme';
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -49,17 +50,17 @@ export const AlertSettingsScreen = ({ navigation }: any) => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#15A800" />
+      <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
 
       {/* Top Header */}
       <View style={[styles.headerBar, { paddingTop: Math.max(insets.top, 14) }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.7}>
-          <Icon name="arrow-left" size={24} color="#FFFFFF" />
+          <Icon name="arrow-left" size={24} color={theme.colors.surface} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Collection Alerts</Text>
         <TouchableOpacity onPress={handleProfileNav} activeOpacity={0.7}>
           <View style={styles.userAvatarCircle}>
-            <Icon name="account-outline" size={20} color="#FFFFFF" />
+            <Icon name="account-outline" size={20} color={theme.colors.surface} />
           </View>
         </TouchableOpacity>
       </View>
@@ -69,7 +70,7 @@ export const AlertSettingsScreen = ({ navigation }: any) => {
           {/* Item 1 */}
           <View style={styles.itemRow}>
             <View style={styles.iconBg}>
-              <Icon name="truck-delivery-outline" size={22} color="#15A800" />
+              <Icon name="truck-delivery-outline" size={22} color={theme.colors.primary} />
             </View>
             <View style={styles.textCol}>
               <Text style={styles.itemTitle}>Pickup reminders</Text>
@@ -78,8 +79,8 @@ export const AlertSettingsScreen = ({ navigation }: any) => {
             <Switch
               value={pickupReminders}
               onValueChange={togglePickupReminders}
-              trackColor={{ false: '#CBD5E1', true: '#15A800' }}
-              thumbColor="#FFFFFF"
+              trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
+              thumbColor={theme.colors.surface}
             />
           </View>
 
@@ -88,7 +89,7 @@ export const AlertSettingsScreen = ({ navigation }: any) => {
           {/* Item 2 */}
           <View style={styles.itemRow}>
             <View style={styles.iconBg}>
-              <Icon name="recycle" size={22} color="#15A800" />
+              <Icon name="recycle" size={22} color={theme.colors.primary} />
             </View>
             <View style={styles.textCol}>
               <Text style={styles.itemTitle}>Status updates</Text>
@@ -97,8 +98,8 @@ export const AlertSettingsScreen = ({ navigation }: any) => {
             <Switch
               value={statusUpdates}
               onValueChange={toggleStatusUpdates}
-              trackColor={{ false: '#CBD5E1', true: '#15A800' }}
-              thumbColor="#FFFFFF"
+              trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
+              thumbColor={theme.colors.surface}
             />
           </View>
         </View>
@@ -110,13 +111,13 @@ export const AlertSettingsScreen = ({ navigation }: any) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F9FE',
+    backgroundColor: theme.colors.background,
   },
   headerBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#15A800',
+    backgroundColor: theme.colors.primary,
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
@@ -125,8 +126,8 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 22,
-    fontWeight: '800',
-    color: '#FFFFFF',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.surface,
     letterSpacing: -0.3,
   },
   userAvatarCircle: {
@@ -143,10 +144,10 @@ const styles = StyleSheet.create({
     paddingTop: 20,
   },
   card: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.colors.surface,
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: theme.colors.border,
     overflow: 'hidden',
   },
   itemRow: {
@@ -159,7 +160,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 14,
-    backgroundColor: '#ECFDF5',
+    backgroundColor: theme.colors.primaryContainer,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -168,18 +169,18 @@ const styles = StyleSheet.create({
   },
   itemTitle: {
     fontSize: 17,
-    fontWeight: '800',
-    color: '#0F172A',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.text,
     marginBottom: 2,
   },
   itemSubtitle: {
     fontSize: 13,
-    color: '#64748B',
+    color: theme.colors.textSecondary,
     lineHeight: 18,
   },
   divider: {
     height: 1,
-    backgroundColor: '#E2E8F0',
+    backgroundColor: theme.colors.border,
   },
 });
 

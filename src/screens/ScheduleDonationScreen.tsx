@@ -95,20 +95,20 @@ export const ScheduleDonationScreen = ({ navigation }: any) => {
             <Text style={[styles.gridItemText, selectedType === 'SHOES' && styles.gridItemTextSelected]}>SHOES</Text>
           </TouchableOpacity>
           
-          <TouchableOpacity 
-            style={[styles.gridItem, selectedType === 'PAPER' && styles.gridItemSelected]}
-            onPress={() => setSelectedType('PAPER')}
+          <TouchableOpacity
+            style={[styles.gridItem, selectedType === 'BLANKETS' && styles.gridItemSelected]}
+            onPress={() => setSelectedType('BLANKETS')}
           >
-            <Icon name="newspaper-variant-outline" size={20} color={selectedType === 'PAPER' ? theme.colors.primary : theme.colors.textSecondary} />
-            <Text style={[styles.gridItemText, selectedType === 'PAPER' && styles.gridItemTextSelected]}>PAPER</Text>
+            <Icon name="bed-king-outline" size={20} color={selectedType === 'BLANKETS' ? theme.colors.primary : theme.colors.textSecondary} />
+            <Text style={[styles.gridItemText, selectedType === 'BLANKETS' && styles.gridItemTextSelected]}>BLANKETS/BEDSHEETS</Text>
           </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={[styles.gridItem, selectedType === 'E-WASTE' && styles.gridItemSelected]}
-            onPress={() => setSelectedType('E-WASTE')}
+
+          <TouchableOpacity
+            style={[styles.gridItem, selectedType === 'BAGS' && styles.gridItemSelected]}
+            onPress={() => setSelectedType('BAGS')}
           >
-            <Icon name="laptop" size={20} color={selectedType === 'E-WASTE' ? theme.colors.primary : theme.colors.textSecondary} />
-            <Text style={[styles.gridItemText, selectedType === 'E-WASTE' && styles.gridItemTextSelected]}>E-WASTE</Text>
+            <Icon name="bag-personal-outline" size={20} color={selectedType === 'BAGS' ? theme.colors.primary : theme.colors.textSecondary} />
+            <Text style={[styles.gridItemText, selectedType === 'BAGS' && styles.gridItemTextSelected]}>BAGS</Text>
           </TouchableOpacity>
         </View>
 
@@ -249,6 +249,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginLeft: theme.spacing.sm,
     color: theme.colors.textSecondary,
+    flex: 1,
+    flexShrink: 1,
+    minWidth: 0,
+    flexWrap: 'wrap',
   },
   gridItemTextSelected: {
     color: theme.colors.primary,

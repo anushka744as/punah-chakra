@@ -12,11 +12,14 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { supabase, fetchUserProfile, fetchUserDonations, type UserProfile, type DonationItem } from '../services/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { USER_LOGGED_IN_KEY, LAST_ROLE_KEY } from '../navigation/AppNavigator';
+import { supabase, fetchUserProfile, fetchUserDonations, cancelDonationRequest, type UserProfile, type DonationItem } from '../services/api';
+import { theme } from '../theme/theme';
 
 export const ProfileScreen = ({ navigation }: any) => {
   const insets = useSafeAreaInsets();
-  const [role, setRole] = useState<'donor' | 'collector'>('donor');
+  const [role, setRole] = useState<'user' | 'admin'>('user');
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [donations, setDonations] = useState<DonationItem[]>([]);
 
@@ -33,7 +36,7 @@ export const ProfileScreen = ({ navigation }: any) => {
         const p = await fetchUserProfile(user.id);
         if (p) {
           setProfile(p);
-          if (p.role === 'collector') setRole('collector');
+          if (p.role === 'admin') setRole('admin');
         }
         const d = await fetchUserDonations(user.id);
         setDonations(d || []);
@@ -48,6 +51,32 @@ export const ProfileScreen = ({ navigation }: any) => {
   const totalWeightKg = donations.reduce((sum, d) => sum + Number(d.weight_kg || 0), 0);
   const displayWasteDiverted = totalWeightKg >= 1000 ? `${(totalWeightKg / 1000).toFixed(1)} t` : `${totalWeightKg.toFixed(1)} kg`;
 
+  const handleEditDonation = (item: DonationItem) => {
+    navigation.navigate('Donate', { editDonation: item });
+  };
+
+  const handleCancelDonation = (item: DonationItem) => {
+    Alert.alert(
+      'Cancel Pickup Request?',
+      'This will cancel your pickup request. You can schedule a new one anytime.',
+      [
+        { text: 'Keep Request', style: 'cancel' },
+        {
+          text: 'Cancel Pickup',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await cancelDonationRequest(item.id, item.request_id);
+              await loadProfileData();
+            } catch (err: any) {
+              Alert.alert('Error', err?.message || 'Could not cancel pickup request. Please try again.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handleSignOut = () => {
     Alert.alert(
       'Sign Out',
@@ -58,6 +87,10 @@ export const ProfileScreen = ({ navigation }: any) => {
           text: 'Sign Out',
           style: 'destructive',
           onPress: async () => {
+            try {
+              await AsyncStorage.removeItem(USER_LOGGED_IN_KEY);
+              await AsyncStorage.removeItem(LAST_ROLE_KEY);
+            } catch {}
             await supabase.auth.signOut();
             navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
           },
@@ -68,7 +101,7 @@ export const ProfileScreen = ({ navigation }: any) => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#15A800" />
+      <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
 
       {/* Top Header */}
       <View style={[styles.headerBar, { paddingTop: Math.max(insets.top, 14) }]}>
@@ -82,7 +115,7 @@ export const ProfileScreen = ({ navigation }: any) => {
         </View>
         <TouchableOpacity onPress={() => navigation.navigate('Profile')} activeOpacity={0.7}>
           <View style={styles.userAvatarCircle}>
-            <Icon name="account-outline" size={20} color="#FFFFFF" />
+            <Icon name="account-outline" size={20} color={theme.colors.textInverse} />
           </View>
         </TouchableOpacity>
       </View>
@@ -93,9 +126,9 @@ export const ProfileScreen = ({ navigation }: any) => {
         <View style={styles.userCard}>
           <View style={styles.avatarCircle}>
             <Icon
-              name={role === 'donor' ? 'account-outline' : 'truck-check-outline'}
+              name={role === 'user' ? 'account-outline' : 'truck-check-outline'}
               size={44}
-              color="#15A800"
+              color={theme.colors.primary}
             />
           </View>
           <Text style={styles.userName}>{displayName}</Text>
@@ -103,7 +136,7 @@ export const ProfileScreen = ({ navigation }: any) => {
         </View>
 
         {/* Impact Banner Card */}
-        {role === 'donor' ? (
+        {role === 'user' ? (
           <View style={styles.impactCard}>
             <Text style={styles.impactTitleLabel}>ENVIRONMENTAL IMPACT</Text>
             <View style={styles.ptsRow}>
@@ -149,14 +182,14 @@ export const ProfileScreen = ({ navigation }: any) => {
 
         {/* Recent Activity */}
         <Text style={styles.sectionTitle}>
-          {role === 'donor' ? 'Recent activity' : 'Collection history'}
+          {role === 'user' ? 'Recent activity' : 'Collection history'}
         </Text>
         <View style={styles.activityCard}>
           {donations.length === 0 ? (
             <View style={{ padding: 20, alignItems: 'center' }}>
-              <Icon name="package-variant" size={32} color="#94A3B8" style={{ marginBottom: 6 }} />
-              <Text style={{ fontSize: 14, color: '#94A3B8', textAlign: 'center' }}>
-                No recent activity yet.
+              <Icon name="package-variant" size={28} color={theme.colors.primary} style={{ marginBottom: 6 }} />
+              <Text style={{ fontFamily: theme.fonts.body, fontSize: 13, color: theme.colors.textSecondary, textAlign: 'center' }}>
+                No recent activity — it appears here after your first pickup.
               </Text>
             </View>
           ) : (
@@ -165,7 +198,7 @@ export const ProfileScreen = ({ navigation }: any) => {
                 {idx > 0 && <View style={styles.itemDivider} />}
                 <View style={styles.activityRow}>
                   <View style={styles.activityIconBg}>
-                    <Icon name="package-variant-closed" size={22} color="#15A800" />
+                    <Icon name="package-variant-closed" size={22} color={theme.colors.primary} />
                   </View>
                   <View style={styles.activityContent}>
                     <Text style={styles.activityTitle}>{item.category || 'Donation Batch'}</Text>
@@ -173,6 +206,26 @@ export const ProfileScreen = ({ navigation }: any) => {
                   </View>
                   <Text style={styles.pointsEarned}>+{item.points_awarded || 0} pts</Text>
                 </View>
+                {role === 'user' && item.status === 'pending' && (
+                  <View style={styles.activityActionsRow}>
+                    <TouchableOpacity
+                      style={styles.activityActionBtn}
+                      onPress={() => handleEditDonation(item)}
+                      activeOpacity={0.7}
+                    >
+                      <Icon name="pencil-outline" size={16} color={theme.colors.primary} />
+                      <Text style={styles.activityActionText}>Edit</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.activityActionBtn}
+                      onPress={() => handleCancelDonation(item)}
+                      activeOpacity={0.7}
+                    >
+                      <Icon name="close-circle-outline" size={16} color={theme.colors.error} />
+                      <Text style={[styles.activityActionText, { color: theme.colors.error }]}>Cancel</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
               </React.Fragment>
             ))
           )}
@@ -186,9 +239,9 @@ export const ProfileScreen = ({ navigation }: any) => {
             onPress={() => navigation.navigate('PersonalSettings')}
             activeOpacity={0.7}
           >
-            <Icon name="account-outline" size={22} color="#64748B" />
+            <Icon name="account-outline" size={22} color={theme.colors.primary} />
             <Text style={styles.settingText}>Personal Information</Text>
-            <Icon name="chevron-right" size={22} color="#94A3B8" />
+            <Icon name="chevron-right" size={22} color={theme.colors.textSecondary} />
           </TouchableOpacity>
 
           <View style={styles.itemDivider} />
@@ -198,9 +251,9 @@ export const ProfileScreen = ({ navigation }: any) => {
             onPress={() => navigation.navigate('AlertSettings')}
             activeOpacity={0.7}
           >
-            <Icon name="bell-outline" size={22} color="#64748B" />
+            <Icon name="bell-outline" size={22} color={theme.colors.primary} />
             <Text style={styles.settingText}>Collection Alerts</Text>
-            <Icon name="chevron-right" size={22} color="#94A3B8" />
+            <Icon name="chevron-right" size={22} color={theme.colors.textSecondary} />
           </TouchableOpacity>
 
           <View style={styles.itemDivider} />
@@ -210,9 +263,9 @@ export const ProfileScreen = ({ navigation }: any) => {
             onPress={() => navigation.navigate('PrivacySettings')}
             activeOpacity={0.7}
           >
-            <Icon name="shield-outline" size={22} color="#64748B" />
+            <Icon name="shield-outline" size={22} color={theme.colors.primary} />
             <Text style={styles.settingText}>Privacy & Security</Text>
-            <Icon name="chevron-right" size={22} color="#94A3B8" />
+            <Icon name="chevron-right" size={22} color={theme.colors.textSecondary} />
           </TouchableOpacity>
 
           <View style={styles.itemDivider} />
@@ -222,9 +275,9 @@ export const ProfileScreen = ({ navigation }: any) => {
             onPress={() => navigation.navigate('HelpSettings')}
             activeOpacity={0.7}
           >
-            <Icon name="help-circle-outline" size={22} color="#64748B" />
+            <Icon name="help-circle-outline" size={22} color={theme.colors.primary} />
             <Text style={styles.settingText}>Help Center</Text>
-            <Icon name="chevron-right" size={22} color="#94A3B8" />
+            <Icon name="chevron-right" size={22} color={theme.colors.textSecondary} />
           </TouchableOpacity>
         </View>
 
@@ -244,13 +297,13 @@ export const ProfileScreen = ({ navigation }: any) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F9FE',
+    backgroundColor: theme.colors.background,
   },
   headerBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#15A800',
+    backgroundColor: theme.colors.primary,
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
@@ -263,13 +316,12 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.colors.surface,
   },
   headerTitle: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: -0.3,
+    fontFamily: theme.fonts.heading,
+    fontSize: 20,
+    color: theme.colors.textInverse,
   },
   userAvatarCircle: {
     width: 32,
@@ -286,8 +338,8 @@ const styles = StyleSheet.create({
   },
   roleToggleContainer: {
     flexDirection: 'row',
-    backgroundColor: '#E2E8F0',
-    borderRadius: 20,
+    backgroundColor: theme.colors.surfaceContainer,
+    borderRadius: theme.radius.full,
     padding: 4,
     marginBottom: 16,
     gap: 4,
@@ -298,101 +350,98 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 10,
-    borderRadius: 16,
+    borderRadius: theme.radius.full,
     gap: 6,
   },
   roleBtnActive: {
-    backgroundColor: '#15A800',
+    backgroundColor: theme.colors.primary,
   },
   roleBtnText: {
+    fontFamily: theme.fonts.bodyBold,
     fontSize: 11,
-    fontWeight: '800',
-    color: '#15A800',
-    letterSpacing: 0.5,
+    color: theme.colors.primary,
+    letterSpacing: 0.4,
   },
   roleBtnTextActive: {
-    color: '#FFFFFF',
+    color: theme.colors.textInverse,
   },
   userCard: {
     alignItems: 'center',
-    padding: 24,
-    borderRadius: 24,
-    backgroundColor: '#FFFFFF',
+    padding: 20,
+    borderRadius: theme.radius.xl,
+    backgroundColor: theme.colors.surface,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: theme.colors.border,
     marginBottom: 16,
   },
   avatarCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#ECFDF5',
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: theme.colors.primaryContainer,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 14,
-    borderWidth: 2,
-    borderColor: '#6EE7B7',
+    marginBottom: 12,
   },
   userName: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#0F172A',
-    marginBottom: 4,
+    fontFamily: theme.fonts.heading,
+    fontSize: 17,
+    color: theme.colors.text,
+    marginBottom: 3,
   },
   userEmail: {
-    fontSize: 14,
-    color: '#64748B',
-    marginBottom: 14,
+    fontFamily: theme.fonts.body,
+    fontSize: 12,
+    color: theme.colors.textSecondary,
   },
   certifiedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#A7F3D0',
+    backgroundColor: theme.colors.primaryContainer,
     paddingHorizontal: 14,
     paddingVertical: 6,
-    borderRadius: 16,
+    borderRadius: theme.radius.full,
     gap: 6,
   },
   certifiedText: {
+    fontFamily: theme.fonts.bodyBold,
     fontSize: 11,
-    fontWeight: '800',
-    color: '#15A800',
-    letterSpacing: 0.8,
+    color: theme.colors.primary,
+    letterSpacing: 0.4,
   },
   impactCard: {
-    backgroundColor: '#15A800',
-    borderRadius: 24,
-    padding: 22,
+    backgroundColor: theme.colors.text,
+    borderRadius: theme.radius.md,
+    padding: 20,
     marginBottom: 20,
   },
   impactTitleLabel: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#A7F3D0',
-    letterSpacing: 0.8,
+    fontFamily: theme.fonts.bodySemiBold,
+    fontSize: 10.5,
+    color: 'rgba(255,255,255,0.6)',
+    letterSpacing: 0.4,
     marginBottom: 6,
   },
   ptsRow: {
     flexDirection: 'row',
     alignItems: 'baseline',
     gap: 8,
-    marginBottom: 18,
+    marginBottom: 16,
   },
   ptsValue: {
-    fontSize: 44,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: -1,
+    fontFamily: theme.fonts.heading,
+    fontSize: 32,
+    color: theme.colors.secondary,
   },
   ptsUnit: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#A7F3D0',
+    fontFamily: theme.fonts.bodySemiBold,
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.65)',
   },
   impactDivider: {
     height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    marginBottom: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    marginBottom: 16,
   },
   statsRow: {
     flexDirection: 'row',
@@ -402,28 +451,28 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   subLabel: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#A7F3D0',
-    letterSpacing: 0.8,
+    fontFamily: theme.fonts.bodySemiBold,
+    fontSize: 9,
+    color: 'rgba(255,255,255,0.55)',
+    letterSpacing: 0.4,
     marginBottom: 4,
   },
   subVal: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#FFFFFF',
+    fontFamily: theme.fonts.bodyBold,
+    fontSize: 15,
+    color: theme.colors.textInverse,
   },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#15A800',
+    fontFamily: theme.fonts.heading,
+    fontSize: 16,
+    color: theme.colors.text,
     marginBottom: 12,
   },
   activityCard: {
-    borderRadius: 20,
-    backgroundColor: '#FFFFFF',
+    borderRadius: theme.radius.lg,
+    backgroundColor: theme.colors.surface,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: theme.colors.border,
     marginBottom: 20,
     overflow: 'hidden',
   },
@@ -436,7 +485,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 14,
-    backgroundColor: '#ECFDF5',
+    backgroundColor: theme.colors.primaryContainer,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 14,
@@ -445,57 +494,79 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   activityTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#0F172A',
+    fontFamily: theme.fonts.bodyBold,
+    fontSize: 15,
+    color: theme.colors.text,
   },
   activityMeta: {
+    fontFamily: theme.fonts.body,
     fontSize: 12,
-    color: '#64748B',
+    color: theme.colors.textSecondary,
     marginTop: 2,
   },
   pointsEarned: {
+    fontFamily: theme.fonts.bodyBold,
     fontSize: 14,
-    fontWeight: '800',
-    color: '#15A800',
+    color: theme.colors.secondary,
+  },
+  activityActionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingBottom: 14,
+    marginTop: -6,
+  },
+  activityActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: theme.radius.full,
+    backgroundColor: theme.colors.background,
+  },
+  activityActionText: {
+    fontFamily: theme.fonts.bodySemiBold,
+    fontSize: 12,
+    color: theme.colors.primary,
   },
   itemDivider: {
     height: 1,
-    backgroundColor: '#E2E8F0',
+    backgroundColor: theme.colors.border,
   },
   settingsCard: {
-    borderRadius: 20,
-    backgroundColor: '#FFFFFF',
+    borderRadius: theme.radius.lg,
+    backgroundColor: theme.colors.surface,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: theme.colors.border,
     marginBottom: 24,
     overflow: 'hidden',
   },
   settingItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 18,
-    gap: 14,
+    padding: 16,
+    gap: 12,
   },
   settingText: {
     flex: 1,
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#0F172A',
+    fontFamily: theme.fonts.bodySemiBold,
+    fontSize: 14,
+    color: theme.colors.text,
   },
   signOutBtn: {
-    backgroundColor: '#15A800',
-    borderRadius: 30,
+    backgroundColor: theme.colors.text,
+    borderRadius: theme.radius.full,
     height: 52,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 24,
   },
   signOutText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '800',
-    letterSpacing: 1,
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.textInverse,
+    fontSize: 14,
+    letterSpacing: 0.8,
   },
 });
 

@@ -86,7 +86,7 @@ export const Button: React.FC<ButtonProps> = ({
 
 const styles = StyleSheet.create({
   button: {
-    borderRadius: theme.radius.md,
+    borderRadius: theme.radius.full,
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
@@ -137,7 +137,7 @@ const styles = StyleSheet.create({
     marginLeft: theme.spacing.sm,
   },
   text: {
-    fontWeight: '600',
+    fontFamily: theme.fonts.bodyBold,
     textAlign: 'center',
   },
   text_sm: {

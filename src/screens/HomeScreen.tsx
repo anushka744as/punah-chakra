@@ -12,6 +12,10 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { supabase, fetchUserDonations, fetchUserProfile } from '../services/api';
+import { theme } from '../theme/theme';
+import { ProgressRing } from '../components/ProgressRing';
+
+const TIER_SIZE = 1000;
 
 export const HomeScreen = ({ navigation }: any) => {
   const insets = useSafeAreaInsets();
@@ -45,17 +49,19 @@ export const HomeScreen = ({ navigation }: any) => {
             title: d.category || 'Donation',
             date: `${d.pickup_day}${d.weight_kg ? ' · ' + d.weight_kg + ' kg' : ''}`,
             points: `+${d.points_awarded ?? 0} pts`,
-            status: (d.status || 'scheduled').toUpperCase(),
+            status: (d.status || 'pending').toUpperCase(),
             icon: (d.category || '').toLowerCase().includes('textile') || (d.category || '').toLowerCase().includes('clothes')
               ? 'tshirt-crew-outline'
-              : (d.category || '').toLowerCase().includes('e-waste') || (d.category || '').toLowerCase().includes('electronic')
-              ? 'flash-outline'
-              : (d.category || '').toLowerCase().includes('paper')
-              ? 'newspaper-variant-outline'
+              : (d.category || '').toLowerCase().includes('shoe')
+              ? 'shoe-sneaker'
+              : (d.category || '').toLowerCase().includes('blanket') || (d.category || '').toLowerCase().includes('bedsheet')
+              ? 'bed-king-outline'
+              : (d.category || '').toLowerCase().includes('bag')
+              ? 'bag-personal-outline'
               : 'package-variant-closed',
           })));
 
-          const active = donations.find((d) => d.status === 'scheduled' || d.status === 'assigned');
+          const active = donations.find((d) => d.status === 'pending' || d.status === 'scheduled' || d.status === 'assigned');
           setScheduledPickup(active ? `${active.pickup_day}, ${active.time_slot}` : null);
         } else {
           setContributions([]);
@@ -69,10 +75,13 @@ export const HomeScreen = ({ navigation }: any) => {
     }
   };
 
+  const pointsIntoTier = points % TIER_SIZE;
+  const pointsToGo = TIER_SIZE - pointsIntoTier;
+
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#15A800" />
-      
+      <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
+
       {/* Top Header */}
       <View style={[styles.headerBar, { paddingTop: Math.max(insets.top, 14) }]}>
         <View style={styles.headerLeft}>
@@ -85,7 +94,7 @@ export const HomeScreen = ({ navigation }: any) => {
         </View>
         <TouchableOpacity style={styles.userAvatarBtn} onPress={() => { try { navigation.navigate('MainTabs', { screen: 'Profile' }); } catch { navigation.navigate('Profile'); } }} activeOpacity={0.7}>
           <View style={styles.userAvatarCircle}>
-            <Icon name="account-outline" size={20} color="#FFFFFF" />
+            <Icon name="account-outline" size={20} color={theme.colors.textInverse} />
           </View>
         </TouchableOpacity>
       </View>
@@ -93,32 +102,33 @@ export const HomeScreen = ({ navigation }: any) => {
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Total Impact Points Card */}
         <View style={styles.impactCard}>
-          <View style={styles.impactHeader}>
-            <Text style={styles.impactLabel}>TOTAL IMPACT POINTS</Text>
-            <View style={styles.leafBg}>
-              <Icon name="leaf-outline" size={80} color="rgba(255,255,255,0.18)" />
-            </View>
+          <ProgressRing
+            progress={pointsIntoTier / TIER_SIZE}
+            centerValue={points.toLocaleString()}
+            centerLabel="POINTS"
+          />
+          <View style={styles.impactCopy}>
+            <Text style={styles.impactLabel}>EARTH WARRIOR TIER</Text>
+            <Text style={styles.impactSubtext}>
+              <Text style={styles.impactSubtextEmphasis}>{pointsToGo} pts</Text> to go — keep donating to level up.
+            </Text>
           </View>
-
-          <Text style={styles.impactValue}>{points.toLocaleString()}</Text>
-
-          {/* Progress Bar */}
-          <View style={styles.progressContainer}>
-            <View style={styles.progressFill} />
-          </View>
-          <Text style={styles.impactSubtext}>Next tier: Earth Warrior (750 pts to go)</Text>
         </View>
 
         {/* Stats Row */}
         <View style={styles.statsGrid}>
           <View style={styles.statCard}>
-            <Icon name="pine-tree" size={32} color="#15A800" style={styles.statIcon} />
+            <View style={[styles.statIconBg, { backgroundColor: theme.colors.primaryContainer }]}>
+              <Icon name="pine-tree" size={16} color={theme.colors.primary} />
+            </View>
             <Text style={styles.statValue}>{co2Offset}</Text>
             <Text style={styles.statLabel}>CO₂ OFFSET</Text>
           </View>
 
           <View style={styles.statCard}>
-            <Icon name="star-circle-outline" size={32} color="#15A800" style={styles.statIcon} />
+            <View style={[styles.statIconBg, { backgroundColor: theme.colors.secondaryContainer }]}>
+              <Icon name="star-circle-outline" size={16} color={theme.colors.secondary} />
+            </View>
             <Text style={styles.statValue}>{String(badgesCount).padStart(2, '0')}</Text>
             <Text style={styles.statLabel}>BADGES</Text>
           </View>
@@ -127,10 +137,10 @@ export const HomeScreen = ({ navigation }: any) => {
         {/* Pickup Scheduled Banner */}
         <View style={styles.scheduledBanner}>
           <View style={styles.truckIconBg}>
-            <Icon name="truck-delivery" size={22} color="#15A800" />
+            <Icon name="truck-delivery" size={20} color={theme.colors.textInverse} />
           </View>
           <View style={styles.scheduledTextCol}>
-            <Text style={styles.scheduledLabel}>PICKUP SCHEDULED</Text>
+            <Text style={styles.scheduledLabel}>PICKUP STATUS</Text>
             <Text style={styles.scheduledTime}>
               {scheduledPickup ?? 'No pickup scheduled'}
             </Text>
@@ -149,9 +159,7 @@ export const HomeScreen = ({ navigation }: any) => {
           onPress={() => navigation.navigate('Donate')}
           activeOpacity={0.8}
         >
-          <View style={styles.plusIconBg}>
-            <Icon name="plus" size={18} color="#15A800" />
-          </View>
+          <Icon name="plus" size={18} color={theme.colors.secondary} />
           <Text style={styles.scheduleBtnText}>Schedule new donation</Text>
         </TouchableOpacity>
 
@@ -162,14 +170,15 @@ export const HomeScreen = ({ navigation }: any) => {
           <Text style={styles.emptyText}>Loading...</Text>
         ) : contributions.length === 0 ? (
           <View style={styles.emptyBox}>
-            <Icon name="package-variant-closed" size={32} color="#CBD5E1" />
-            <Text style={styles.emptyText}>No donations yet. Schedule your first pickup!</Text>
+            <Icon name="package-variant-closed" size={28} color={theme.colors.primary} />
+            <Text style={styles.emptyTitle}>Nothing here yet</Text>
+            <Text style={styles.emptyText}>Schedule your first pickup and it will show up here.</Text>
           </View>
         ) : (
           contributions.map((item) => (
             <View key={item.id} style={styles.contributionCard}>
               <View style={styles.itemIconBg}>
-                <Icon name={item.icon || 'package-variant-closed'} size={24} color="#15A800" />
+                <Icon name={item.icon || 'package-variant-closed'} size={24} color={theme.colors.primary} />
               </View>
               <View style={styles.contributionDetails}>
                 <View style={styles.cardHeaderRow}>
@@ -192,13 +201,13 @@ export const HomeScreen = ({ navigation }: any) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F9FE',
+    backgroundColor: theme.colors.background,
   },
   headerBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#15A800',
+    backgroundColor: theme.colors.primary,
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
@@ -211,13 +220,12 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.colors.surface,
   },
   logoText: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: -0.3,
+    fontFamily: theme.fonts.heading,
+    fontSize: 20,
+    color: theme.colors.textInverse,
   },
   userAvatarBtn: {
     padding: 2,
@@ -236,53 +244,33 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   impactCard: {
-    backgroundColor: '#15A800',
-    borderRadius: 24,
-    padding: 22,
-    marginBottom: 16,
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  impactHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    gap: 16,
+    backgroundColor: theme.colors.primary,
+    borderRadius: theme.radius.xl,
+    padding: 20,
+    marginBottom: 16,
+  },
+  impactCopy: {
+    flex: 1,
   },
   impactLabel: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#A7F3D0',
-    letterSpacing: 0.8,
-  },
-  leafBg: {
-    position: 'absolute',
-    right: -12,
-    top: -12,
-  },
-  impactValue: {
-    fontSize: 48,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    marginVertical: 4,
-    letterSpacing: -1,
-  },
-  progressContainer: {
-    height: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-    borderRadius: 3,
-    marginTop: 10,
-    marginBottom: 10,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    width: '75%',
-    height: '100%',
-    backgroundColor: '#6EE7B7',
+    fontFamily: theme.fonts.bodySemiBold,
+    fontSize: 10.5,
+    color: 'rgba(255,255,255,0.65)',
+    letterSpacing: 0.4,
+    marginBottom: 4,
   },
   impactSubtext: {
-    fontSize: 12,
-    color: '#D1FAE5',
-    fontWeight: '600',
+    fontFamily: theme.fonts.body,
+    fontSize: 13,
+    lineHeight: 18,
+    color: theme.colors.textInverse,
+  },
+  impactSubtextEmphasis: {
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.secondary,
   },
   statsGrid: {
     flexDirection: 'row',
@@ -291,127 +279,137 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
-    paddingVertical: 18,
+    paddingVertical: 14,
     paddingHorizontal: 12,
-    alignItems: 'center',
-    borderRadius: 20,
-    backgroundColor: '#FFFFFF',
+    borderRadius: theme.radius.lg,
+    backgroundColor: theme.colors.surface,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: theme.colors.border,
   },
-  statIcon: {
-    marginBottom: 8,
+  statIconBg: {
+    width: 30,
+    height: 30,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 9,
   },
   statValue: {
-    fontSize: 26,
-    fontWeight: '800',
-    color: '#15A800',
+    fontFamily: theme.fonts.heading,
+    fontSize: 19,
+    color: theme.colors.text,
     marginBottom: 2,
   },
   statLabel: {
+    fontFamily: theme.fonts.bodySemiBold,
     fontSize: 10,
-    fontWeight: '800',
-    color: '#64748B',
-    letterSpacing: 0.8,
+    color: theme.colors.textSecondary,
+    letterSpacing: 0.4,
   },
   scheduledBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#A7F3D0',
-    borderRadius: 20,
-    padding: 14,
-    marginBottom: 16,
+    backgroundColor: theme.colors.secondaryContainer,
+    borderWidth: 1,
+    borderColor: '#BFDCE6',
+    borderRadius: theme.radius.lg,
+    padding: 12,
+    marginBottom: 14,
   },
   truckIconBg: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: '#6EE7B7',
+    width: 34,
+    height: 34,
+    borderRadius: 9,
+    backgroundColor: theme.colors.secondary,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
+    marginRight: 11,
   },
   scheduledTextCol: {
     flex: 1,
   },
   scheduledLabel: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#15A800',
-    letterSpacing: 0.5,
+    fontFamily: theme.fonts.bodyBold,
+    fontSize: 9.5,
+    color: theme.colors.clay,
+    letterSpacing: 0.4,
   },
   scheduledTime: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#15A800',
+    fontFamily: theme.fonts.bodySemiBold,
+    fontSize: 12.5,
+    color: theme.colors.text,
     marginTop: 2,
   },
   viewBtn: {
-    backgroundColor: '#15A800',
-    borderRadius: 20,
-    paddingHorizontal: 18,
-    paddingVertical: 8,
+    backgroundColor: theme.colors.text,
+    borderRadius: theme.radius.full,
+    paddingHorizontal: 16,
+    paddingVertical: 7,
   },
   viewBtnText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.textInverse,
+    fontSize: 12,
   },
   scheduleBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#15A800',
-    borderRadius: 30,
-    height: 54,
-    gap: 10,
+    backgroundColor: theme.colors.text,
+    borderRadius: theme.radius.full,
+    height: 52,
+    gap: 8,
     marginBottom: 24,
   },
-  plusIconBg: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   scheduleBtnText: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: '#FFFFFF',
+    fontFamily: theme.fonts.bodyBold,
+    fontSize: 15,
+    color: theme.colors.textInverse,
   },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#0F172A',
+    fontFamily: theme.fonts.heading,
+    fontSize: 18,
+    color: theme.colors.text,
     marginBottom: 14,
   },
   emptyBox: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 32,
-    gap: 10,
+    paddingVertical: 28,
+    paddingHorizontal: 18,
+    gap: 6,
+    borderRadius: theme.radius.lg,
+    borderWidth: 1.5,
+    borderColor: theme.colors.border,
+    borderStyle: 'dashed',
+  },
+  emptyTitle: {
+    fontFamily: theme.fonts.bodyBold,
+    fontSize: 13,
+    color: theme.colors.text,
+    marginTop: 6,
   },
   emptyText: {
-    fontSize: 14,
-    color: '#94A3B8',
+    fontFamily: theme.fonts.body,
+    fontSize: 12,
+    color: theme.colors.textSecondary,
     textAlign: 'center',
   },
   contributionCard: {
     flexDirection: 'row',
     padding: 16,
-    borderRadius: 20,
+    borderRadius: theme.radius.lg,
     marginBottom: 12,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.colors.surface,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: theme.colors.border,
     alignItems: 'center',
   },
   itemIconBg: {
     width: 48,
     height: 64,
     borderRadius: 14,
-    backgroundColor: '#ECFDF5',
+    backgroundColor: theme.colors.primaryContainer,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 14,
@@ -426,31 +424,32 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   itemTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#0F172A',
+    fontFamily: theme.fonts.bodyBold,
+    fontSize: 16,
+    color: theme.colors.text,
   },
   statusBadge: {
-    backgroundColor: '#A7F3D0',
+    backgroundColor: theme.colors.secondaryContainer,
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 12,
+    borderRadius: theme.radius.full,
   },
   statusText: {
+    fontFamily: theme.fonts.bodyBold,
     fontSize: 9,
-    fontWeight: '800',
-    color: '#15A800',
-    letterSpacing: 0.5,
+    color: theme.colors.clay,
+    letterSpacing: 0.4,
   },
   itemMeta: {
+    fontFamily: theme.fonts.body,
     fontSize: 13,
-    color: '#64748B',
+    color: theme.colors.textSecondary,
     marginBottom: 4,
   },
   itemPoints: {
+    fontFamily: theme.fonts.bodyBold,
     fontSize: 15,
-    fontWeight: '800',
-    color: '#15A800',
+    color: theme.colors.secondary,
   },
 });
 

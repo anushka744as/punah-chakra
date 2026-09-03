@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
+import { View, ActivityIndicator, StyleSheet, Linking } from 'react-native';
+import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { theme } from '../theme/theme';
@@ -16,7 +16,7 @@ import { LandingScreen } from '../screens/LandingScreen';
 import { LoginScreen } from '../screens/LoginScreen';
 import { SignupScreen } from '../screens/SignUpScreen';
 import { ForgotPasswordScreen } from '../screens/ForgotPasswordScreen';
-import { RoleSelectionScreen } from '../screens/RoleSelectionScreen';
+import { ResetPasswordScreen } from '../screens/ResetPasswordScreen';
 
 // Core Tabs
 import { TabNavigator } from './TabNavigator';
@@ -41,13 +41,65 @@ const Stack = createNativeStackNavigator();
 export const ONBOARDING_COMPLETE_KEY = '@punahchakra_onboarding_completed';
 export const USER_LOGGED_IN_KEY = '@punahchakra_user_logged_in';
 export const LAST_ROLE_KEY = '@punahchakra_last_role';
+export const navigationRef = createNavigationContainerRef();
+
+// Supabase's password-reset email links to `punahchakra://reset-password` with the
+// recovery credentials in either the URL fragment (implicit flow) or a `code` query
+// param (PKCE flow) — parse whichever shape shows up.
+type RecoveryParams =
+  | { kind: 'code'; code: string }
+  | { kind: 'tokens'; access_token: string; refresh_token: string };
+
+const parseRecoveryParams = (url: string): RecoveryParams | null => {
+  const [, afterHash] = url.split('#');
+  const [, afterQuery] = url.split('?');
+  const params = new URLSearchParams(afterHash || afterQuery || '');
+  const code = params.get('code');
+  if (code) return { kind: 'code', code };
+  const access_token = params.get('access_token');
+  const refresh_token = params.get('refresh_token');
+  if (params.get('type') === 'recovery' && access_token && refresh_token) {
+    return { kind: 'tokens', access_token, refresh_token };
+  }
+  return null;
+};
+
+const handleRecoveryUrl = async (url: string | null) => {
+  if (!url || !url.includes('reset-password')) return;
+  const parsed = parseRecoveryParams(url);
+  if (!parsed) return;
+  try {
+    if (parsed.kind === 'code') {
+      await supabase.auth.exchangeCodeForSession(parsed.code);
+    } else {
+      await supabase.auth.setSession({ access_token: parsed.access_token, refresh_token: parsed.refresh_token });
+    }
+    if (navigationRef.isReady()) {
+      navigationRef.navigate('ResetPassword' as never);
+    }
+  } catch {
+    // ResetPasswordScreen itself handles the "no active session" case
+  }
+};
 
 export const AppNavigator = () => {
   const [loading, setLoading] = useState(true);
-  const [initialRoute, setInitialRoute] = useState<'MissionFoundations' | 'Landing' | 'MainTabs' | 'CollectorDashboard'>('Landing');
+  const [initialRoute, setInitialRoute] = useState<'MissionFoundations' | 'Landing' | 'MainTabs' | 'CollectorDashboard' | 'ResetPassword'>('Landing');
 
   useEffect(() => {
-    checkInitialSession();
+    (async () => {
+      const initialUrl = await Linking.getInitialURL();
+      if (initialUrl && initialUrl.includes('reset-password')) {
+        await handleRecoveryUrl(initialUrl);
+        setInitialRoute('ResetPassword');
+        setLoading(false);
+      } else {
+        checkInitialSession();
+      }
+    })();
+
+    const subscription = Linking.addEventListener('url', ({ url }) => handleRecoveryUrl(url));
+    return () => subscription.remove();
   }, []);
 
   const checkInitialSession = async () => {
@@ -57,7 +109,7 @@ export const AppNavigator = () => {
       const lastRole = await AsyncStorage.getItem(LAST_ROLE_KEY);
 
       if (isUserLoggedIn === 'true') {
-        if (lastRole === 'collector') {
+        if (lastRole === 'admin') {
           setInitialRoute('CollectorDashboard');
         } else {
           setInitialRoute('MainTabs');
@@ -70,16 +122,16 @@ export const AppNavigator = () => {
         await AsyncStorage.setItem(USER_LOGGED_IN_KEY, 'true');
         try {
           const profile = await fetchUserProfile(session.user.id);
-          if (profile?.role === 'collector') {
-            await AsyncStorage.setItem(LAST_ROLE_KEY, 'collector');
+          if (profile?.role === 'admin') {
+            await AsyncStorage.setItem(LAST_ROLE_KEY, 'admin');
             setInitialRoute('CollectorDashboard');
           } else {
-            await AsyncStorage.setItem(LAST_ROLE_KEY, 'donor');
+            await AsyncStorage.setItem(LAST_ROLE_KEY, 'user');
             setInitialRoute('MainTabs');
           }
         } catch {
           // If profile fetch fails, user is still authenticated -> default to MainTabs/Dashboard
-          if (lastRole === 'collector') {
+          if (lastRole === 'admin') {
             setInitialRoute('CollectorDashboard');
           } else {
             setInitialRoute('MainTabs');
@@ -88,14 +140,17 @@ export const AppNavigator = () => {
         return;
       }
 
-      // 3. Not logged in -> check onboarding
-      if (isUserLoggedIn !== 'true') {
-        const onboardingDone = await AsyncStorage.getItem(ONBOARDING_COMPLETE_KEY);
-        if (onboardingDone === 'true') {
-          setInitialRoute('Landing');
-        } else {
-          setInitialRoute('MissionFoundations');
-        }
+      // 3. No active Supabase session — clear any stale "logged in" cache from a
+      // previous session that never got persisted/expired, then check onboarding.
+      if (isUserLoggedIn === 'true') {
+        await AsyncStorage.removeItem(USER_LOGGED_IN_KEY);
+        await AsyncStorage.removeItem(LAST_ROLE_KEY);
+      }
+      const onboardingDone = await AsyncStorage.getItem(ONBOARDING_COMPLETE_KEY);
+      if (onboardingDone === 'true') {
+        setInitialRoute('Landing');
+      } else {
+        setInitialRoute('MissionFoundations');
       }
     } catch (e) {
       // Graceful fallback to Landing
@@ -114,7 +169,7 @@ export const AppNavigator = () => {
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef}>
       <Stack.Navigator
         screenOptions={{
           headerShown: false,
@@ -133,7 +188,7 @@ export const AppNavigator = () => {
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="SignUp" component={SignupScreen} />
         <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
-        <Stack.Screen name="RoleSelection" component={RoleSelectionScreen} />
+        <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
 
         {/* Main Application */}
         <Stack.Screen name="MainTabs" component={TabNavigator} />

@@ -70,7 +70,7 @@ const styles = StyleSheet.create({
     marginRight: 4,
   },
   text: {
-    fontWeight: '600',
+    fontFamily: theme.fonts.bodySemiBold,
   },
   textSize_sm: {
     fontSize: 11,
@@ -79,7 +79,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   text_success: {
-    color: '#15A800',
+    color: '#047857',
   },
   text_warning: {
     color: '#92400E',

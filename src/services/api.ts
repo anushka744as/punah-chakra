@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 declare const process: any;
 
@@ -15,8 +16,10 @@ const SUPABASE_ANON_KEY = getEnvVar('EXPO_PUBLIC_SUPABASE_ANON_KEY', 'eyJhbGciOi
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
+    storage: AsyncStorage,
     persistSession: true,
     autoRefreshToken: true,
+    detectSessionInUrl: false,
   },
 });
 
@@ -26,9 +29,10 @@ export interface UserProfile {
   full_name: string;
   phone?: string;
   address?: string;
-  role?: 'donor' | 'collector' | 'recycler';
+  role?: 'user' | 'admin';
   points?: number;
   co2_offset_kg?: number;
+  available_slots?: string[];
 }
 
 export interface DonationItem {
@@ -48,7 +52,7 @@ export interface DonationItem {
   time_slot: string;
   instructions: string;
   address: string;
-  status: 'scheduled' | 'assigned' | 'in_transit' | 'collected' | 'assessed' | 'completed' | 'cancelled';
+  status: 'pending' | 'scheduled' | 'assigned' | 'in_transit' | 'collected' | 'assessed' | 'completed' | 'cancelled';
   points_awarded: number;
   created_at?: string;
 }
@@ -74,7 +78,7 @@ export interface PickupJob {
 // ---------------------------------------------------------------------------
 // AUTH & USER PROFILE API
 // ---------------------------------------------------------------------------
-export async function signUpUser(email: string, password: string, fullName: string, role: 'donor' | 'collector' | 'recycler') {
+export async function signUpUser(email: string, password: string, fullName: string, role: 'user' | 'admin') {
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
@@ -151,6 +155,30 @@ export async function updateUserProfile(userId: string, updates: Partial<UserPro
   return data;
 }
 
+// Slots a donor may pick for a given pickup day: slots at least one admin has marked
+// themselves generally available for, minus slots another active (non-cancelled) donation
+// has already booked for that same day. `excludeDonationId` lets a donor keep their own
+// slot while rescheduling/editing an existing request.
+export async function fetchSlotAvailability(
+  pickupDay: string,
+  excludeDonationId?: string
+): Promise<{ adminAvailableSlots: string[]; bookedSlots: string[] }> {
+  const [{ data: admins }, { data: bookings }] = await Promise.all([
+    supabase.from('profiles').select('available_slots').eq('role', 'admin'),
+    supabase.from('donations').select('id, time_slot').eq('pickup_day', pickupDay).neq('status', 'cancelled'),
+  ]);
+
+  const adminAvailableSlots = Array.from(
+    new Set(((admins || []) as any[]).flatMap((a) => a.available_slots || []))
+  );
+  const bookedSlots = ((bookings || []) as any[])
+    .filter((b) => b.id !== excludeDonationId)
+    .map((b) => b.time_slot)
+    .filter(Boolean);
+
+  return { adminAvailableSlots, bookedSlots };
+}
+
 export async function updateUserPassword(newPassword: string) {
   const { data, error } = await supabase.auth.updateUser({
     password: newPassword,
@@ -171,9 +199,9 @@ export interface CategoryPoints {
 
 const DEFAULT_CATEGORY_POINTS: Record<string, CategoryPoints> = {
   CLOTHES: { category: 'CLOTHES', base_points: 300, points_per_kg: 60, co2_factor_per_kg: 2.5 },
-  'E-WASTE': { category: 'E-WASTE', base_points: 500, points_per_kg: 120, co2_factor_per_kg: 4.0 },
-  PAPER: { category: 'PAPER', base_points: 150, points_per_kg: 40, co2_factor_per_kg: 1.2 },
   SHOES: { category: 'SHOES', base_points: 250, points_per_kg: 50, co2_factor_per_kg: 2.0 },
+  BLANKETS: { category: 'BLANKETS', base_points: 280, points_per_kg: 55, co2_factor_per_kg: 2.2 },
+  BAGS: { category: 'BAGS', base_points: 200, points_per_kg: 45, co2_factor_per_kg: 1.8 },
   OTHERS: { category: 'OTHERS', base_points: 100, points_per_kg: 30, co2_factor_per_kg: 1.0 },
 };
 
@@ -230,7 +258,7 @@ export async function createDonationRequest(donation: Omit<DonationItem, 'id' | 
         time_slot: donation.time_slot,
         instructions: donation.instructions,
         address: donation.address,
-        status: 'scheduled',
+        status: 'pending',
         points_awarded: pointsAwarded,
       },
     ])
@@ -239,21 +267,10 @@ export async function createDonationRequest(donation: Omit<DonationItem, 'id' | 
 
   if (error) throw error;
 
-  // 3. Update donor's profile points & CO2 offset in profiles table
-  try {
-    const currentProfile = await fetchUserProfile(donorId);
-    if (currentProfile) {
-      const newPoints = (currentProfile.points || 0) + pointsAwarded;
-      const newCo2 = Math.round(((currentProfile.co2_offset_kg || 0) + co2OffsetKg) * 100) / 100;
+  // Donor points & CO2 offset are credited only once the pickup is completed
+  // (see creditDonorForCompletedDonation), not at scheduling time.
 
-      await supabase
-        .from('profiles')
-        .update({ points: newPoints, co2_offset_kg: newCo2 })
-        .eq('id', donorId);
-    }
-  } catch {}
-
-  // 4. Also insert corresponding pickup job for collectors
+  // 3. Also insert corresponding pickup job for collectors
   try {
     const currentProfile = await fetchUserProfile(donorId);
     await supabase.from('pickups').insert([
@@ -270,17 +287,35 @@ export async function createDonationRequest(donation: Omit<DonationItem, 'id' | 
     ]);
   } catch {}
 
-  // 5. Create a notification in Supabase for the donor
+  // 4. Create a notification in Supabase for the donor
   try {
     await createNotification(
       donorId,
-      'Pickup Request Scheduled',
-      `Your request for ${donation.category} pickup has been confirmed for ${donation.pickup_day} (${donation.time_slot}). Earned +${pointsAwarded} impact pts!`,
+      'Pickup Request Submitted',
+      `Your request for ${donation.category} pickup on ${donation.pickup_day} (${donation.time_slot}) is pending collector confirmation. You'll earn +${pointsAwarded} impact pts once it's picked up!`,
       'PICKUP REMINDER'
     );
   } catch {}
 
   return data;
+}
+
+// Credits the donor's points & CO2 offset once a collector marks the pickup complete.
+// Donor points are intentionally NOT awarded at scheduling time (createDonationRequest)
+// to avoid crediting donations that are later cancelled or refused.
+export async function creditDonorForCompletedDonation(donorId: string, pointsAwarded: number, co2OffsetKg: number) {
+  try {
+    const currentProfile = await fetchUserProfile(donorId);
+    if (currentProfile) {
+      const newPoints = (currentProfile.points || 0) + pointsAwarded;
+      const newCo2 = Math.round(((currentProfile.co2_offset_kg || 0) + co2OffsetKg) * 100) / 100;
+
+      await supabase
+        .from('profiles')
+        .update({ points: newPoints, co2_offset_kg: newCo2 })
+        .eq('id', donorId);
+    }
+  } catch {}
 }
 
 export async function fetchUserDonations(donorId: string): Promise<DonationItem[]> {
@@ -302,6 +337,68 @@ export async function fetchAllScheduledDonations(): Promise<DonationItem[]> {
 
   if (error) return [];
   return data as DonationItem[];
+}
+
+// Cancels a pending donation request. Only valid before a collector has confirmed it —
+// callers should gate this on status === 'pending' in the UI.
+export async function cancelDonationRequest(donationId: string, requestId?: string) {
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(donationId);
+
+  if (isUuid) {
+    const { error } = await supabase.from('donations').update({ status: 'cancelled' }).eq('id', donationId);
+    if (error) throw error;
+  } else if (requestId) {
+    const { error } = await supabase.from('donations').update({ status: 'cancelled' }).eq('request_id', requestId);
+    if (error) throw error;
+  }
+}
+
+export interface DonationRescheduleUpdates {
+  category: string;
+  weight_kg: number;
+  pickup_day: string;
+  time_slot: string;
+  instructions: string;
+  address: string;
+}
+
+// Edits a pending donation request's items/weight/schedule/address, recalculating points.
+// Only valid before a collector has confirmed it — callers should gate this on
+// status === 'pending' in the UI.
+export async function rescheduleDonationRequest(donationId: string, updates: DonationRescheduleUpdates) {
+  const { pointsAwarded } = await calculateRewardForCategory(updates.category, updates.weight_kg || 1);
+
+  const { data, error } = await supabase
+    .from('donations')
+    .update({
+      category: updates.category,
+      weight_kg: updates.weight_kg || 1,
+      estimated_quantity_kg: updates.weight_kg || 1,
+      pickup_day: updates.pickup_day,
+      time_slot: updates.time_slot,
+      instructions: updates.instructions,
+      address: updates.address,
+      points_awarded: pointsAwarded,
+    })
+    .eq('id', donationId)
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  // Keep the matching pickups row in sync so collectors see the updated details
+  try {
+    await supabase
+      .from('pickups')
+      .update({
+        address: updates.address,
+        weight_summary: `${updates.weight_kg || 1} kg`,
+        time_window: updates.time_slot,
+      })
+      .eq('donation_id', donationId);
+  } catch {}
+
+  return data;
 }
 
 // ---------------------------------------------------------------------------
@@ -404,7 +501,7 @@ export async function refusePickupInSupabase(pickupOrDonationId: string, userId:
       await supabase
         .from('donations')
         .update({
-          status: 'scheduled',
+          status: 'pending',
           confirmed_by: null,
           collector_id: null,
           refused_by: userId,
@@ -415,7 +512,7 @@ export async function refusePickupInSupabase(pickupOrDonationId: string, userId:
       await supabase
         .from('donations')
         .update({
-          status: 'scheduled',
+          status: 'pending',
           confirmed_by: null,
           collector_id: null,
           refused_by: userId,

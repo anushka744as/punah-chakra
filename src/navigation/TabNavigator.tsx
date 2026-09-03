@@ -5,8 +5,10 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
 import { HomeScreen } from '../screens/HomeScreen';
 import { DonateScreen } from '../screens/DonateScreen';
+import { PickupMapScreen } from '../screens/PickupMapScreen';
 import { NotificationsScreen } from '../screens/NotificationsScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
+import { theme } from '../theme/theme';
 
 const Tab = createBottomTabNavigator();
 
@@ -15,19 +17,19 @@ export const TabNavigator = () => {
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: '#15A800',
-        tabBarInactiveTintColor: '#64748B',
+        tabBarActiveTintColor: theme.colors.primary,
+        tabBarInactiveTintColor: theme.colors.textSecondary,
         tabBarStyle: {
-          backgroundColor: '#FFFFFF',
+          backgroundColor: theme.colors.surface,
           borderTopWidth: 1,
-          borderTopColor: '#E2E8F0',
+          borderTopColor: theme.colors.border,
           height: 68,
           paddingBottom: 8,
           paddingTop: 6,
         },
         tabBarLabelStyle: {
+          fontFamily: theme.fonts.bodyBold,
           fontSize: 11,
-          fontWeight: '700',
           marginTop: 2,
         },
       }}
@@ -39,7 +41,27 @@ export const TabNavigator = () => {
           tabBarLabel: 'Home',
           tabBarIcon: ({ focused }) => (
             <View style={[styles.iconBox, focused && styles.activeIconBox]}>
-              <Icon name={focused ? 'home' : 'home-outline'} color={focused ? '#15A800' : '#64748B'} size={22} />
+              <Icon
+                name={focused ? 'home' : 'home-outline'}
+                color={focused ? theme.colors.primary : theme.colors.textSecondary}
+                size={22}
+              />
+            </View>
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Map"
+        component={PickupMapScreen}
+        options={{
+          tabBarLabel: 'Map',
+          tabBarIcon: ({ focused }) => (
+            <View style={[styles.iconBox, focused && styles.activeIconBox]}>
+              <Icon
+                name={focused ? 'map' : 'map-outline'}
+                color={focused ? theme.colors.primary : theme.colors.textSecondary}
+                size={22}
+              />
             </View>
           ),
         }}
@@ -50,8 +72,8 @@ export const TabNavigator = () => {
         options={{
           tabBarLabel: 'Donate',
           tabBarIcon: ({ focused }) => (
-            <View style={[styles.iconBox, focused && styles.activeIconBox]}>
-              <Icon name={focused ? 'plus-circle' : 'plus-circle-outline'} color={focused ? '#15A800' : '#64748B'} size={22} />
+            <View style={[styles.fabCircle, focused && styles.fabCircleActive]}>
+              <Icon name="plus" color={theme.colors.textInverse} size={22} />
             </View>
           ),
         }}
@@ -63,7 +85,11 @@ export const TabNavigator = () => {
           tabBarLabel: 'Alerts',
           tabBarIcon: ({ focused }) => (
             <View style={[styles.iconBox, focused && styles.activeIconBox]}>
-              <Icon name={focused ? 'bell' : 'bell-outline'} color={focused ? '#15A800' : '#64748B'} size={22} />
+              <Icon
+                name={focused ? 'bell' : 'bell-outline'}
+                color={focused ? theme.colors.primary : theme.colors.textSecondary}
+                size={22}
+              />
             </View>
           ),
         }}
@@ -75,7 +101,11 @@ export const TabNavigator = () => {
           tabBarLabel: 'Profile',
           tabBarIcon: ({ focused }) => (
             <View style={[styles.iconBox, focused && styles.activeIconBox]}>
-              <Icon name={focused ? 'account' : 'account-outline'} color={focused ? '#15A800' : '#64748B'} size={22} />
+              <Icon
+                name={focused ? 'account' : 'account-outline'}
+                color={focused ? theme.colors.primary : theme.colors.textSecondary}
+                size={22}
+              />
             </View>
           ),
         }}
@@ -93,7 +123,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   activeIconBox: {
-    backgroundColor: '#ECFDF5',
+    backgroundColor: theme.colors.primaryContainer,
+  },
+  fabCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.secondary,
+    marginTop: -22,
+    shadowColor: theme.colors.secondary,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  fabCircleActive: {
+    backgroundColor: theme.colors.primary,
   },
 });
-

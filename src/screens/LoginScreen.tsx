@@ -40,15 +40,10 @@ export const LoginScreen = ({ navigation }: any) => {
     try {
       const res = await signInUser(trimmedEmail, trimmedPassword);
       setLoading(false);
+      const role = (res as any)?.profile?.role === 'admin' ? 'admin' : 'user';
       await AsyncStorage.setItem(USER_LOGGED_IN_KEY, 'true');
-      const role = (res as any)?.profile?.role;
-      if (role === 'collector') {
-        await AsyncStorage.setItem(LAST_ROLE_KEY, 'collector');
-        navigation.replace('CollectorDashboard');
-      } else {
-        await AsyncStorage.setItem(LAST_ROLE_KEY, 'donor');
-        navigation.replace('MainTabs');
-      }
+      await AsyncStorage.setItem(LAST_ROLE_KEY, role);
+      navigation.replace(role === 'admin' ? 'CollectorDashboard' : 'MainTabs');
     } catch (err: any) {
       setLoading(false);
       Alert.alert('Sign In Error', err?.message || 'Invalid email or password. Please try again.');
@@ -71,7 +66,7 @@ export const LoginScreen = ({ navigation }: any) => {
             />
             <Text style={styles.bannerTitle}>Sign In</Text>
             <Text style={styles.bannerSubtitle}>
-              Enter your credentials to access the logistics dashboard.
+              Enter your credentials to continue giving items a second life.
             </Text>
           </View>
 
@@ -79,7 +74,7 @@ export const LoginScreen = ({ navigation }: any) => {
           <View style={[styles.formContainer, { paddingBottom: Math.max(insets.bottom, 24) + 16 }]}>
             <InputField
               label="EMAIL ADDRESS"
-              placeholder="name@company.com"
+              placeholder="name@example.com"
               value={email}
               onChangeText={setEmail}
               keyboardType="email-address"
@@ -119,25 +114,25 @@ export const LoginScreen = ({ navigation }: any) => {
             <View style={styles.divider} />
 
             <View style={styles.footerRow}>
-              <Text style={styles.footerText}>New to the platform? </Text>
+              <Text style={styles.footerText}>New to PunahChakra? </Text>
               <TouchableOpacity onPress={() => navigation.navigate('SignUp')}>
                 <Text style={styles.signupText}>CREATE AN ACCOUNT</Text>
               </TouchableOpacity>
             </View>
 
-            {/* Platform Badges */}
+            {/* Trust Badges */}
             <View style={styles.badgesRow}>
               <View style={styles.badgeItem}>
                 <Icon name="shield-check-outline" size={24} color="#475569" />
                 <Text style={styles.badgeLabel}>SECURE</Text>
               </View>
               <View style={styles.badgeItem}>
-                <Icon name="robot-industrial-outline" size={24} color="#475569" />
-                <Text style={styles.badgeLabel}>INDUSTRIAL</Text>
+                <Icon name="hand-heart-outline" size={24} color="#475569" />
+                <Text style={styles.badgeLabel}>COMMUNITY-LED</Text>
               </View>
               <View style={styles.badgeItem}>
-                <Icon name="factory" size={24} color="#475569" />
-                <Text style={styles.badgeLabel}>ENTERPRISE</Text>
+                <Icon name="leaf" size={24} color="#475569" />
+                <Text style={styles.badgeLabel}>0% LANDFILL</Text>
               </View>
             </View>
           </View>
@@ -156,7 +151,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   topBanner: {
-    backgroundColor: '#15A800',
+    backgroundColor: theme.colors.primary,
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
     padding: 24,
@@ -166,18 +161,18 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 12,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.colors.surface,
     marginBottom: 16,
   },
   bannerTitle: {
     fontSize: 32,
-    fontWeight: '800',
-    color: '#FFFFFF',
+    fontFamily: theme.fonts.heading,
+    color: theme.colors.textInverse,
     marginBottom: 8,
   },
   bannerSubtitle: {
     fontSize: 14,
-    color: '#D1FAE5',
+    color: 'rgba(255,255,255,0.8)',
     lineHeight: 20,
   },
   formContainer: {
@@ -191,14 +186,14 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 12,
-    fontWeight: '700',
-    color: '#334155',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.text,
     letterSpacing: 0.5,
   },
   forgotText: {
     fontSize: 12,
-    fontWeight: '700',
-    color: '#15A800',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.primary,
   },
   passwordInputContainer: {
     flexDirection: 'row',
@@ -206,14 +201,14 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   submitBtn: {
-    backgroundColor: '#15A800',
+    backgroundColor: theme.colors.primary,
     borderRadius: 24,
     height: 52,
     marginTop: 8,
   },
   divider: {
     height: 1,
-    backgroundColor: '#E2E8F0',
+    backgroundColor: theme.colors.border,
     marginVertical: 24,
   },
   footerRow: {
@@ -224,12 +219,12 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: 13,
-    color: '#64748B',
+    color: theme.colors.textSecondary,
   },
   signupText: {
     fontSize: 13,
-    color: '#15A800',
-    fontWeight: '800',
+    color: theme.colors.primary,
+    fontFamily: theme.fonts.bodyBold,
     letterSpacing: 0.5,
   },
   badgesRow: {

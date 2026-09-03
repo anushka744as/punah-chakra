@@ -30,23 +30,23 @@ export const MissionCorePillarsScreen = ({ navigation }: any) => {
       />
       
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.subtitle}>MISSION ONBOARDING</Text>
-        <Text style={styles.title}>Core Mission Pillars</Text>
-        
+        <Text style={styles.subtitle}>STEP 2: SORTING</Text>
+        <Text style={styles.title}>How We Sort Your Donations</Text>
+
         <View style={styles.pillarCard}>
           <Text style={styles.pillarNumber}>01</Text>
           <View style={styles.pillarHeader}>
             <View style={styles.iconBox}>
-              <Icon name="factory" size={26} color="#15A800" />
+              <Icon name="hanger" size={26} color={theme.colors.primary} />
             </View>
-            <Text style={styles.pillarTitle}>Industrial Scale</Text>
+            <Text style={styles.pillarTitle}>Careful Sorting</Text>
           </View>
           <Text style={styles.pillarText}>
-            Moving beyond boutique recycling. We leverage high-capacity logistics and industrial-grade sorting facilities to process tonnage that actually impacts the global circular economy.
+            Every donation is sorted by category — clothes, shoes, blankets/bedsheets, and bags — so it reaches the right place quickly.
           </Text>
           <View style={styles.featureBadgeRow}>
-            <Icon name="checkbox-marked-circle" size={16} color="#15A800" />
-            <Text style={styles.featureBadgeText}>High-Capacity Processing & Logistics</Text>
+            <Icon name="checkbox-marked-circle" size={16} color={theme.colors.primary} />
+            <Text style={styles.featureBadgeText}>Sorted by Category</Text>
           </View>
         </View>
 
@@ -54,16 +54,16 @@ export const MissionCorePillarsScreen = ({ navigation }: any) => {
           <Text style={styles.pillarNumber}>02</Text>
           <View style={styles.pillarHeader}>
             <View style={styles.iconBox}>
-              <Icon name="check-decagram" size={26} color="#15A800" />
+              <Icon name="check-decagram" size={26} color={theme.colors.primary} />
             </View>
-            <Text style={styles.pillarTitle}>Verified Quality</Text>
+            <Text style={styles.pillarTitle}>Quality Checked</Text>
           </View>
           <Text style={styles.pillarText}>
-            Every kilogram of material processed is tracked through our digital ledger. We ensure that recycled feedstock meets rigorous industrial standards for purity and structural integrity.
+            We check that every item is clean and usable before it's passed on, so your donation actually helps whoever receives it.
           </Text>
           <View style={styles.featureBadgeRow}>
-            <Icon name="shield-check" size={16} color="#15A800" />
-            <Text style={styles.featureBadgeText}>Digital Ledger & Purity Guarantee</Text>
+            <Icon name="shield-check" size={16} color={theme.colors.primary} />
+            <Text style={styles.featureBadgeText}>Checked Before Redistribution</Text>
           </View>
         </View>
       </ScrollView>
@@ -77,7 +77,7 @@ export const MissionCorePillarsScreen = ({ navigation }: any) => {
         />
         <View style={{ width: theme.spacing.md }} />
         <Button 
-          title="NEXT: LOGISTICS"
+          title="NEXT: REDISTRIBUTION"
           style={styles.flex2}
           onPress={() => navigation.navigate('MissionLogistics')} 
         />
@@ -156,18 +156,18 @@ const styles = StyleSheet.create({
   featureBadgeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ECFDF5',
+    backgroundColor: theme.colors.primaryContainer,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 8,
     gap: 8,
     borderWidth: 1,
-    borderColor: '#A7F3D0',
+    borderColor: theme.colors.primaryContainer,
   },
   featureBadgeText: {
     fontSize: 12,
-    fontWeight: '700',
-    color: '#15A800',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.primary,
   },
   footerRow: {
     flexDirection: 'row',

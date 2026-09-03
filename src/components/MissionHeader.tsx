@@ -45,10 +45,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   headerTitle: {
-    ...theme.typography.label,
+    fontFamily: theme.fonts.heading,
     color: theme.colors.textInverse,
     marginLeft: theme.spacing.xs,
-    fontWeight: 'bold',
     fontSize: 18,
   },
   avatarPlaceholder: {

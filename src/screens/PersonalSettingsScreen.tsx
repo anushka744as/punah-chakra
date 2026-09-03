@@ -10,6 +10,7 @@ import {
   Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { theme } from '../theme/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase, fetchUserProfile, updateUserProfile } from '../services/api';
@@ -113,17 +114,17 @@ export const PersonalSettingsScreen = ({ navigation }: any) => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#15A800" />
+      <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
 
       {/* Top Header */}
       <View style={[styles.headerBar, { paddingTop: Math.max(insets.top, 14) }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.7}>
-          <Icon name="arrow-left" size={24} color="#FFFFFF" />
+          <Icon name="arrow-left" size={24} color={theme.colors.surface} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Personal Information</Text>
         <TouchableOpacity onPress={handleProfileNav} activeOpacity={0.7}>
           <View style={styles.userAvatarCircle}>
-            <Icon name="account-outline" size={20} color="#FFFFFF" />
+            <Icon name="account-outline" size={20} color={theme.colors.surface} />
           </View>
         </TouchableOpacity>
       </View>
@@ -132,54 +133,54 @@ export const PersonalSettingsScreen = ({ navigation }: any) => {
         {/* Full Name */}
         <Text style={styles.fieldLabel}>FULL NAME</Text>
         <View style={styles.inputContainer}>
-          <Icon name="account-outline" size={22} color="#64748B" style={styles.inputIcon} />
+          <Icon name="account-outline" size={22} color={theme.colors.textSecondary} style={styles.inputIcon} />
           <TextInput
             style={styles.textInput}
             value={fullName}
             onChangeText={setFullName}
             placeholder="Enter your full name"
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={theme.colors.textSecondary}
           />
         </View>
 
         {/* Email */}
         <Text style={styles.fieldLabel}>EMAIL</Text>
         <View style={styles.inputContainer}>
-          <Icon name="email-outline" size={22} color="#64748B" style={styles.inputIcon} />
+          <Icon name="email-outline" size={22} color={theme.colors.textSecondary} style={styles.inputIcon} />
           <TextInput
             style={styles.textInput}
             value={email}
             onChangeText={setEmail}
             keyboardType="email-address"
             placeholder="name@company.com"
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={theme.colors.textSecondary}
           />
         </View>
 
         {/* Phone */}
         <Text style={styles.fieldLabel}>PHONE</Text>
         <View style={styles.inputContainer}>
-          <Icon name="phone-outline" size={22} color="#64748B" style={styles.inputIcon} />
+          <Icon name="phone-outline" size={22} color={theme.colors.textSecondary} style={styles.inputIcon} />
           <TextInput
             style={styles.textInput}
             value={phone}
             onChangeText={setPhone}
             keyboardType="phone-pad"
             placeholder="+91 98765 43210"
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={theme.colors.textSecondary}
           />
         </View>
 
         {/* Address */}
         <Text style={styles.fieldLabel}>ADDRESS</Text>
         <View style={styles.inputContainer}>
-          <Icon name="home-outline" size={22} color="#64748B" style={styles.inputIcon} />
+          <Icon name="home-outline" size={22} color={theme.colors.textSecondary} style={styles.inputIcon} />
           <TextInput
             style={styles.textInput}
             value={address}
             onChangeText={setAddress}
             placeholder="Enter default pickup address"
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={theme.colors.textSecondary}
           />
         </View>
 
@@ -190,7 +191,7 @@ export const PersonalSettingsScreen = ({ navigation }: any) => {
           activeOpacity={0.85}
           disabled={saving}
         >
-          <Icon name="check" size={20} color="#FFFFFF" />
+          <Icon name="check" size={20} color={theme.colors.surface} />
           <Text style={styles.saveBtnText}>{saving ? 'SAVING...' : 'SAVE CHANGES'}</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -201,13 +202,13 @@ export const PersonalSettingsScreen = ({ navigation }: any) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F9FE',
+    backgroundColor: theme.colors.background,
   },
   headerBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#15A800',
+    backgroundColor: theme.colors.primary,
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
@@ -216,8 +217,8 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 22,
-    fontWeight: '800',
-    color: '#FFFFFF',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.surface,
     letterSpacing: -0.3,
   },
   userAvatarCircle: {
@@ -235,17 +236,17 @@ const styles = StyleSheet.create({
   },
   fieldLabel: {
     fontSize: 11,
-    fontWeight: '800',
-    color: '#64748B',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.textSecondary,
     letterSpacing: 0.8,
     marginBottom: 8,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F1F5F9',
+    backgroundColor: theme.colors.surfaceContainer,
     borderWidth: 1,
-    borderColor: '#CBD5E1',
+    borderColor: theme.colors.border,
     borderRadius: 18,
     paddingHorizontal: 16,
     height: 56,
@@ -257,19 +258,19 @@ const styles = StyleSheet.create({
   textInput: {
     flex: 1,
     fontSize: 16,
-    fontWeight: '600',
-    color: '#0F172A',
+    fontFamily: theme.fonts.bodySemiBold,
+    color: theme.colors.text,
   },
   saveBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#15A800',
+    backgroundColor: theme.colors.primary,
     borderRadius: 24,
     height: 52,
     marginTop: 12,
     gap: 8,
-    shadowColor: '#15A800',
+    shadowColor: theme.colors.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
@@ -277,8 +278,8 @@ const styles = StyleSheet.create({
   },
   saveBtnText: {
     fontSize: 16,
-    fontWeight: '800',
-    color: '#FFFFFF',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.surface,
     letterSpacing: 0.5,
   },
 });

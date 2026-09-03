@@ -11,18 +11,46 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useAppData } from '../data/AppDataContext';
-import { supabase } from '../services/api';
+import { supabase, updateUserProfile } from '../services/api';
+import { TIME_SLOTS } from '../constants/timeSlots';
+import { theme } from '../theme/theme';
 
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback } from 'react';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 
 export const CollectorProfileScreen = ({ navigation }: any) => {
   const { profile, authUser, donations, signOut, refreshProfile } = useAppData();
   const [cachedCompleted, setCachedCompleted] = useState<any[]>([]);
   const [dbProfileData, setDbProfileData] = useState<{ full_name?: string; email?: string } | null>(null);
+  const [availableSlots, setAvailableSlots] = useState<string[]>([]);
+  const [savingAvailability, setSavingAvailability] = useState(false);
+
+  useEffect(() => {
+    setAvailableSlots(profile?.available_slots || []);
+  }, [profile?.available_slots]);
+
+  const toggleAvailableSlot = (slot: string) => {
+    setAvailableSlots((prev) =>
+      prev.includes(slot) ? prev.filter((s) => s !== slot) : [...prev, slot]
+    );
+  };
+
+  const handleSaveAvailability = async () => {
+    if (!authUser?.id || savingAvailability) return;
+    setSavingAvailability(true);
+    try {
+      await updateUserProfile(authUser.id, { available_slots: availableSlots });
+      await refreshProfile();
+      Alert.alert('Availability Saved', 'Your available pickup slots have been updated.');
+    } catch (err: any) {
+      Alert.alert('Error', err?.message || 'Could not save availability. Please try again.');
+    } finally {
+      setSavingAvailability(false);
+    }
+  };
 
   const fetchDirectProfile = async () => {
     try {
@@ -124,13 +152,13 @@ export const CollectorProfileScreen = ({ navigation }: any) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#15A800" />
+      <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
 
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Profile</Text>
         <TouchableOpacity style={styles.profileBtn}>
-          <Icon name="account-circle-outline" size={26} color="#FFFFFF" />
+          <Icon name="account-circle-outline" size={26} color={theme.colors.surface} />
         </TouchableOpacity>
       </View>
 
@@ -138,7 +166,7 @@ export const CollectorProfileScreen = ({ navigation }: any) => {
         {/* Profile Card */}
         <View style={styles.userCard}>
           <View style={styles.avatarCircle}>
-            <Icon name="account-outline" size={42} color="#15A800" />
+            <Icon name="account-outline" size={42} color={theme.colors.primary} />
           </View>
           <Text style={styles.userName}>{displayName}</Text>
           <Text style={styles.userEmail}>{displayEmail}</Text>
@@ -169,14 +197,14 @@ export const CollectorProfileScreen = ({ navigation }: any) => {
 
           {completedDonations.length === 0 ? (
             <View style={styles.emptyActivityContainer}>
-              <Icon name="history" size={28} color="#94A3B8" />
+              <Icon name="history" size={28} color={theme.colors.textSecondary} />
               <Text style={styles.emptyActivityText}>No completed pickup activity yet.</Text>
             </View>
           ) : (
             completedDonations.slice(0, 5).map((item, idx) => (
               <View key={item.id || idx} style={idx === 0 ? styles.activityItem : styles.activityItemBordered}>
                 <View style={styles.activityIconBg}>
-                  <Icon name="package-variant-closed" size={20} color="#15A800" />
+                  <Icon name="package-variant-closed" size={20} color={theme.colors.primary} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.activityTitle}>{item.category || 'Recycling'} Pickup</Text>
@@ -190,40 +218,73 @@ export const CollectorProfileScreen = ({ navigation }: any) => {
           )}
         </View>
 
+        {/* Availability Section */}
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionHeader}>Availability</Text>
+          <Text style={styles.availabilityHelperText}>
+            Select the pickup slots you're generally available for (11:00 AM - 6:00 PM).
+          </Text>
+          <View style={styles.slotGrid}>
+            {TIME_SLOTS.map((slot) => {
+              const isSelected = availableSlots.includes(slot);
+              return (
+                <TouchableOpacity
+                  key={slot}
+                  style={[styles.slotChip, isSelected && styles.slotChipSelected]}
+                  onPress={() => toggleAvailableSlot(slot)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.slotChipText, isSelected && styles.slotChipTextSelected]}>{slot}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          <TouchableOpacity
+            style={[styles.saveAvailabilityBtn, savingAvailability && styles.saveAvailabilityBtnDisabled]}
+            onPress={handleSaveAvailability}
+            disabled={savingAvailability}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.saveAvailabilityBtnText}>
+              {savingAvailability ? 'Saving...' : 'Save Availability'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
         {/* Account Settings Section */}
         <View style={styles.sectionCard}>
           <Text style={styles.sectionHeader}>Account settings</Text>
 
           <TouchableOpacity style={styles.settingRow} onPress={() => navigation.navigate('PersonalSettings')} activeOpacity={0.7}>
             <View style={styles.settingLeft}>
-              <Icon name="account-cog-outline" size={22} color="#475569" />
+              <Icon name="account-cog-outline" size={22} color={theme.colors.textSecondary} />
               <Text style={styles.settingText}>Personal Information</Text>
             </View>
-            <Icon name="chevron-right" size={20} color="#94A3B8" />
+            <Icon name="chevron-right" size={20} color={theme.colors.textSecondary} />
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.settingRowBordered} onPress={() => navigation.navigate('AlertSettings')} activeOpacity={0.7}>
             <View style={styles.settingLeft}>
-              <Icon name="bell-outline" size={22} color="#475569" />
+              <Icon name="bell-outline" size={22} color={theme.colors.textSecondary} />
               <Text style={styles.settingText}>Collection Alerts</Text>
             </View>
-            <Icon name="chevron-right" size={20} color="#94A3B8" />
+            <Icon name="chevron-right" size={20} color={theme.colors.textSecondary} />
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.settingRowBordered} onPress={() => navigation.navigate('PrivacySettings')} activeOpacity={0.7}>
             <View style={styles.settingLeft}>
-              <Icon name="shield-lock-outline" size={22} color="#475569" />
+              <Icon name="shield-lock-outline" size={22} color={theme.colors.textSecondary} />
               <Text style={styles.settingText}>Privacy & Security</Text>
             </View>
-            <Icon name="chevron-right" size={20} color="#94A3B8" />
+            <Icon name="chevron-right" size={20} color={theme.colors.textSecondary} />
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.settingRowBordered} onPress={() => navigation.navigate('HelpSettings')} activeOpacity={0.7}>
             <View style={styles.settingLeft}>
-              <Icon name="help-circle-outline" size={22} color="#475569" />
+              <Icon name="help-circle-outline" size={22} color={theme.colors.textSecondary} />
               <Text style={styles.settingText}>Help Center</Text>
             </View>
-            <Icon name="chevron-right" size={20} color="#94A3B8" />
+            <Icon name="chevron-right" size={20} color={theme.colors.textSecondary} />
           </TouchableOpacity>
         </View>
 
@@ -236,20 +297,20 @@ export const CollectorProfileScreen = ({ navigation }: any) => {
       {/* Bottom Tab Bar */}
       <View style={styles.bottomTabBar}>
         <TouchableOpacity style={styles.tabItem} activeOpacity={0.7} onPress={() => navigation.navigate('CollectorDashboard')}>
-          <Icon name="truck" size={24} color="#475569" />
+          <Icon name="truck" size={24} color={theme.colors.textSecondary} />
           <Text style={styles.tabLabel}>Routes</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.tabItem} activeOpacity={0.7} onPress={() => navigation.navigate('PickupMap', { mode: 'collector' })}>
-          <Icon name="map-outline" size={24} color="#475569" />
+        <TouchableOpacity style={styles.tabItem} activeOpacity={0.7} onPress={() => navigation.navigate('PickupMap', { mode: 'admin' })}>
+          <Icon name="map-outline" size={24} color={theme.colors.textSecondary} />
           <Text style={styles.tabLabel}>Map</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.tabItem} activeOpacity={0.7} onPress={() => navigation.navigate('Quality')}>
-          <Icon name="shield-check-outline" size={24} color="#475569" />
+          <Icon name="shield-check-outline" size={24} color={theme.colors.textSecondary} />
           <Text style={styles.tabLabel}>Quality</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.tabItem} activeOpacity={0.7}>
           <View style={styles.tabIconActiveBg}>
-            <Icon name="account" size={24} color="#15A800" />
+            <Icon name="account" size={24} color={theme.colors.primary} />
           </View>
           <Text style={styles.tabLabelActive}>Profile</Text>
         </TouchableOpacity>
@@ -261,10 +322,10 @@ export const CollectorProfileScreen = ({ navigation }: any) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: theme.colors.background,
   },
   header: {
-    backgroundColor: '#15A800',
+    backgroundColor: theme.colors.primary,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -273,8 +334,8 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 22,
-    fontWeight: '800',
-    color: '#FFFFFF',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.surface,
   },
   profileBtn: {
     padding: 4,
@@ -284,10 +345,10 @@ const styles = StyleSheet.create({
     paddingBottom: 36,
   },
   userCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.colors.surface,
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: theme.colors.border,
     padding: 24,
     alignItems: 'center',
     marginBottom: 16,
@@ -296,28 +357,28 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: '#ECFDF5',
+    backgroundColor: theme.colors.primaryContainer,
     borderWidth: 2,
-    borderColor: '#15A800',
+    borderColor: theme.colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,
   },
   userName: {
     fontSize: 22,
-    fontWeight: '800',
-    color: '#0F172A',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.text,
     marginBottom: 4,
   },
   userEmail: {
     fontSize: 14,
-    color: '#64748B',
+    color: theme.colors.textSecondary,
     marginBottom: 14,
   },
   badgePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#DCFCE7',
+    backgroundColor: theme.colors.primaryContainer,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
@@ -325,33 +386,33 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     fontSize: 11,
-    fontWeight: '800',
-    color: '#15A800',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.primary,
     letterSpacing: 0.5,
   },
   impactCard: {
-    backgroundColor: '#15A800',
+    backgroundColor: theme.colors.primary,
     borderRadius: 24,
     padding: 24,
     marginBottom: 16,
   },
   impactTitle: {
     fontSize: 11,
-    fontWeight: '800',
-    color: '#DCFCE7',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.primaryContainer,
     letterSpacing: 0.8,
     marginBottom: 6,
   },
   impactPts: {
     fontSize: 34,
-    fontWeight: '800',
-    color: '#FFFFFF',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.surface,
     marginBottom: 16,
   },
   impactPtsSub: {
     fontSize: 18,
-    fontWeight: '700',
-    color: '#DCFCE7',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.primaryContainer,
   },
   divider: {
     height: 1,
@@ -365,28 +426,28 @@ const styles = StyleSheet.create({
   impactStat: {},
   statLabel: {
     fontSize: 10,
-    fontWeight: '800',
-    color: '#DCFCE7',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.primaryContainer,
     letterSpacing: 0.5,
     marginBottom: 4,
   },
   statVal: {
     fontSize: 20,
-    fontWeight: '800',
-    color: '#FFFFFF',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.surface,
   },
   sectionCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.colors.surface,
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: theme.colors.border,
     padding: 20,
     marginBottom: 16,
   },
   sectionHeader: {
     fontSize: 18,
-    fontWeight: '800',
-    color: '#15A800',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.primary,
     marginBottom: 16,
   },
   activityItem: {
@@ -401,30 +462,30 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingVertical: 12,
     borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
+    borderTopColor: theme.colors.surfaceContainer,
   },
   activityIconBg: {
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: '#ECFDF5',
+    backgroundColor: theme.colors.primaryContainer,
     alignItems: 'center',
     justifyContent: 'center',
   },
   activityTitle: {
     fontSize: 15,
-    fontWeight: '800',
-    color: '#0F172A',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.text,
     marginBottom: 2,
   },
   activitySub: {
     fontSize: 12,
-    color: '#64748B',
+    color: theme.colors.textSecondary,
   },
   activityPts: {
     fontSize: 14,
-    fontWeight: '800',
-    color: '#15A800',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.primary,
   },
   emptyActivityContainer: {
     alignItems: 'center',
@@ -434,8 +495,57 @@ const styles = StyleSheet.create({
   },
   emptyActivityText: {
     fontSize: 13,
-    fontWeight: '600',
-    color: '#94A3B8',
+    fontFamily: theme.fonts.bodySemiBold,
+    color: theme.colors.textSecondary,
+  },
+  availabilityHelperText: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+    marginTop: -8,
+    marginBottom: 14,
+  },
+  slotGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 16,
+  },
+  slotChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.background,
+  },
+  slotChipSelected: {
+    backgroundColor: theme.colors.primaryContainer,
+    borderColor: theme.colors.primary,
+    borderWidth: 2,
+  },
+  slotChipText: {
+    fontSize: 13,
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.text,
+  },
+  slotChipTextSelected: {
+    color: theme.colors.primary,
+  },
+  saveAvailabilityBtn: {
+    backgroundColor: theme.colors.primary,
+    borderRadius: 20,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  saveAvailabilityBtnDisabled: {
+    opacity: 0.6,
+  },
+  saveAvailabilityBtnText: {
+    fontSize: 14,
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.surface,
+    letterSpacing: 0.5,
   },
   settingRow: {
     flexDirection: 'row',
@@ -449,7 +559,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 12,
     borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
+    borderTopColor: theme.colors.surfaceContainer,
   },
   settingLeft: {
     flexDirection: 'row',
@@ -458,11 +568,11 @@ const styles = StyleSheet.create({
   },
   settingText: {
     fontSize: 15,
-    fontWeight: '700',
-    color: '#334155',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.text,
   },
   signOutBtn: {
-    backgroundColor: '#235E44',
+    backgroundColor: theme.colors.text,
     borderRadius: 24,
     paddingVertical: 16,
     alignItems: 'center',
@@ -472,18 +582,18 @@ const styles = StyleSheet.create({
   },
   signOutBtnText: {
     fontSize: 16,
-    fontWeight: '800',
-    color: '#FFFFFF',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.surface,
     letterSpacing: 0.8,
   },
   bottomTabBar: {
     flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.colors.surface,
     paddingVertical: 12,
     paddingHorizontal: 24,
     justifyContent: 'space-between',
     borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
+    borderTopColor: theme.colors.border,
   },
   tabItem: {
     alignItems: 'center',
@@ -491,19 +601,19 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   tabIconActiveBg: {
-    backgroundColor: '#ECFDF5',
+    backgroundColor: theme.colors.primaryContainer,
     paddingHorizontal: 16,
     paddingVertical: 4,
     borderRadius: 20,
   },
   tabLabelActive: {
     fontSize: 12,
-    fontWeight: '800',
-    color: '#0F172A',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.text,
   },
   tabLabel: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#475569',
+    fontFamily: theme.fonts.bodySemiBold,
+    color: theme.colors.textSecondary,
   },
 });

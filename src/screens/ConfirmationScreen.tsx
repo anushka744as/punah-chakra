@@ -21,7 +21,7 @@ export const ConfirmationScreen = ({ navigation, route }: any) => {
   const currentDonation = donations.find(d => d.id === donationId) || donations[0];
 
   const requestId = currentDonation?.request_id || '#PC-88942';
-  const category = currentDonation?.category || 'Mixed Plastics & E-Waste';
+  const category = currentDonation?.category || 'Clothes & Shoes';
   const weight = (currentDonation?.weight_kg || currentDonation?.estimated_quantity_kg || 15) + ' kg';
   const slot = (currentDonation?.pickup_day || 'Tomorrow') + ', ' + (currentDonation?.time_slot || '10:00 AM - 12:00 PM');
   const points = '+' + (currentDonation?.points_awarded || 150) + ' PTS';
@@ -41,15 +41,15 @@ export const ConfirmationScreen = ({ navigation, route }: any) => {
           <Icon name="check-circle" size={80} color={theme.colors.primary} />
         </View>
 
-        <Text style={styles.title}>Pickup Scheduled Successfully!</Text>
+        <Text style={styles.title}>Pickup Request Submitted!</Text>
         <Text style={styles.subtitle}>
-          Request ID <Text style={styles.boldText}>{requestId}</Text> has been dispatched to nearby logistics partners.
+          Request ID <Text style={styles.boldText}>{requestId}</Text> is awaiting confirmation from a nearby collector.
         </Text>
 
         <Card variant="outlined" style={styles.receiptCard}>
           <View style={styles.receiptHeader}>
             <Text style={styles.receiptTitle}>Pickup Summary</Text>
-            <Badge label="Confirmed" variant="success" />
+            <Badge label="Pending" variant="warning" />
           </View>
 
           <View style={styles.infoRow}>

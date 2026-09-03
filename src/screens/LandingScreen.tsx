@@ -51,7 +51,7 @@ export const LandingScreen = ({ navigation }: any) => {
           <Badge label="Waste to Resource Platform" variant="success" style={styles.heroBadge} />
           <Text style={styles.heroTitle}>Transforming Waste into Sustainable Wealth</Text>
           <Text style={styles.heroDescription}>
-            Empowering citizens, recyclers, and logistics partners to create a closed-loop circular ecosystem with real-time tracking & carbon analytics.
+            Schedule pickups, donate items, and track your eco impact with real-time collection updates.
           </Text>
 
           <View style={styles.heroButtonGroup}>
@@ -76,24 +76,14 @@ export const LandingScreen = ({ navigation }: any) => {
         {/* Value Proposition Cards */}
         <View style={styles.featuresSection}>
           <Text style={styles.sectionTitle}>Why PunahChakra?</Text>
-          
+
           <Card variant="elevated" style={styles.featureCard}>
-            <View style={[styles.featureIconBg, { backgroundColor: '#D1FAE5' }]}>
-              <Icon name="truck-fast" size={28} color="#15A800" />
+            <View style={[styles.featureIconBg, { backgroundColor: theme.colors.primaryContainer }]}>
+              <Icon name="truck-fast" size={28} color={theme.colors.primary} />
             </View>
             <Text style={styles.featureTitle}>On-Demand Collection</Text>
             <Text style={styles.featureDesc}>
-              Schedule door-step pickup for recyclable materials with doorstep doorstep verification.
-            </Text>
-          </Card>
-
-          <Card variant="elevated" style={styles.featureCard}>
-            <View style={[styles.featureIconBg, { backgroundColor: '#DBEAFE' }]}>
-              <Icon name="factory" size={28} color="#1E40AF" />
-            </View>
-            <Text style={styles.featureTitle}>Recycler Marketplace</Text>
-            <Text style={styles.featureDesc}>
-              Direct connection to verified processing facilities with transparent weight & quality grading.
+              Schedule door-step pickup for recyclable materials with doorstep verification.
             </Text>
           </Card>
 
@@ -103,25 +93,10 @@ export const LandingScreen = ({ navigation }: any) => {
             </View>
             <Text style={styles.featureTitle}>Verified Eco Impact</Text>
             <Text style={styles.featureDesc}>
-              Track CO2 offset, landfill space saved, and earn EcoPoints redeemable across partner networks.
+              Track CO2 offset, landfill space saved, and earn EcoPoints for every pickup.
             </Text>
           </Card>
         </View>
-
-        {/* Roles Quick Link */}
-        <Card variant="flat" style={styles.rolePromptCard}>
-          <Text style={styles.rolePromptTitle}>Are you an Industry Partner?</Text>
-          <Text style={styles.rolePromptDesc}>
-            Join as a Recycler, Logistics Manager, or Quality Auditor to scale sustainable waste streams.
-          </Text>
-          <Button
-            title="Explore Partner Roles"
-            variant="ghost"
-            size="md"
-            rightIcon={<Icon name="chevron-right" size={20} color={theme.colors.primary} />}
-            onPress={() => navigation.navigate('RoleSelection')}
-          />
-        </Card>
       </ScrollView>
     </SafeAreaView>
   );
@@ -213,21 +188,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: theme.colors.textSecondary,
     lineHeight: 20,
-  },
-  rolePromptCard: {
-    marginBottom: theme.spacing.xl,
-    padding: theme.spacing.lg,
-  },
-  rolePromptTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: theme.colors.text,
-    marginBottom: theme.spacing.xs,
-  },
-  rolePromptDesc: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-    lineHeight: 20,
-    marginBottom: theme.spacing.md,
   },
 });

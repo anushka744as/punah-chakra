@@ -13,6 +13,7 @@ import {
   Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { theme } from '../theme/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export const PrivacySettingsScreen = ({ navigation }: any) => {
@@ -75,17 +76,17 @@ export const PrivacySettingsScreen = ({ navigation }: any) => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#15A800" />
+      <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
 
       {/* Top Header */}
       <View style={[styles.headerBar, { paddingTop: Math.max(insets.top, 14) }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.7}>
-          <Icon name="arrow-left" size={24} color="#FFFFFF" />
+          <Icon name="arrow-left" size={24} color={theme.colors.surface} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Privacy & Security</Text>
         <TouchableOpacity onPress={handleProfileNav} activeOpacity={0.7}>
           <View style={styles.userAvatarCircle}>
-            <Icon name="account-outline" size={20} color="#FFFFFF" />
+            <Icon name="account-outline" size={20} color={theme.colors.surface} />
           </View>
         </TouchableOpacity>
       </View>
@@ -102,9 +103,9 @@ export const PrivacySettingsScreen = ({ navigation }: any) => {
             activeOpacity={0.7}
             onPress={() => setModalVisible(true)}
           >
-            <Icon name="lock-outline" size={22} color="#64748B" />
+            <Icon name="lock-outline" size={22} color={theme.colors.textSecondary} />
             <Text style={styles.itemText}>Change password</Text>
-            <Icon name="chevron-right" size={22} color="#94A3B8" />
+            <Icon name="chevron-right" size={22} color={theme.colors.textSecondary} />
           </TouchableOpacity>
 
           <View style={styles.divider} />
@@ -115,9 +116,9 @@ export const PrivacySettingsScreen = ({ navigation }: any) => {
             activeOpacity={0.7}
             onPress={handleDeleteAccount}
           >
-            <Icon name="trash-can-outline" size={22} color="#DC2626" />
+            <Icon name="trash-can-outline" size={22} color={theme.colors.error} />
             <Text style={[styles.itemText, styles.dangerText]}>Delete account</Text>
-            <Icon name="chevron-right" size={22} color="#94A3B8" />
+            <Icon name="chevron-right" size={22} color={theme.colors.textSecondary} />
           </TouchableOpacity>
         </View>
 
@@ -138,7 +139,7 @@ export const PrivacySettingsScreen = ({ navigation }: any) => {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Change Password</Text>
               <TouchableOpacity onPress={() => setModalVisible(false)}>
-                <Icon name="close" size={24} color="#64748B" />
+                <Icon name="close" size={24} color={theme.colors.textSecondary} />
               </TouchableOpacity>
             </View>
 
@@ -188,13 +189,13 @@ export const PrivacySettingsScreen = ({ navigation }: any) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F9FE',
+    backgroundColor: theme.colors.background,
   },
   headerBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#15A800',
+    backgroundColor: theme.colors.primary,
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
@@ -203,8 +204,8 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 22,
-    fontWeight: '800',
-    color: '#FFFFFF',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.surface,
     letterSpacing: -0.3,
   },
   userAvatarCircle: {
@@ -222,15 +223,15 @@ const styles = StyleSheet.create({
   },
   pageSubtitle: {
     fontSize: 14,
-    color: '#475569',
+    color: theme.colors.textSecondary,
     lineHeight: 20,
     marginBottom: 16,
   },
   card: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.colors.surface,
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: theme.colors.border,
     overflow: 'hidden',
     marginBottom: 24,
   },
@@ -243,25 +244,25 @@ const styles = StyleSheet.create({
   itemText: {
     flex: 1,
     fontSize: 16,
-    fontWeight: '600',
-    color: '#0F172A',
+    fontFamily: theme.fonts.bodySemiBold,
+    color: theme.colors.text,
   },
   dangerText: {
-    color: '#DC2626',
-    fontWeight: '700',
+    color: theme.colors.error,
+    fontFamily: theme.fonts.bodyBold,
   },
   divider: {
     height: 1,
-    backgroundColor: '#E2E8F0',
+    backgroundColor: theme.colors.border,
   },
   footerNote: {
     textAlign: 'center',
     fontSize: 12,
-    color: '#64748B',
+    color: theme.colors.textSecondary,
   },
   linkText: {
-    color: '#15A800',
-    fontWeight: '700',
+    color: theme.colors.primary,
+    fontFamily: theme.fonts.bodyBold,
   },
   modalOverlay: {
     flex: 1,
@@ -270,7 +271,7 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   modalContent: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.colors.surface,
     borderRadius: 24,
     padding: 24,
   },
@@ -282,30 +283,30 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: '800',
-    color: '#0F172A',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.text,
   },
   modalLabel: {
     fontSize: 11,
-    fontWeight: '800',
-    color: '#64748B',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.textSecondary,
     letterSpacing: 0.8,
     marginBottom: 6,
   },
   modalInput: {
-    backgroundColor: '#F1F5F9',
+    backgroundColor: theme.colors.surfaceContainer,
     borderWidth: 1,
-    borderColor: '#CBD5E1',
+    borderColor: theme.colors.border,
     borderRadius: 14,
     paddingHorizontal: 14,
     height: 48,
     fontSize: 15,
-    fontWeight: '600',
-    color: '#0F172A',
+    fontFamily: theme.fonts.bodySemiBold,
+    color: theme.colors.text,
     marginBottom: 16,
   },
   updatePasswordBtn: {
-    backgroundColor: '#15A800',
+    backgroundColor: theme.colors.primary,
     borderRadius: 24,
     height: 50,
     alignItems: 'center',
@@ -314,8 +315,8 @@ const styles = StyleSheet.create({
   },
   updatePasswordBtnText: {
     fontSize: 15,
-    fontWeight: '800',
-    color: '#FFFFFF',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.surface,
     letterSpacing: 0.5,
   },
 });

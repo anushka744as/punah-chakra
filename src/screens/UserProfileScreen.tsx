@@ -7,7 +7,7 @@ import { useAppData } from '../data/AppDataContext';
 
 export const UserProfileScreen = ({ navigation }: any) => {
   const { donations, profile } = useAppData();
-  const scheduledCount = donations.filter(item => item.status === 'scheduled').length;
+  const scheduledCount = donations.filter(item => item.status === 'pending' || item.status === 'scheduled' || item.status === 'assigned').length;
   const collectedCount = donations.filter(item => item.status === 'collected').length;
 
   return (

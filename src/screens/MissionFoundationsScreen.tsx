@@ -26,29 +26,29 @@ export const MissionFoundationsScreen = ({ navigation }: any) => {
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.subtitleContainer}>
           <View style={styles.line} />
-          <Text style={styles.subtitle}>MISSION 01: FOUNDATIONS</Text>
+          <Text style={styles.subtitle}>STEP 1: COLLECTION</Text>
           <View style={styles.line} />
         </View>
 
         <Text style={styles.title}>
-          Paving the Way for a{'\n'}
-          <Text style={styles.titleHighlight}>Circular Textile{'\n'}Economy</Text>
+          From Your Door,{'\n'}
+          <Text style={styles.titleHighlight}>To Their Need</Text>
         </Text>
 
         <Text style={styles.bodyText}>
-          At PunahChakra, we bridge the gap between textile waste and industrial-grade recycling. Our mission is to transform linear waste streams into infinite resource loops.
+          PunahChakra is a community-driven initiative that makes donating easy. We pick up your clothes, shoes, blankets, bedsheets and bags right from your doorstep and deliver them to the people and causes that need them most.
         </Text>
 
         <View style={styles.chipsRow}>
           <View style={styles.chip}>
-            <Icon name="factory" size={24} color={theme.colors.primary} />
-            <Text style={styles.chipTitle}>Industrial</Text>
-            <Text style={styles.chipSubtitle}>Standardized Scaling</Text>
+            <Icon name="home-map-marker" size={24} color={theme.colors.primary} />
+            <Text style={styles.chipTitle}>Doorstep</Text>
+            <Text style={styles.chipSubtitle}>Easy Pickup</Text>
           </View>
           <View style={styles.chip}>
-            <Icon name="crosshairs-gps" size={24} color={theme.colors.primary} />
-            <Text style={styles.chipTitle}>Precise</Text>
-            <Text style={styles.chipSubtitle}>Material Sorting</Text>
+            <Icon name="account-heart-outline" size={24} color={theme.colors.primary} />
+            <Text style={styles.chipTitle}>Community</Text>
+            <Text style={styles.chipSubtitle}>Local Impact</Text>
           </View>
         </View>
 

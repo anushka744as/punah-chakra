@@ -59,13 +59,14 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.md,
   },
   title: {
+    fontFamily: theme.fonts.heading,
     fontSize: 18,
-    fontWeight: '600',
     color: theme.colors.text,
     textAlign: 'center',
     marginBottom: theme.spacing.xs,
   },
   description: {
+    fontFamily: theme.fonts.body,
     fontSize: 14,
     color: theme.colors.textSecondary,
     textAlign: 'center',

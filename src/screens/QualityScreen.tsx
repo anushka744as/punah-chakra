@@ -25,7 +25,8 @@ import { useAppData } from '../data/AppDataContext';
 
 import { Alert, ActivityIndicator } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { supabase, DonationItem } from '../services/api';
+import { supabase, DonationItem, calculateRewardForCategory, creditDonorForCompletedDonation } from '../services/api';
+import { theme } from '../theme/theme';
 
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback } from 'react';
@@ -34,7 +35,7 @@ const PERMANENT_DONATIONS: DonationItem[] = [
   {
     id: 'rec-9821',
     request_id: '#REC-9821',
-    category: 'E-Waste',
+    category: 'Clothes',
     weight_kg: 3,
     estimated_quantity_kg: 3,
     pickup_day: 'Today',
@@ -48,7 +49,7 @@ const PERMANENT_DONATIONS: DonationItem[] = [
   {
     id: 'rec-9822',
     request_id: '#REC-9822',
-    category: 'E-Waste',
+    category: 'Shoes',
     weight_kg: 5.5,
     estimated_quantity_kg: 5.5,
     pickup_day: 'Today',
@@ -190,7 +191,7 @@ export const QualityScreen = ({ navigation, route }: any) => {
 
   const isAlreadyPickedUp = currentDonation ? (currentDonation.is_picked_up || currentDonation.status === 'completed') : false;
 
-  const categoryName = currentDonation?.category || 'E-Waste';
+  const categoryName = currentDonation?.category || 'Clothes';
   const requestId = currentDonation?.request_id || '#REC-9821';
   const weightVal = currentDonation?.weight_kg || currentDonation?.estimated_quantity_kg || 10;
   const fullAddress = currentDonation?.address ? currentDonation.address.replace(/\(Lat:.*?\)/gi, '').trim() : 'House #194, Sector 15A, Noida';
@@ -231,7 +232,7 @@ export const QualityScreen = ({ navigation, route }: any) => {
                   await supabase
                     .from('donations')
                     .update({
-                      status: 'scheduled',
+                      status: 'pending',
                       confirmed_by: null,
                       collector_id: null,
                       refused_by: collectorId,
@@ -252,7 +253,7 @@ export const QualityScreen = ({ navigation, route }: any) => {
                   await supabase
                     .from('donations')
                     .update({
-                      status: 'scheduled',
+                      status: 'pending',
                       confirmed_by: null,
                       collector_id: null,
                       refused_by: collectorId,
@@ -371,6 +372,17 @@ export const QualityScreen = ({ navigation, route }: any) => {
         } catch {}
       }
 
+      // Credit the donor now that the pickup is actually completed (not at scheduling time)
+      if (currentDonation.donor_id) {
+        try {
+          const { pointsAwarded: donorPoints, co2OffsetKg: donorCo2 } = await calculateRewardForCategory(
+            categoryName,
+            weightVal
+          );
+          await creditDonorForCompletedDonation(currentDonation.donor_id, donorPoints, donorCo2);
+        } catch {}
+      }
+
       // Store in local completed pickups cache for instant UI response in CollectorProfile
       try {
         const existingCache = await AsyncStorage.getItem('@completed_collector_pickups');
@@ -415,17 +427,17 @@ export const QualityScreen = ({ navigation, route }: any) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#15A800" />
+      <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
 
       {/* Top Header */}
       <View style={[styles.headerBar, { paddingTop: Math.max(insets.top, 14) }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.7}>
-          <Icon name="arrow-left" size={24} color="#FFFFFF" />
+          <Icon name="arrow-left" size={24} color={theme.colors.surface} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Quality Assessment</Text>
         <TouchableOpacity onPress={() => navigation.navigate('CollectorProfile')} activeOpacity={0.7}>
           <View style={styles.userAvatarCircle}>
-            <Icon name="account-outline" size={20} color="#FFFFFF" />
+            <Icon name="account-outline" size={20} color={theme.colors.surface} />
           </View>
         </TouchableOpacity>
       </View>
@@ -436,11 +448,11 @@ export const QualityScreen = ({ navigation, route }: any) => {
         {!currentDonation ? (
           <View style={styles.guidanceCard}>
             <View style={styles.guidanceIconBg}>
-              <Icon name="truck-fast-outline" size={38} color="#15A800" />
+              <Icon name="truck-fast-outline" size={38} color={theme.colors.primary} />
             </View>
             <Text style={styles.guidanceTitle}>No Pickup Selected</Text>
             <Text style={styles.guidanceSub}>
-              Please select a pickup first! Go to the <Text style={{ fontWeight: '800', color: '#15A800' }}>Routes</Text> tab and tap <Text style={{ fontWeight: '800', color: '#15A800' }}>"Assess"</Text> on a confirmed pickup to perform quality inspection.
+              Please select a pickup first! Go to the <Text style={{ fontFamily: theme.fonts.bodyBold, color: theme.colors.primary }}>Routes</Text> tab and tap <Text style={{ fontFamily: theme.fonts.bodyBold, color: theme.colors.primary }}>"Assess"</Text> on a confirmed pickup to perform quality inspection.
             </Text>
 
             <TouchableOpacity
@@ -448,7 +460,7 @@ export const QualityScreen = ({ navigation, route }: any) => {
               onPress={() => navigation.navigate('CollectorDashboard')}
               activeOpacity={0.8}
             >
-              <Icon name="map-marker-path" size={20} color="#FFFFFF" />
+              <Icon name="map-marker-path" size={20} color={theme.colors.surface} />
               <Text style={styles.goToRoutesBtnText}>Go to Routes Page</Text>
             </TouchableOpacity>
 
@@ -470,7 +482,7 @@ export const QualityScreen = ({ navigation, route }: any) => {
                         <Icon
                           name={itemDone ? "check-circle" : "truck-check-outline"}
                           size={16}
-                          color={itemDone ? "#059669" : "#15A800"}
+                          color={itemDone ? theme.colors.success : theme.colors.primary}
                         />
                         <Text style={[styles.pickerChipText, itemDone && styles.pickerChipTextDone]}>
                           {item.category} ({reqCode}) {itemDone ? '✓' : ''}
@@ -507,7 +519,7 @@ export const QualityScreen = ({ navigation, route }: any) => {
                         <Icon
                           name={itemDone ? "check-circle" : (isSelected ? "check-circle" : "truck-check-outline")}
                           size={16}
-                          color={isSelected ? "#FFFFFF" : (itemDone ? "#059669" : "#15A800")}
+                          color={isSelected ? theme.colors.surface : (itemDone ? theme.colors.success : theme.colors.primary)}
                         />
                         <Text style={[
                           styles.pickerChipText,
@@ -529,7 +541,7 @@ export const QualityScreen = ({ navigation, route }: any) => {
                 <Text style={styles.batchLabel}>BATCH IDENTIFIER</Text>
                 {isAlreadyPickedUp && (
                   <View style={styles.pickedUpBadgeHeader}>
-                    <Icon name="check-circle" size={14} color="#059669" />
+                    <Icon name="check-circle" size={14} color={theme.colors.success} />
                     <Text style={styles.pickedUpBadgeHeaderText}>Picked Up</Text>
                   </View>
                 )}
@@ -538,7 +550,7 @@ export const QualityScreen = ({ navigation, route }: any) => {
 
               {/* Address Row */}
               <View style={styles.addressRow}>
-                <Icon name="map-marker-outline" size={18} color="#15A800" style={{ marginTop: 2 }} />
+                <Icon name="map-marker-outline" size={18} color={theme.colors.primary} style={{ marginTop: 2 }} />
                 <Text style={styles.addressText}>{fullAddress}</Text>
               </View>
 
@@ -570,7 +582,7 @@ export const QualityScreen = ({ navigation, route }: any) => {
                     activeOpacity={0.8}
                   >
                     <View style={[styles.checkboxSquare, isChecked && styles.checkboxSquareChecked]}>
-                      {isChecked && <Icon name="check" size={14} color="#FFFFFF" />}
+                      {isChecked && <Icon name="check" size={14} color={theme.colors.surface} />}
                     </View>
                     <Text style={styles.checkCardText}>{c}</Text>
                   </TouchableOpacity>
@@ -583,7 +595,7 @@ export const QualityScreen = ({ navigation, route }: any) => {
             <View style={styles.textareaContainer}>
               <TextInput
                 placeholder="Enter detailed observations..."
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={theme.colors.textSecondary}
                 value={notes}
                 onChangeText={setNotes}
                 multiline
@@ -595,7 +607,7 @@ export const QualityScreen = ({ navigation, route }: any) => {
             {/* Action Buttons Row */}
             {isAlreadyPickedUp ? (
               <View style={styles.alreadyPickedUpBanner}>
-                <Icon name="check-decagram" size={20} color="#059669" />
+                <Icon name="check-decagram" size={20} color={theme.colors.success} />
                 <Text style={styles.alreadyPickedUpBannerText}>Already Assessed & Picked Up in Supabase</Text>
               </View>
             ) : (
@@ -606,7 +618,7 @@ export const QualityScreen = ({ navigation, route }: any) => {
                   disabled={submitting}
                   activeOpacity={0.8}
                 >
-                  <Icon name="close-circle-outline" size={20} color="#DC2626" />
+                  <Icon name="close-circle-outline" size={20} color={theme.colors.error} />
                   <Text style={styles.refuseBtnText}>REFUSE</Text>
                 </TouchableOpacity>
 
@@ -617,11 +629,11 @@ export const QualityScreen = ({ navigation, route }: any) => {
                   activeOpacity={0.8}
                 >
                   {submitting ? (
-                    <ActivityIndicator color="#FFFFFF" size="small" />
+                    <ActivityIndicator color={theme.colors.surface} size="small" />
                   ) : (
                     <>
                       <View style={styles.checkIconCircle}>
-                        <Icon name="check-circle-outline" size={18} color="#15A800" />
+                        <Icon name="check-circle-outline" size={18} color={theme.colors.primary} />
                       </View>
                       <Text style={styles.acceptBtnText}>ACCEPT</Text>
                     </>
@@ -636,21 +648,21 @@ export const QualityScreen = ({ navigation, route }: any) => {
       {/* Bottom Navigation Tab Bar */}
       <View style={styles.bottomTabBar}>
         <TouchableOpacity style={styles.tabItem} activeOpacity={0.7} onPress={() => navigation.navigate('CollectorDashboard')}>
-          <Icon name="truck" size={24} color="#475569" />
+          <Icon name="truck" size={24} color={theme.colors.textSecondary} />
           <Text style={styles.tabLabel}>Routes</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.tabItem} activeOpacity={0.7} onPress={() => navigation.navigate('PickupMap', { mode: 'collector' })}>
-          <Icon name="map-outline" size={24} color="#475569" />
+        <TouchableOpacity style={styles.tabItem} activeOpacity={0.7} onPress={() => navigation.navigate('PickupMap', { mode: 'admin' })}>
+          <Icon name="map-outline" size={24} color={theme.colors.textSecondary} />
           <Text style={styles.tabLabel}>Map</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.tabItem} activeOpacity={0.7}>
           <View style={styles.tabIconActiveBg}>
-            <Icon name="shield-check" size={24} color="#15A800" />
+            <Icon name="shield-check" size={24} color={theme.colors.primary} />
           </View>
           <Text style={styles.tabLabelActive}>Quality</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.tabItem} activeOpacity={0.7} onPress={() => navigation.navigate('CollectorProfile')}>
-          <Icon name="account-outline" size={24} color="#475569" />
+          <Icon name="account-outline" size={24} color={theme.colors.textSecondary} />
           <Text style={styles.tabLabel}>Profile</Text>
         </TouchableOpacity>
       </View>
@@ -661,13 +673,13 @@ export const QualityScreen = ({ navigation, route }: any) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F9FE',
+    backgroundColor: theme.colors.background,
   },
   headerBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#15A800',
+    backgroundColor: theme.colors.primary,
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
@@ -676,8 +688,8 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 22,
-    fontWeight: '800',
-    color: '#FFFFFF',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.surface,
     letterSpacing: -0.3,
   },
   userAvatarCircle: {
@@ -694,10 +706,10 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   guidanceCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.colors.surface,
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: theme.colors.border,
     padding: 24,
     alignItems: 'center',
     marginBottom: 24,
@@ -706,21 +718,21 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#ECFDF5',
+    backgroundColor: theme.colors.primaryContainer,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
   },
   guidanceTitle: {
     fontSize: 20,
-    fontWeight: '900',
-    color: '#0F172A',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.text,
     marginBottom: 8,
   },
   guidanceSub: {
     fontSize: 14,
-    fontWeight: '500',
-    color: '#475569',
+    fontFamily: theme.fonts.bodyMedium,
+    color: theme.colors.textSecondary,
     textAlign: 'center',
     lineHeight: 22,
     marginBottom: 20,
@@ -729,7 +741,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#15A800',
+    backgroundColor: theme.colors.primary,
     paddingHorizontal: 24,
     paddingVertical: 14,
     borderRadius: 25,
@@ -738,20 +750,20 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   goToRoutesBtnText: {
-    color: '#FFFFFF',
+    color: theme.colors.surface,
     fontSize: 16,
-    fontWeight: '800',
+    fontFamily: theme.fonts.bodyBold,
   },
   quickPickerBox: {
     width: '100%',
     borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
+    borderTopColor: theme.colors.surfaceContainer,
     paddingTop: 16,
   },
   quickPickerLabel: {
     fontSize: 11,
-    fontWeight: '800',
-    color: '#64748B',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.textSecondary,
     letterSpacing: 0.8,
     marginBottom: 12,
     textAlign: 'center',
@@ -761,8 +773,8 @@ const styles = StyleSheet.create({
   },
   pickerLabel: {
     fontSize: 11,
-    fontWeight: '800',
-    color: '#64748B',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.textSecondary,
     letterSpacing: 0.8,
     marginBottom: 8,
   },
@@ -772,37 +784,37 @@ const styles = StyleSheet.create({
   pickerChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ECFDF5',
+    backgroundColor: theme.colors.primaryContainer,
     borderWidth: 1.5,
-    borderColor: '#A7F3D0',
+    borderColor: theme.colors.primaryContainer,
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
     gap: 6,
   },
   pickerChipActive: {
-    backgroundColor: '#15A800',
-    borderColor: '#15A800',
+    backgroundColor: theme.colors.primary,
+    borderColor: theme.colors.primary,
   },
   pickerChipDone: {
-    backgroundColor: '#F1F5F9',
-    borderColor: '#CBD5E1',
+    backgroundColor: theme.colors.surfaceContainer,
+    borderColor: theme.colors.border,
   },
   pickerChipText: {
     fontSize: 13,
-    fontWeight: '700',
-    color: '#065F46',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.success,
   },
   pickerChipTextActive: {
-    color: '#FFFFFF',
+    color: theme.colors.surface,
   },
   pickerChipTextDone: {
-    color: '#64748B',
+    color: theme.colors.textSecondary,
   },
   pickedUpBadgeHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#D1FAE5',
+    backgroundColor: theme.colors.primaryContainer,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
@@ -810,16 +822,16 @@ const styles = StyleSheet.create({
   },
   pickedUpBadgeHeaderText: {
     fontSize: 12,
-    fontWeight: '800',
-    color: '#059669',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.success,
   },
   alreadyPickedUpBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#ECFDF5',
+    backgroundColor: theme.colors.primaryContainer,
     borderWidth: 1.5,
-    borderColor: '#A7F3D0',
+    borderColor: theme.colors.primaryContainer,
     borderRadius: 24,
     paddingVertical: 16,
     paddingHorizontal: 20,
@@ -828,28 +840,28 @@ const styles = StyleSheet.create({
   },
   alreadyPickedUpBannerText: {
     fontSize: 15,
-    fontWeight: '800',
-    color: '#047857',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.success,
   },
   batchCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.colors.surface,
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: theme.colors.border,
     padding: 20,
     marginBottom: 24,
   },
   batchLabel: {
     fontSize: 11,
-    fontWeight: '800',
-    color: '#64748B',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.textSecondary,
     letterSpacing: 0.8,
     marginBottom: 6,
   },
   batchTitle: {
     fontSize: 22,
-    fontWeight: '900',
-    color: '#0F172A',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.text,
     marginBottom: 10,
   },
   addressRow: {
@@ -862,42 +874,42 @@ const styles = StyleSheet.create({
   addressText: {
     flex: 1,
     fontSize: 14,
-    fontWeight: '600',
-    color: '#475569',
+    fontFamily: theme.fonts.bodySemiBold,
+    color: theme.colors.textSecondary,
     lineHeight: 20,
   },
   emptyPromptCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.colors.surface,
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: theme.colors.border,
     padding: 24,
     alignItems: 'center',
     marginBottom: 24,
   },
   emptyPromptTitle: {
     fontSize: 18,
-    fontWeight: '800',
-    color: '#0F172A',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.text,
     marginTop: 10,
     marginBottom: 4,
   },
   emptyPromptSub: {
     fontSize: 14,
-    fontWeight: '500',
-    color: '#64748B',
+    fontFamily: theme.fonts.bodyMedium,
+    color: theme.colors.textSecondary,
     textAlign: 'center',
     marginBottom: 16,
   },
   emptyPromptBtn: {
-    backgroundColor: '#15A800',
+    backgroundColor: theme.colors.primary,
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 20,
   },
   emptyPromptBtnText: {
-    color: '#FFFFFF',
-    fontWeight: '800',
+    color: theme.colors.surface,
+    fontFamily: theme.fonts.bodyBold,
     fontSize: 14,
   },
   pillsRow: {
@@ -906,50 +918,50 @@ const styles = StyleSheet.create({
   },
   weightPill: {
     flex: 1,
-    backgroundColor: '#ECFDF5',
+    backgroundColor: theme.colors.primaryContainer,
     borderLeftWidth: 4,
-    borderLeftColor: '#15A800',
+    borderLeftColor: theme.colors.primary,
     borderRadius: 16,
     paddingHorizontal: 14,
     paddingVertical: 10,
   },
   pillLabel: {
     fontSize: 10,
-    fontWeight: '800',
-    color: '#64748B',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.textSecondary,
     letterSpacing: 0.5,
     marginBottom: 2,
   },
   weightVal: {
     fontSize: 20,
-    fontWeight: '800',
-    color: '#15A800',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.primary,
   },
   originPill: {
     flex: 1,
-    backgroundColor: '#FEF2F2',
+    backgroundColor: theme.colors.errorContainer,
     borderLeftWidth: 4,
-    borderLeftColor: '#DC2626',
+    borderLeftColor: theme.colors.error,
     borderRadius: 16,
     paddingHorizontal: 14,
     paddingVertical: 10,
   },
   pillLabelRed: {
     fontSize: 10,
-    fontWeight: '800',
-    color: '#991B1B',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.error,
     letterSpacing: 0.5,
     marginBottom: 2,
   },
   originVal: {
     fontSize: 20,
-    fontWeight: '800',
-    color: '#991B1B',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.error,
   },
   sectionLabel: {
     fontSize: 11,
-    fontWeight: '800',
-    color: '#64748B',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.textSecondary,
     letterSpacing: 0.8,
     marginBottom: 12,
   },
@@ -960,9 +972,9 @@ const styles = StyleSheet.create({
   checkCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.colors.surface,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: theme.colors.border,
     borderRadius: 18,
     padding: 16,
     gap: 14,
@@ -972,30 +984,30 @@ const styles = StyleSheet.create({
     height: 22,
     borderRadius: 6,
     borderWidth: 1.5,
-    borderColor: '#94A3B8',
+    borderColor: theme.colors.textSecondary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   checkboxSquareChecked: {
-    backgroundColor: '#15A800',
-    borderColor: '#15A800',
+    backgroundColor: theme.colors.primary,
+    borderColor: theme.colors.primary,
   },
   checkCardText: {
     fontSize: 16,
-    fontWeight: '700',
-    color: '#0F172A',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.text,
   },
   textareaContainer: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.colors.surface,
     borderWidth: 1,
-    borderColor: '#CBD5E1',
+    borderColor: theme.colors.border,
     borderRadius: 20,
     padding: 14,
     marginBottom: 28,
   },
   textarea: {
     fontSize: 15,
-    color: '#0F172A',
+    color: theme.colors.text,
     minHeight: 100,
     textAlignVertical: 'top',
   },
@@ -1008,17 +1020,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.colors.surface,
     borderWidth: 1.5,
-    borderColor: '#DC2626',
+    borderColor: theme.colors.error,
     borderRadius: 25,
     height: 52,
     gap: 8,
   },
   refuseBtnText: {
-    color: '#DC2626',
+    color: theme.colors.error,
     fontSize: 16,
-    fontWeight: '800',
+    fontFamily: theme.fonts.bodyBold,
     letterSpacing: 0.5,
   },
   acceptBtn: {
@@ -1026,7 +1038,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#15A800',
+    backgroundColor: theme.colors.primary,
     borderRadius: 25,
     height: 52,
     gap: 8,
@@ -1035,24 +1047,24 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
   acceptBtnText: {
-    color: '#FFFFFF',
+    color: theme.colors.surface,
     fontSize: 16,
-    fontWeight: '800',
+    fontFamily: theme.fonts.bodyBold,
     letterSpacing: 0.5,
   },
   bottomTabBar: {
     flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.colors.surface,
     paddingVertical: 12,
     paddingHorizontal: 24,
     justifyContent: 'space-between',
     borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
+    borderTopColor: theme.colors.border,
   },
   tabItem: {
     alignItems: 'center',
@@ -1060,20 +1072,20 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   tabIconActiveBg: {
-    backgroundColor: '#ECFDF5',
+    backgroundColor: theme.colors.primaryContainer,
     paddingHorizontal: 16,
     paddingVertical: 4,
     borderRadius: 20,
   },
   tabLabelActive: {
     fontSize: 12,
-    fontWeight: '800',
-    color: '#0F172A',
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.text,
   },
   tabLabel: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#475569',
+    fontFamily: theme.fonts.bodySemiBold,
+    color: theme.colors.textSecondary,
   },
 });
 
