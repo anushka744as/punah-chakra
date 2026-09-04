@@ -217,16 +217,40 @@ export async function fetchCategoryPoints(): Promise<CategoryPoints[]> {
   }
 }
 
-export async function calculateRewardForCategory(categoryStr: string, weightKg: number) {
+async function resolveCategoryRule(categoryStr: string): Promise<CategoryPoints> {
   const pointsRules = await fetchCategoryPoints();
   const matchedKey = categoryStr.toUpperCase().trim();
-  const rule = pointsRules.find(r => r.category.toUpperCase() === matchedKey)
+  return pointsRules.find(r => r.category.toUpperCase() === matchedKey)
     || DEFAULT_CATEGORY_POINTS[matchedKey]
     || DEFAULT_CATEGORY_POINTS['OTHERS'];
+}
+
+export async function calculateRewardForCategory(categoryStr: string, weightKg: number) {
+  const rule = await resolveCategoryRule(categoryStr);
 
   const weight = Math.max(weightKg || 1, 1);
   const pointsAwarded = rule.base_points + Math.round(weight * rule.points_per_kg);
   const co2OffsetKg = Math.round((weight * rule.co2_factor_per_kg) * 100) / 100;
+
+  return { pointsAwarded, co2OffsetKg };
+}
+
+// A donation can span multiple item categories (e.g. "Clothes, Shoes, Blankets/Bedsheets").
+// Rather than matching the whole joined string as one (unmatched) category — which silently
+// fell back to the lowest generic rate — average each selected category's rate and apply it
+// once to the total weight, so mixing categories neither penalizes nor multiplies the reward.
+export async function calculateRewardForCategories(categoryLabels: string[], weightKg: number) {
+  const labels = categoryLabels.map(c => c.trim()).filter(Boolean);
+  if (labels.length === 0) return calculateRewardForCategory('OTHERS', weightKg);
+
+  const rules = await Promise.all(labels.map(resolveCategoryRule));
+  const avgBasePoints = rules.reduce((sum, r) => sum + r.base_points, 0) / rules.length;
+  const avgPointsPerKg = rules.reduce((sum, r) => sum + r.points_per_kg, 0) / rules.length;
+  const avgCo2Factor = rules.reduce((sum, r) => sum + r.co2_factor_per_kg, 0) / rules.length;
+
+  const weight = Math.max(weightKg || 1, 1);
+  const pointsAwarded = Math.round(avgBasePoints) + Math.round(weight * avgPointsPerKg);
+  const co2OffsetKg = Math.round((weight * avgCo2Factor) * 100) / 100;
 
   return { pointsAwarded, co2OffsetKg };
 }
@@ -236,8 +260,8 @@ export async function calculateRewardForCategory(categoryStr: string, weightKg: 
 // ---------------------------------------------------------------------------
 export async function createDonationRequest(donation: Omit<DonationItem, 'id' | 'status' | 'points_awarded'>, donorId: string) {
   // 1. Calculate dynamic points & CO2 offset from category_points table
-  const { pointsAwarded, co2OffsetKg } = await calculateRewardForCategory(
-    donation.category,
+  const { pointsAwarded, co2OffsetKg } = await calculateRewardForCategories(
+    donation.category.split(','),
     donation.weight_kg || 1
   );
 
@@ -297,6 +321,23 @@ export async function createDonationRequest(donation: Omit<DonationItem, 'id' | 
     );
   } catch {}
 
+  // 5. Notify all admins/collectors that a new pickup request has come in
+  try {
+    const { data: admins } = await supabase.from('profiles').select('id').eq('role', 'admin');
+    if (admins) {
+      await Promise.all(
+        admins.map((admin: { id: string }) =>
+          createNotification(
+            admin.id,
+            'New Pickup Request',
+            `A new ${donation.category} pickup (${donation.weight_kg || 1} kg) was requested for ${donation.pickup_day}, ${donation.time_slot}.`,
+            'NEW REQUEST'
+          )
+        )
+      );
+    }
+  } catch {}
+
   return data;
 }
 
@@ -339,18 +380,49 @@ export async function fetchAllScheduledDonations(): Promise<DonationItem[]> {
   return data as DonationItem[];
 }
 
-// Cancels a pending donation request. Only valid before a collector has confirmed it —
-// callers should gate this on status === 'pending' in the UI.
+// Cancels a pending donation request. Only valid before a collector has confirmed it.
+// The `eq('status', 'pending')` on the update makes this check atomic at the database level
+// (not just a UI gate) — if a collector confirmed the pickup in between the screen loading
+// and the user tapping Cancel, the update matches zero rows and this throws instead of
+// silently cancelling a pickup that's already in progress.
 export async function cancelDonationRequest(donationId: string, requestId?: string) {
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(donationId);
 
-  if (isUuid) {
-    const { error } = await supabase.from('donations').update({ status: 'cancelled' }).eq('id', donationId);
-    if (error) throw error;
-  } else if (requestId) {
-    const { error } = await supabase.from('donations').update({ status: 'cancelled' }).eq('request_id', requestId);
-    if (error) throw error;
+  const query = supabase.from('donations').update({ status: 'cancelled' }).eq('status', 'pending');
+  const { data, error } = isUuid
+    ? await query.eq('id', donationId).select()
+    : requestId
+    ? await query.eq('request_id', requestId).select()
+    : { data: null, error: null };
+
+  if (error) throw error;
+  const cancelled = data?.[0];
+  if (!cancelled) {
+    throw new Error('This pickup has already been confirmed by a collector and can no longer be cancelled.');
   }
+
+  try {
+    await supabase
+      .from('pickups')
+      .update({ status: 'cancelled' })
+      .eq('donation_id', cancelled.id);
+  } catch {}
+
+  try {
+    const { data: admins } = await supabase.from('profiles').select('id').eq('role', 'admin');
+    if (admins) {
+      await Promise.all(
+        admins.map((admin: { id: string }) =>
+          createNotification(
+            admin.id,
+            'Pickup Cancelled',
+            `The ${cancelled.category} pickup (${cancelled.weight_kg} kg) scheduled for ${cancelled.pickup_day}, ${cancelled.time_slot} was cancelled by the donor.`,
+            'CANCELLED'
+          )
+        )
+      );
+    }
+  } catch {}
 }
 
 export interface DonationRescheduleUpdates {
@@ -366,7 +438,7 @@ export interface DonationRescheduleUpdates {
 // Only valid before a collector has confirmed it — callers should gate this on
 // status === 'pending' in the UI.
 export async function rescheduleDonationRequest(donationId: string, updates: DonationRescheduleUpdates) {
-  const { pointsAwarded } = await calculateRewardForCategory(updates.category, updates.weight_kg || 1);
+  const { pointsAwarded } = await calculateRewardForCategories(updates.category.split(','), updates.weight_kg || 1);
 
   const { data, error } = await supabase
     .from('donations')

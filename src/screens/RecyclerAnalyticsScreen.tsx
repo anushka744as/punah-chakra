@@ -26,18 +26,14 @@ export const RecyclerAnalyticsScreen = ({ navigation }: any) => {
         <View style={styles.statsGrid}>
           <StatCard
             title="Monthly Yield"
-            value="128.4"
+            value="--"
             unit="Tons"
-            trend="+15%"
-            trendPositive={true}
             icon={<Icon name="chart-bell-curve" size={20} color={theme.colors.primary} />}
           />
           <StatCard
             title="Landfill Diversion"
-            value="98.6"
+            value="--"
             unit="%"
-            trend="+0.8%"
-            trendPositive={true}
             icon={<Icon name="dump-truck" size={20} color="#15A800" />}
           />
         </View>

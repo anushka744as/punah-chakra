@@ -15,93 +15,6 @@ import { useAppData } from '../data/AppDataContext';
 import { supabase, createNotification, DonationItem } from '../services/api';
 import { theme } from '../theme/theme';
 
-const PERMANENT_DONATIONS: DonationItem[] = [
-  {
-    id: 'rec-9821',
-    request_id: '#REC-9821',
-    category: 'Clothes',
-    weight_kg: 3,
-    estimated_quantity_kg: 3,
-    pickup_day: 'Today',
-    time_slot: '4:32 PM',
-    instructions: 'Doorstep pickup',
-    address: 'House #194, Sector 15A, Noida, Uttar Pradesh 201301',
-    status: 'scheduled',
-    points_awarded: 30,
-    is_picked_up: false,
-  },
-  {
-    id: 'rec-9822',
-    request_id: '#REC-9822',
-    category: 'Shoes',
-    weight_kg: 5.5,
-    estimated_quantity_kg: 5.5,
-    pickup_day: 'Today',
-    time_slot: '10:00 AM',
-    instructions: 'Call on arrival',
-    address: 'House #134, Sector 15A, Noida, Uttar Pradesh 201301',
-    status: 'scheduled',
-    points_awarded: 55,
-    is_picked_up: false,
-  },
-  {
-    id: 'rec-9823',
-    request_id: '#REC-9823',
-    category: 'Textiles',
-    weight_kg: 12.4,
-    estimated_quantity_kg: 12.4,
-    pickup_day: 'Today',
-    time_slot: '11:30 AM',
-    instructions: 'Ring doorbell',
-    address: 'Flat 402, Sector 44, Noida, Uttar Pradesh 201301',
-    status: 'scheduled',
-    points_awarded: 120,
-    is_picked_up: false,
-  },
-  {
-    id: 'rec-9824',
-    request_id: '#REC-9824',
-    category: 'Plastics',
-    weight_kg: 8.0,
-    estimated_quantity_kg: 8.0,
-    pickup_day: 'Today',
-    time_slot: '2:15 PM',
-    instructions: 'Leave at security desk',
-    address: 'Tower B-902, Jaypee Greens, Noida, Uttar Pradesh 201304',
-    status: 'scheduled',
-    points_awarded: 80,
-    is_picked_up: false,
-  },
-  {
-    id: 'rec-9825',
-    request_id: '#REC-9825',
-    category: 'Paper & Cardboard',
-    weight_kg: 15.2,
-    estimated_quantity_kg: 15.2,
-    pickup_day: 'Today',
-    time_slot: '5:00 PM',
-    instructions: 'Gate 2 entrance',
-    address: 'Plot 55, Sector 62, Noida, Uttar Pradesh 201309',
-    status: 'scheduled',
-    points_awarded: 150,
-    is_picked_up: false,
-  },
-  {
-    id: 'rec-9826',
-    request_id: '#REC-9826',
-    category: 'Glass & Metals',
-    weight_kg: 6.8,
-    estimated_quantity_kg: 6.8,
-    pickup_day: 'Today',
-    time_slot: '6:30 PM',
-    instructions: 'Call donor',
-    address: 'Villa #12, Sector 128, Noida, Uttar Pradesh 201304',
-    status: 'scheduled',
-    points_awarded: 70,
-    is_picked_up: false,
-  },
-];
-
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const CollectorDashboardScreen = ({ navigation }: any) => {
@@ -125,12 +38,7 @@ export const CollectorDashboardScreen = ({ navigation }: any) => {
   };
 
   const allDonations = useMemo(() => {
-    if (!donations || donations.length === 0) {
-      return PERMANENT_DONATIONS;
-    }
-    const existingIds = new Set(donations.map(d => d.id || d.request_id));
-    const extraDefaults = PERMANENT_DONATIONS.filter(p => !existingIds.has(p.id) && !existingIds.has(p.request_id));
-    return [...donations, ...extraDefaults].filter(d => d.status !== 'cancelled');
+    return (donations || []).filter(d => d.status !== 'cancelled');
   }, [donations]);
 
   const pendingCount = allDonations.filter(item => !item.is_picked_up && item.status !== 'completed').length;
@@ -360,7 +268,7 @@ export const CollectorDashboardScreen = ({ navigation }: any) => {
                         }}
                       >
                         <Icon name="decagram-outline" size={18} color={theme.colors.primary} />
-                        <Text style={styles.assessBtnText}>Assess</Text>
+                        <Text style={styles.assessBtnText}>Complete</Text>
                       </TouchableOpacity>
                       
                       {isConfirmedByMe ? (

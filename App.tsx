@@ -16,8 +16,11 @@ import {
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { AppDataProvider } from './src/data/AppDataContext';
 import { colors } from './src/theme/theme';
+import { useAppUpdateCheck } from './src/hooks/useAppUpdateCheck';
 
 function App(): React.JSX.Element | null {
+  useAppUpdateCheck();
+
   const [fontsLoaded] = useFonts({
     Fraunces_500Medium,
     Fraunces_600SemiBold,

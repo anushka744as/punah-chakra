@@ -7,122 +7,23 @@ import {
   SafeAreaView,
   StatusBar,
   TouchableOpacity,
-  TextInput,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-
-const CONDITIONS = [
-  'Clean & Dry',
-  'Minor Wear',
-  'Torn / Damaged',
-  'Stained',
-  'Wet / Moldy',
-  'Heavy Odor',
-];
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppData } from '../data/AppDataContext';
 
 import { Alert, ActivityIndicator } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { supabase, DonationItem, calculateRewardForCategory, creditDonorForCompletedDonation } from '../services/api';
+import { supabase, DonationItem, calculateRewardForCategories, creditDonorForCompletedDonation } from '../services/api';
 import { theme } from '../theme/theme';
 
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback } from 'react';
 
-const PERMANENT_DONATIONS: DonationItem[] = [
-  {
-    id: 'rec-9821',
-    request_id: '#REC-9821',
-    category: 'Clothes',
-    weight_kg: 3,
-    estimated_quantity_kg: 3,
-    pickup_day: 'Today',
-    time_slot: '4:32 PM',
-    instructions: 'Doorstep pickup',
-    address: 'House #194, Sector 15A, Noida, Uttar Pradesh 201301',
-    status: 'scheduled',
-    points_awarded: 30,
-    is_picked_up: false,
-  },
-  {
-    id: 'rec-9822',
-    request_id: '#REC-9822',
-    category: 'Shoes',
-    weight_kg: 5.5,
-    estimated_quantity_kg: 5.5,
-    pickup_day: 'Today',
-    time_slot: '10:00 AM',
-    instructions: 'Call on arrival',
-    address: 'House #134, Sector 15A, Noida, Uttar Pradesh 201301',
-    status: 'scheduled',
-    points_awarded: 55,
-    is_picked_up: false,
-  },
-  {
-    id: 'rec-9823',
-    request_id: '#REC-9823',
-    category: 'Textiles',
-    weight_kg: 12.4,
-    estimated_quantity_kg: 12.4,
-    pickup_day: 'Today',
-    time_slot: '11:30 AM',
-    instructions: 'Ring doorbell',
-    address: 'Flat 402, Sector 44, Noida, Uttar Pradesh 201301',
-    status: 'scheduled',
-    points_awarded: 120,
-    is_picked_up: false,
-  },
-  {
-    id: 'rec-9824',
-    request_id: '#REC-9824',
-    category: 'Plastics',
-    weight_kg: 8.0,
-    estimated_quantity_kg: 8.0,
-    pickup_day: 'Today',
-    time_slot: '2:15 PM',
-    instructions: 'Leave at security desk',
-    address: 'Tower B-902, Jaypee Greens, Noida, Uttar Pradesh 201304',
-    status: 'scheduled',
-    points_awarded: 80,
-    is_picked_up: false,
-  },
-  {
-    id: 'rec-9825',
-    request_id: '#REC-9825',
-    category: 'Paper & Cardboard',
-    weight_kg: 15.2,
-    estimated_quantity_kg: 15.2,
-    pickup_day: 'Today',
-    time_slot: '5:00 PM',
-    instructions: 'Gate 2 entrance',
-    address: 'Plot 55, Sector 62, Noida, Uttar Pradesh 201309',
-    status: 'scheduled',
-    points_awarded: 150,
-    is_picked_up: false,
-  },
-  {
-    id: 'rec-9826',
-    request_id: '#REC-9826',
-    category: 'Glass & Metals',
-    weight_kg: 6.8,
-    estimated_quantity_kg: 6.8,
-    pickup_day: 'Today',
-    time_slot: '6:30 PM',
-    instructions: 'Call donor',
-    address: 'Villa #12, Sector 128, Noida, Uttar Pradesh 201304',
-    status: 'scheduled',
-    points_awarded: 70,
-    is_picked_up: false,
-  },
-];
-
 export const QualityScreen = ({ navigation, route }: any) => {
   const insets = useSafeAreaInsets();
   const { donations, authUser, refreshDonations, refreshProfile, refusePickup } = useAppData();
-  const [selectedConditions, setSelectedConditions] = useState<string[]>([]);
-  const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [confirmedIds, setConfirmedIds] = useState<Set<string>>(new Set());
 
@@ -141,15 +42,7 @@ export const QualityScreen = ({ navigation, route }: any) => {
     }, [loadConfirmedCache])
   );
 
-  // Combine live Supabase donations with PERMANENT_DONATIONS fallback
-  const allPickups = useMemo(() => {
-    if (!donations || donations.length === 0) {
-      return PERMANENT_DONATIONS;
-    }
-    const existingIds = new Set(donations.map(d => d.id || d.request_id));
-    const extraDefaults = PERMANENT_DONATIONS.filter(p => !existingIds.has(p.id) && !existingIds.has(p.request_id));
-    return [...donations, ...extraDefaults];
-  }, [donations]);
+  const allPickups = useMemo(() => donations || [], [donations]);
 
   // Filter strictly to ONLY pickups confirmed by current user
   const userConfirmedPickups = useMemo(() => {
@@ -191,20 +84,11 @@ export const QualityScreen = ({ navigation, route }: any) => {
 
   const isAlreadyPickedUp = currentDonation ? (currentDonation.is_picked_up || currentDonation.status === 'completed') : false;
 
-  const categoryName = currentDonation?.category || 'Clothes';
-  const requestId = currentDonation?.request_id || '#REC-9821';
-  const weightVal = currentDonation?.weight_kg || currentDonation?.estimated_quantity_kg || 10;
-  const fullAddress = currentDonation?.address ? currentDonation.address.replace(/\(Lat:.*?\)/gi, '').trim() : 'House #194, Sector 15A, Noida';
-  const originVal = fullAddress.includes(',') ? fullAddress.split(',')[1].trim() : 'Sector 15A';
-
-  const toggleCondition = (item: string) => {
-    if (isAlreadyPickedUp) return;
-    if (selectedConditions.includes(item)) {
-      setSelectedConditions(selectedConditions.filter((c) => c !== item));
-    } else {
-      setSelectedConditions([...selectedConditions, item]);
-    }
-  };
+  const categoryName = currentDonation?.category || '—';
+  const requestId = currentDonation?.request_id || '—';
+  const weightVal = currentDonation?.weight_kg || currentDonation?.estimated_quantity_kg || 0;
+  const fullAddress = currentDonation?.address ? currentDonation.address.replace(/\(Lat:.*?\)/gi, '').trim() : '—';
+  const originVal = fullAddress.includes(',') ? fullAddress.split(',')[1].trim() : fullAddress;
 
   const handleRefuseBatch = async () => {
     const targetId = currentDonation?.id;
@@ -282,9 +166,7 @@ export const QualityScreen = ({ navigation, route }: any) => {
                   {
                     batch_identifier: `${categoryName} Cluster ${requestId}`,
                     weight_kg: weightVal,
-                    notes: notes
-                      ? `REFUSED: ${notes} | Checklist: ${selectedConditions.join(', ')}`
-                      : `REFUSED by collector | Checklist: ${selectedConditions.join(', ') || 'Inspection Refused'}`,
+                    notes: 'REFUSED by collector',
                     decision: 'REJECTED',
                   },
                 ]);
@@ -375,8 +257,8 @@ export const QualityScreen = ({ navigation, route }: any) => {
       // Credit the donor now that the pickup is actually completed (not at scheduling time)
       if (currentDonation.donor_id) {
         try {
-          const { pointsAwarded: donorPoints, co2OffsetKg: donorCo2 } = await calculateRewardForCategory(
-            categoryName,
+          const { pointsAwarded: donorPoints, co2OffsetKg: donorCo2 } = await calculateRewardForCategories(
+            categoryName.split(','),
             weightVal
           );
           await creditDonorForCompletedDonation(currentDonation.donor_id, donorPoints, donorCo2);
@@ -408,7 +290,7 @@ export const QualityScreen = ({ navigation, route }: any) => {
           {
             batch_identifier: `${categoryName} Cluster ${requestId}`,
             weight_kg: weightVal,
-            notes: notes ? `${notes} | Checklist: ${selectedConditions.join(', ')}` : `Checklist: ${selectedConditions.join(', ') || 'Clean & Verified'}`,
+            notes: 'Picked up & completed by collector',
           },
         ]);
       } catch {}
@@ -434,7 +316,7 @@ export const QualityScreen = ({ navigation, route }: any) => {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.7}>
           <Icon name="arrow-left" size={24} color={theme.colors.surface} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Quality Assessment</Text>
+        <Text style={styles.headerTitle}>Complete Pickup</Text>
         <TouchableOpacity onPress={() => navigation.navigate('CollectorProfile')} activeOpacity={0.7}>
           <View style={styles.userAvatarCircle}>
             <Icon name="account-outline" size={20} color={theme.colors.surface} />
@@ -452,7 +334,7 @@ export const QualityScreen = ({ navigation, route }: any) => {
             </View>
             <Text style={styles.guidanceTitle}>No Pickup Selected</Text>
             <Text style={styles.guidanceSub}>
-              Please select a pickup first! Go to the <Text style={{ fontFamily: theme.fonts.bodyBold, color: theme.colors.primary }}>Routes</Text> tab and tap <Text style={{ fontFamily: theme.fonts.bodyBold, color: theme.colors.primary }}>"Assess"</Text> on a confirmed pickup to perform quality inspection.
+              Please select a pickup first! Go to the <Text style={{ fontFamily: theme.fonts.bodyBold, color: theme.colors.primary }}>Routes</Text> tab and tap <Text style={{ fontFamily: theme.fonts.bodyBold, color: theme.colors.primary }}>"Complete"</Text> on a confirmed pickup to mark it as picked up.
             </Text>
 
             <TouchableOpacity
@@ -569,41 +451,6 @@ export const QualityScreen = ({ navigation, route }: any) => {
               </View>
             </View>
 
-            {/* Condition Checklist */}
-            <Text style={styles.sectionLabel}>CONDITION CHECKLIST</Text>
-            <View style={styles.checklistGrid}>
-              {CONDITIONS.map((c) => {
-                const isChecked = selectedConditions.includes(c);
-                return (
-                  <TouchableOpacity
-                    key={c}
-                    style={styles.checkCard}
-                    onPress={() => toggleCondition(c)}
-                    activeOpacity={0.8}
-                  >
-                    <View style={[styles.checkboxSquare, isChecked && styles.checkboxSquareChecked]}>
-                      {isChecked && <Icon name="check" size={14} color={theme.colors.surface} />}
-                    </View>
-                    <Text style={styles.checkCardText}>{c}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-
-            {/* Assessment Notes */}
-            <Text style={styles.sectionLabel}>ASSESSMENT NOTES</Text>
-            <View style={styles.textareaContainer}>
-              <TextInput
-                placeholder="Enter detailed observations..."
-                placeholderTextColor={theme.colors.textSecondary}
-                value={notes}
-                onChangeText={setNotes}
-                multiline
-                numberOfLines={4}
-                style={styles.textarea}
-              />
-            </View>
-
             {/* Action Buttons Row */}
             {isAlreadyPickedUp ? (
               <View style={styles.alreadyPickedUpBanner}>
@@ -635,7 +482,7 @@ export const QualityScreen = ({ navigation, route }: any) => {
                       <View style={styles.checkIconCircle}>
                         <Icon name="check-circle-outline" size={18} color={theme.colors.primary} />
                       </View>
-                      <Text style={styles.acceptBtnText}>ACCEPT</Text>
+                      <Text style={styles.acceptBtnText}>MARK PICKED UP</Text>
                     </>
                   )}
                 </TouchableOpacity>

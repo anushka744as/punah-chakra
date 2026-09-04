@@ -35,7 +35,7 @@ const isSameDay = (a: Date, b: Date) =>
   a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { createDonationRequest, rescheduleDonationRequest, fetchSlotAvailability, supabase, calculateRewardForCategory, DonationItem } from '../services/api';
+import { createDonationRequest, rescheduleDonationRequest, fetchSlotAvailability, supabase, calculateRewardForCategories, DonationItem } from '../services/api';
 import { TIME_SLOTS, slotToMinutes } from '../constants/timeSlots';
 import { theme } from '../theme/theme';
 
@@ -174,10 +174,8 @@ export const DonateScreen = ({ navigation, route }: any) => {
           return;
         }
         const labels = ITEM_TYPES.filter((i) => selectedItems.includes(i.id)).map((i) => i.label);
-        const results = await Promise.all(
-          labels.map((label) => calculateRewardForCategory(label, quantity))
-        );
-        setEstimatedPoints(results.reduce((sum, r) => sum + r.pointsAwarded, 0));
+        const { pointsAwarded } = await calculateRewardForCategories(labels, quantity);
+        setEstimatedPoints(pointsAwarded);
       } catch {}
     })();
   }, [selectedItems, quantity]);

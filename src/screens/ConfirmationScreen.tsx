@@ -20,11 +20,15 @@ export const ConfirmationScreen = ({ navigation, route }: any) => {
   const donationId = route.params?.donationId;
   const currentDonation = donations.find(d => d.id === donationId) || donations[0];
 
-  const requestId = currentDonation?.request_id || '#PC-88942';
-  const category = currentDonation?.category || 'Clothes & Shoes';
-  const weight = (currentDonation?.weight_kg || currentDonation?.estimated_quantity_kg || 15) + ' kg';
-  const slot = (currentDonation?.pickup_day || 'Tomorrow') + ', ' + (currentDonation?.time_slot || '10:00 AM - 12:00 PM');
-  const points = '+' + (currentDonation?.points_awarded || 150) + ' PTS';
+  const requestId = currentDonation?.request_id || '—';
+  const category = currentDonation?.category || '—';
+  const weight = currentDonation?.weight_kg || currentDonation?.estimated_quantity_kg
+    ? (currentDonation.weight_kg || currentDonation.estimated_quantity_kg) + ' kg'
+    : '—';
+  const slot = currentDonation?.pickup_day || currentDonation?.time_slot
+    ? [currentDonation?.pickup_day, currentDonation?.time_slot].filter(Boolean).join(', ')
+    : '—';
+  const points = currentDonation?.points_awarded ? '+' + currentDonation.points_awarded + ' PTS' : '—';
 
   const handleReturnHome = () => {
     try {

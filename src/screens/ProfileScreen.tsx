@@ -70,6 +70,7 @@ export const ProfileScreen = ({ navigation }: any) => {
               await loadProfileData();
             } catch (err: any) {
               Alert.alert('Error', err?.message || 'Could not cancel pickup request. Please try again.');
+              await loadProfileData();
             }
           },
         },

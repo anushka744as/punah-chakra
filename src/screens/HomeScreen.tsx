@@ -22,7 +22,6 @@ export const HomeScreen = ({ navigation }: any) => {
   const [loading, setLoading] = useState(true);
   const [points, setPoints] = useState(0);
   const [co2Offset, setCo2Offset] = useState('0 kg');
-  const [badgesCount, setBadgesCount] = useState(0);
   const [scheduledPickup, setScheduledPickup] = useState<string | null>(null);
   const [contributions, setContributions] = useState<any[]>([]);
 
@@ -123,14 +122,6 @@ export const HomeScreen = ({ navigation }: any) => {
             </View>
             <Text style={styles.statValue}>{co2Offset}</Text>
             <Text style={styles.statLabel}>CO₂ OFFSET</Text>
-          </View>
-
-          <View style={styles.statCard}>
-            <View style={[styles.statIconBg, { backgroundColor: theme.colors.secondaryContainer }]}>
-              <Icon name="star-circle-outline" size={16} color={theme.colors.secondary} />
-            </View>
-            <Text style={styles.statValue}>{String(badgesCount).padStart(2, '0')}</Text>
-            <Text style={styles.statLabel}>BADGES</Text>
           </View>
         </View>
 
@@ -420,15 +411,19 @@ const styles = StyleSheet.create({
   cardHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: 4,
   },
   itemTitle: {
+    flex: 1,
+    flexShrink: 1,
+    marginRight: 8,
     fontFamily: theme.fonts.bodyBold,
     fontSize: 16,
     color: theme.colors.text,
   },
   statusBadge: {
+    flexShrink: 0,
     backgroundColor: theme.colors.secondaryContainer,
     paddingHorizontal: 10,
     paddingVertical: 4,
