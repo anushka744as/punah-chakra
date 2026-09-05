@@ -12,6 +12,48 @@ log stays a complete, current record — don't rely on chat history for this.
 
 ---
 
+## 🚧 Done but not yet verified in the running app
+
+### Calendar-based pickup slots + removed admin approve/reject
+Files: `src/migrations/013_add_day_availability.sql`, `src/services/api.ts`,
+`src/data/AppDataContext.tsx`, `src/screens/AdminAvailabilityScreen.tsx` (new),
+`src/screens/CollectorProfileScreen.tsx`, `src/screens/CollectorDashboardScreen.tsx`,
+`src/screens/QualityScreen.tsx`, `src/screens/DonateScreen.tsx`, `src/screens/HomeScreen.tsx`,
+`src/screens/PickupMapScreen.tsx`, `src/screens/ConfirmationScreen.tsx`,
+`src/navigation/AppNavigator.tsx`
+
+- New `day_availability` table (date-scoped `available_slots` + `is_closed`) replaces the
+  flat, date-less `profiles.available_slots` for admin-configured availability. Requires
+  running the migration SQL against Supabase manually (no auto-migration system exists) —
+  **not yet applied to the production DB** as of this entry.
+- New `AdminAvailabilityScreen`: a hand-built month calendar (no new dependency, matches the
+  app's no-UI-kit convention) — admin taps a date, toggles slots and/or a "close this day"
+  switch, saves. Reached from Profile → "Manage Pickup Calendar" (replacing the old flat
+  slot-toggle "Availability" section).
+- `DonateScreen`: replaced the native single-date `DateTimePicker` + slot modal with an
+  inline week-strip (7-day paging) + always-visible slot grid for the selected day; shows
+  "Not available on this day" when the admin closed it.
+- Removed the collector "Confirm Pickup" claiming step entirely (`CollectorDashboardScreen`)
+  — every scheduled pickup goes straight to Complete / View Map, no approve/reject gate.
+  `QualityScreen`'s matching "Refuse Pickup Batch" (unassign-and-reopen) action, which only
+  made sense with that claiming step, was removed too.
+- Added `getStatusLabel()` in `api.ts` — single source of truth mapping DB status → display
+  text, so `'pending'` (still the literal DB value at booking time, unchanged for schema
+  safety) now reads as **"Pickup Scheduled"** everywhere instead of "PENDING".
+- Admin gets a live in-app popup (`Alert.alert`) via a new Supabase realtime subscription in
+  `AppDataContext` on new `donations` rows, in addition to the existing persisted
+  notification row — no push-notification infrastructure was added (out of scope, confirmed
+  with user).
+- Verified live in Android emulator as the **user** role: week-strip paging, per-day slot
+  fetch (booked slots correctly excluded per date), booking end-to-end, Home screen showing
+  "Pickup Scheduled" with day/time immediately (no pending/approval delay), donation list
+  status badges ("Cancelled"/"Completed"/"Pickup Scheduled") all correct.
+- **Not yet verified**: admin-side screens (`AdminAvailabilityScreen`, the simplified
+  `CollectorDashboardScreen`, the realtime popup) — no admin test credentials were available
+  this session. Verified via `tsc --noEmit` (clean) and code review only.
+
+---
+
 ## ✅ Done
 
 ### 1. Mission / onboarding slides 1–4 rewritten

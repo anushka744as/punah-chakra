@@ -9,13 +9,11 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
-  Platform,
   Modal,
   ActivityIndicator,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { WebView } from 'react-native-webview';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Location from 'expo-location';
 
 const ITEM_TYPES = [
@@ -33,6 +31,12 @@ const getToday = () => {
 
 const isSameDay = (a: Date, b: Date) =>
   a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+
+const addDays = (d: Date, n: number) => {
+  const copy = new Date(d);
+  copy.setDate(copy.getDate() + n);
+  return copy;
+};
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createDonationRequest, rescheduleDonationRequest, fetchSlotAvailability, supabase, calculateRewardForCategories, DonationItem } from '../services/api';
@@ -62,11 +66,10 @@ export const DonateScreen = ({ navigation, route }: any) => {
   const [selectedItems, setSelectedItems] = useState<string[]>(() => deriveSelectedItems(editDonation));
   const [quantity, setQuantity] = useState(editDonation?.weight_kg || 5);
   const [pickupDate, setPickupDate] = useState(getToday());
+  const [weekStart, setWeekStart] = useState(getToday());
   const [selectedSlot, setSelectedSlot] = useState(
     editDonation?.time_slot && TIME_SLOTS.includes(editDonation.time_slot) ? editDonation.time_slot : TIME_SLOTS[0]
   );
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [showSlotPicker, setShowSlotPicker] = useState(false);
   const [address, setAddress] = useState(editDonation?.address || '');
   const [notes, setNotes] = useState(editDonation?.instructions || '');
   const [submitting, setSubmitting] = useState(false);
@@ -77,6 +80,7 @@ export const DonateScreen = ({ navigation, route }: any) => {
   const [estimatedPoints, setEstimatedPoints] = useState(0);
   const [adminAvailableSlots, setAdminAvailableSlots] = useState<string[]>([]);
   const [bookedSlots, setBookedSlots] = useState<string[]>([]);
+  const [dayClosed, setDayClosed] = useState(false);
   const [loadingSlots, setLoadingSlots] = useState(false);
 
   const pickupDayStr = pickupDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
@@ -86,25 +90,29 @@ export const DonateScreen = ({ navigation, route }: any) => {
   const isSlotPast = (slot: string) => pickupIsToday && slotToMinutes(slot) <= nowMinutes;
   const isSlotAdminUnavailable = (slot: string) => adminAvailableSlots.length > 0 && !adminAvailableSlots.includes(slot);
   const isSlotBooked = (slot: string) => bookedSlots.includes(slot);
-  const isSlotDisabled = (slot: string) => isSlotPast(slot) || isSlotAdminUnavailable(slot) || isSlotBooked(slot);
+  const isSlotDisabled = (slot: string) => dayClosed || isSlotPast(slot) || isSlotAdminUnavailable(slot) || isSlotBooked(slot);
+
+  const weekDays = React.useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
 
   React.useEffect(() => {
     let cancelled = false;
     (async () => {
       setLoadingSlots(true);
       try {
-        const { adminAvailableSlots: available, bookedSlots: booked } = await fetchSlotAvailability(
+        const { availableSlots, bookedSlots: booked, isClosed } = await fetchSlotAvailability(
           pickupDayStr,
           editDonation?.id
         );
         if (!cancelled) {
-          setAdminAvailableSlots(available);
+          setAdminAvailableSlots(availableSlots);
           setBookedSlots(booked);
+          setDayClosed(isClosed);
         }
       } catch {
         if (!cancelled) {
           setAdminAvailableSlots([]);
           setBookedSlots([]);
+          setDayClosed(false);
         }
       } finally {
         if (!cancelled) setLoadingSlots(false);
@@ -122,7 +130,7 @@ export const DonateScreen = ({ navigation, route }: any) => {
     const nextAvailable = TIME_SLOTS.find((slot) => !isSlotDisabled(slot));
     if (nextAvailable) setSelectedSlot(nextAvailable);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pickupDayStr, adminAvailableSlots, bookedSlots, pickupIsToday]);
+  }, [pickupDayStr, adminAvailableSlots, bookedSlots, dayClosed, pickupIsToday]);
 
   // Picks up a fresh `editDonation` the moment ProfileScreen navigates here with one (this runs
   // whenever `route.params` actually changes, which does happen reliably for that case — it's
@@ -135,6 +143,7 @@ export const DonateScreen = ({ navigation, route }: any) => {
     setSelectedItems(deriveSelectedItems(fresh));
     setQuantity(fresh.weight_kg || 5);
     setPickupDate(getToday());
+    setWeekStart(getToday());
     setSelectedSlot(fresh.time_slot && TIME_SLOTS.includes(fresh.time_slot) ? fresh.time_slot : TIME_SLOTS[0]);
     setAddress(fresh.address || '');
     setNotes(fresh.instructions || '');
@@ -286,7 +295,7 @@ export const DonateScreen = ({ navigation, route }: any) => {
         user.id
       );
       setSubmitting(false);
-      Alert.alert('Pickup Requested', 'Your donation pickup request has been submitted and is awaiting collector confirmation!');
+      Alert.alert('Pickup Scheduled', 'Your donation pickup has been scheduled!');
       navigation.navigate('Home');
     } catch (err: any) {
       setSubmitting(false);
@@ -469,95 +478,107 @@ export const DonateScreen = ({ navigation, route }: any) => {
         {/* Pickup Date & Time */}
         <Text style={styles.sectionLabel}>PICKUP DATE & TIME</Text>
         <Text style={styles.helperText}>Pickups are available today onwards, between 11:00 AM - 6:00 PM.</Text>
-        <View style={styles.pickerRow}>
-          <TouchableOpacity style={styles.pickerBtn} onPress={() => setShowDatePicker(true)} activeOpacity={0.7}>
-            <Icon name="calendar-month-outline" size={18} color={theme.colors.primary} />
-            <Text style={styles.pickerBtnText}>
-              {pickupDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-            </Text>
+
+        {/* Week strip */}
+        <View style={styles.weekNavRow}>
+          <TouchableOpacity
+            style={styles.weekNavBtn}
+            onPress={() => setWeekStart((w) => (w > getToday() ? addDays(w, -7) : w))}
+            disabled={weekStart <= getToday()}
+            activeOpacity={0.7}
+          >
+            <Icon
+              name="chevron-left"
+              size={20}
+              color={weekStart <= getToday() ? theme.colors.border : theme.colors.primary}
+            />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.pickerBtn} onPress={() => setShowSlotPicker(true)} activeOpacity={0.7}>
-            <Icon name="clock-outline" size={18} color={theme.colors.primary} />
-            <Text style={styles.pickerBtnText}>{selectedSlot}</Text>
+          <Text style={styles.weekNavLabel}>
+            {weekStart.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+          </Text>
+          <TouchableOpacity
+            style={styles.weekNavBtn}
+            onPress={() => setWeekStart((w) => addDays(w, 7))}
+            activeOpacity={0.7}
+          >
+            <Icon name="chevron-right" size={20} color={theme.colors.primary} />
           </TouchableOpacity>
         </View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.weekStripRow}>
+          {weekDays.map((day) => {
+            const isPast = day < getToday();
+            const isSelected = isSameDay(day, pickupDate);
+            return (
+              <TouchableOpacity
+                key={day.toISOString()}
+                style={[styles.dayChip, isSelected && styles.dayChipSelected, isPast && styles.dayChipDisabled]}
+                onPress={() => !isPast && setPickupDate(day)}
+                disabled={isPast}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.dayChipWeekday, isSelected && styles.dayChipTextSelected]}>
+                  {day.toLocaleDateString('en-US', { weekday: 'short' })}
+                </Text>
+                <Text style={[styles.dayChipDate, isSelected && styles.dayChipTextSelected]}>
+                  {day.getDate()}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
 
-        {showDatePicker && (
-          <DateTimePicker
-            value={pickupDate}
-            mode="date"
-            display="default"
-            minimumDate={getToday()}
-            onChange={(event, date) => {
-              setShowDatePicker(Platform.OS === 'ios');
-              if (date) setPickupDate(date);
-            }}
-          />
-        )}
-
-        {/* Time Slot Picker Modal */}
-        <Modal
-          visible={showSlotPicker}
-          animationType="slide"
-          transparent
-          onRequestClose={() => setShowSlotPicker(false)}
-        >
-          <View style={styles.slotModalOverlay}>
-            <View style={styles.slotModalCard}>
-              <View style={styles.slotModalHeader}>
-                <Text style={styles.slotModalTitle}>Select Pickup Slot</Text>
-                <TouchableOpacity onPress={() => setShowSlotPicker(false)} activeOpacity={0.8}>
-                  <Icon name="close" size={22} color={theme.colors.text} />
-                </TouchableOpacity>
-              </View>
-              {loadingSlots ? (
-                <ActivityIndicator size="small" color={theme.colors.primary} style={{ marginVertical: 20 }} />
-              ) : (
-                <ScrollView contentContainerStyle={styles.slotGrid}>
-                  {TIME_SLOTS.map((slot) => {
-                    const isSelected = slot === selectedSlot;
-                    const disabled = isSlotDisabled(slot);
-                    const statusLabel = isSlotPast(slot)
-                      ? null
-                      : isSlotBooked(slot)
-                        ? 'Booked'
-                        : isSlotAdminUnavailable(slot)
-                          ? 'Unavailable'
-                          : null;
-                    return (
-                      <TouchableOpacity
-                        key={slot}
-                        style={[
-                          styles.slotChip,
-                          isSelected && styles.slotChipSelected,
-                          disabled && styles.slotChipDisabled,
-                        ]}
-                        onPress={() => {
-                          if (disabled) return;
-                          setSelectedSlot(slot);
-                          setShowSlotPicker(false);
-                        }}
-                        disabled={disabled}
-                        activeOpacity={0.8}
-                      >
-                        <Text
-                          style={[
-                            styles.slotChipText,
-                            isSelected && styles.slotChipTextSelected,
-                            disabled && styles.slotChipTextDisabled,
-                          ]}
-                        >
-                          {slot}
-                        </Text>
-                        {statusLabel && <Text style={styles.slotChipStatus}>{statusLabel}</Text>}
-                      </TouchableOpacity>
-                    );
-                  })}
-                </ScrollView>
-              )}
+        {/* Slot grid for the selected day */}
+        <View style={styles.slotSectionCard}>
+          {loadingSlots ? (
+            <ActivityIndicator size="small" color={theme.colors.primary} style={{ marginVertical: 20 }} />
+          ) : dayClosed ? (
+            <View style={styles.dayClosedBox}>
+              <Icon name="calendar-remove-outline" size={22} color={theme.colors.textSecondary} />
+              <Text style={styles.dayClosedText}>Not available on this day</Text>
             </View>
-          </View>
-        </Modal>
+          ) : (
+            <View style={styles.slotGrid}>
+              {TIME_SLOTS.map((slot) => {
+                const isSelected = slot === selectedSlot;
+                const disabled = isSlotDisabled(slot);
+                const statusLabel = isSlotPast(slot)
+                  ? null
+                  : isSlotBooked(slot)
+                    ? 'Booked'
+                    : isSlotAdminUnavailable(slot)
+                      ? 'Unavailable'
+                      : null;
+                return (
+                  <TouchableOpacity
+                    key={slot}
+                    style={[
+                      styles.slotChip,
+                      isSelected && styles.slotChipSelected,
+                      disabled && styles.slotChipDisabled,
+                    ]}
+                    onPress={() => {
+                      if (disabled) return;
+                      setSelectedSlot(slot);
+                    }}
+                    disabled={disabled}
+                    activeOpacity={0.8}
+                  >
+                    <Text
+                      style={[
+                        styles.slotChipText,
+                        isSelected && styles.slotChipTextSelected,
+                        disabled && styles.slotChipTextDisabled,
+                      ]}
+                    >
+                      {slot}
+                    </Text>
+                    {statusLabel && <Text style={styles.slotChipStatus}>{statusLabel}</Text>}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
+        </View>
 
         {/* Pickup Address */}
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 16, marginBottom: 8 }}>
@@ -862,33 +883,68 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     marginTop: -4,
   },
-  pickerRow: {
+  weekNavRow: {
     flexDirection: 'row',
-    gap: 10,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  weekNavBtn: {
+    padding: 6,
+  },
+  weekNavLabel: {
+    fontFamily: theme.fonts.bodySemiBold,
+    fontSize: 13,
+    color: theme.colors.text,
+  },
+  weekStripRow: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingBottom: 16,
+  },
+  dayChip: {
+    width: 52,
+    paddingVertical: 10,
+    borderRadius: theme.radius.sm,
+    borderWidth: 1.5,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
+    alignItems: 'center',
+  },
+  dayChipSelected: {
+    backgroundColor: theme.colors.primary,
+    borderColor: theme.colors.primary,
+  },
+  dayChipDisabled: {
+    opacity: 0.4,
+  },
+  dayChipWeekday: {
+    fontFamily: theme.fonts.body,
+    fontSize: 11,
+    color: theme.colors.textSecondary,
+    marginBottom: 4,
+  },
+  dayChipDate: {
+    fontFamily: theme.fonts.bodyBold,
+    fontSize: 16,
+    color: theme.colors.text,
+  },
+  dayChipTextSelected: {
+    color: theme.colors.textInverse,
+  },
+  slotSectionCard: {
     marginBottom: 24,
   },
-  slotModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(30, 42, 34, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  slotModalCard: {
-    backgroundColor: theme.colors.surface,
-    borderTopLeftRadius: theme.radius.xl,
-    borderTopRightRadius: theme.radius.xl,
-    padding: 20,
-    maxHeight: '70%',
-  },
-  slotModalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  dayClosedBox: {
     alignItems: 'center',
-    marginBottom: 16,
+    justifyContent: 'center',
+    paddingVertical: 24,
+    gap: 8,
   },
-  slotModalTitle: {
-    fontFamily: theme.fonts.heading,
-    fontSize: 17,
-    color: theme.colors.text,
+  dayClosedText: {
+    fontFamily: theme.fonts.bodySemiBold,
+    fontSize: 13,
+    color: theme.colors.textSecondary,
   },
   slotGrid: {
     flexDirection: 'row',

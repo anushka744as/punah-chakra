@@ -57,6 +57,28 @@ export interface DonationItem {
   created_at?: string;
 }
 
+// Single source of truth for how a donation/pickup status reads to a human — there is no
+// approve/reject step, so 'pending' (the DB value set at booking time) and every state up
+// to actual collection all read as "Pickup Scheduled" rather than "Pending".
+export function getStatusLabel(status?: string): string {
+  switch (status) {
+    case 'pending':
+    case 'scheduled':
+    case 'assigned':
+    case 'in_transit':
+      return 'Pickup Scheduled';
+    case 'collected':
+    case 'assessed':
+      return 'Collected';
+    case 'completed':
+      return 'Completed';
+    case 'cancelled':
+      return 'Cancelled';
+    default:
+      return 'Pickup Scheduled';
+  }
+}
+
 export interface PickupJob {
   id: string;
   donation_id?: string;
@@ -155,28 +177,75 @@ export async function updateUserProfile(userId: string, updates: Partial<UserPro
   return data;
 }
 
-// Slots a donor may pick for a given pickup day: slots at least one admin has marked
-// themselves generally available for, minus slots another active (non-cancelled) donation
+// Admin-configured availability for one specific calendar day (day_availability table).
+// No row for a date means it's fully open (fail-open) — same default as the old flat
+// per-admin slot list this replaces.
+export async function fetchDayAvailability(day: string): Promise<{ slots: string[]; isClosed: boolean }> {
+  const { data } = await supabase
+    .from('day_availability')
+    .select('available_slots, is_closed')
+    .eq('day', day)
+    .maybeSingle();
+
+  return {
+    slots: (data as any)?.available_slots || [],
+    isClosed: Boolean((data as any)?.is_closed),
+  };
+}
+
+// All configured day_availability rows in a date range (inclusive), keyed by day —
+// used by the admin calendar to mark which dates already have custom availability set.
+export async function fetchMonthAvailability(
+  startDay: string,
+  endDay: string
+): Promise<Record<string, { slots: string[]; isClosed: boolean }>> {
+  const { data } = await supabase
+    .from('day_availability')
+    .select('day, available_slots, is_closed')
+    .gte('day', startDay)
+    .lte('day', endDay);
+
+  const map: Record<string, { slots: string[]; isClosed: boolean }> = {};
+  ((data || []) as any[]).forEach((row) => {
+    map[row.day] = { slots: row.available_slots || [], isClosed: Boolean(row.is_closed) };
+  });
+  return map;
+}
+
+// Admin saves which slots are open (and/or closes the whole day) for one calendar date.
+export async function upsertDayAvailability(day: string, slots: string[], isClosed: boolean) {
+  const { data, error } = await supabase
+    .from('day_availability')
+    .upsert(
+      { day, available_slots: slots, is_closed: isClosed, updated_at: new Date().toISOString() },
+      { onConflict: 'day' }
+    )
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+// Slots a donor may pick for a given pickup day: slots the admin opened for that specific
+// date (fail-open if unconfigured), minus slots another active (non-cancelled) donation
 // has already booked for that same day. `excludeDonationId` lets a donor keep their own
 // slot while rescheduling/editing an existing request.
 export async function fetchSlotAvailability(
   pickupDay: string,
   excludeDonationId?: string
-): Promise<{ adminAvailableSlots: string[]; bookedSlots: string[] }> {
-  const [{ data: admins }, { data: bookings }] = await Promise.all([
-    supabase.from('profiles').select('available_slots').eq('role', 'admin'),
+): Promise<{ availableSlots: string[]; bookedSlots: string[]; isClosed: boolean }> {
+  const [{ slots, isClosed }, { data: bookings }] = await Promise.all([
+    fetchDayAvailability(pickupDay),
     supabase.from('donations').select('id, time_slot').eq('pickup_day', pickupDay).neq('status', 'cancelled'),
   ]);
 
-  const adminAvailableSlots = Array.from(
-    new Set(((admins || []) as any[]).flatMap((a) => a.available_slots || []))
-  );
   const bookedSlots = ((bookings || []) as any[])
     .filter((b) => b.id !== excludeDonationId)
     .map((b) => b.time_slot)
     .filter(Boolean);
 
-  return { adminAvailableSlots, bookedSlots };
+  return { availableSlots: slots, bookedSlots, isClosed };
 }
 
 export async function updateUserPassword(newPassword: string) {
@@ -315,13 +384,13 @@ export async function createDonationRequest(donation: Omit<DonationItem, 'id' | 
   try {
     await createNotification(
       donorId,
-      'Pickup Request Submitted',
-      `Your request for ${donation.category} pickup on ${donation.pickup_day} (${donation.time_slot}) is pending collector confirmation. You'll earn +${pointsAwarded} impact pts once it's picked up!`,
+      'Pickup Scheduled',
+      `Your ${donation.category} pickup is scheduled for ${donation.pickup_day} (${donation.time_slot}). You'll earn +${pointsAwarded} impact pts once it's picked up!`,
       'PICKUP REMINDER'
     );
   } catch {}
 
-  // 5. Notify all admins/collectors that a new pickup request has come in
+  // 5. Notify all admins that a pickup has been scheduled
   try {
     const { data: admins } = await supabase.from('profiles').select('id').eq('role', 'admin');
     if (admins) {
@@ -329,9 +398,9 @@ export async function createDonationRequest(donation: Omit<DonationItem, 'id' | 
         admins.map((admin: { id: string }) =>
           createNotification(
             admin.id,
-            'New Pickup Request',
-            `A new ${donation.category} pickup (${donation.weight_kg || 1} kg) was requested for ${donation.pickup_day}, ${donation.time_slot}.`,
-            'NEW REQUEST'
+            'Pickup Scheduled',
+            `Pickup scheduled for ${donation.category} (${donation.weight_kg || 1} kg) on ${donation.pickup_day} at ${donation.time_slot} — ${donation.address}.`,
+            'PICKUP SCHEDULED'
           )
         )
       );

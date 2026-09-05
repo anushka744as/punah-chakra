@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import { supabase, fetchUserDonations, fetchUserProfile } from '../services/api';
+import { supabase, fetchUserDonations, fetchUserProfile, getStatusLabel } from '../services/api';
 import { theme } from '../theme/theme';
 import { ProgressRing } from '../components/ProgressRing';
 
@@ -48,7 +48,7 @@ export const HomeScreen = ({ navigation }: any) => {
             title: d.category || 'Donation',
             date: `${d.pickup_day}${d.weight_kg ? ' · ' + d.weight_kg + ' kg' : ''}`,
             points: `+${d.points_awarded ?? 0} pts`,
-            status: (d.status || 'pending').toUpperCase(),
+            status: getStatusLabel(d.status),
             icon: (d.category || '').toLowerCase().includes('textile') || (d.category || '').toLowerCase().includes('clothes')
               ? 'tshirt-crew-outline'
               : (d.category || '').toLowerCase().includes('shoe')

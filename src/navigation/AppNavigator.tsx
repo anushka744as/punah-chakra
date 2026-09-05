@@ -22,6 +22,7 @@ import { ResetPasswordScreen } from '../screens/ResetPasswordScreen';
 import { TabNavigator } from './TabNavigator';
 import { CollectorDashboardScreen } from '../screens/CollectorDashboardScreen';
 import { CollectorProfileScreen } from '../screens/CollectorProfileScreen';
+import { AdminAvailabilityScreen } from '../screens/AdminAvailabilityScreen';
 
 // Modals & Action Screens
 import { ConfirmationScreen } from '../screens/ConfirmationScreen';
@@ -195,6 +196,7 @@ export const AppNavigator = () => {
         <Stack.Screen name="CollectorDashboard" component={CollectorDashboardScreen} />
         <Stack.Screen name="Collection" component={CollectorDashboardScreen} />
         <Stack.Screen name="CollectorProfile" component={CollectorProfileScreen} />
+        <Stack.Screen name="AdminAvailability" component={AdminAvailabilityScreen} />
 
         {/* Action & Modal Screens */}
         <Stack.Screen name="Confirmation" component={ConfirmationScreen} />

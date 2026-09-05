@@ -45,15 +45,15 @@ export const ConfirmationScreen = ({ navigation, route }: any) => {
           <Icon name="check-circle" size={80} color={theme.colors.primary} />
         </View>
 
-        <Text style={styles.title}>Pickup Request Submitted!</Text>
+        <Text style={styles.title}>Pickup Scheduled!</Text>
         <Text style={styles.subtitle}>
-          Request ID <Text style={styles.boldText}>{requestId}</Text> is awaiting confirmation from a nearby collector.
+          Request ID <Text style={styles.boldText}>{requestId}</Text> is scheduled for pickup.
         </Text>
 
         <Card variant="outlined" style={styles.receiptCard}>
           <View style={styles.receiptHeader}>
             <Text style={styles.receiptTitle}>Pickup Summary</Text>
-            <Badge label="Pending" variant="warning" />
+            <Badge label="Pickup Scheduled" variant="warning" />
           </View>
 
           <View style={styles.infoRow}>

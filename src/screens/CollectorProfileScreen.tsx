@@ -11,8 +11,7 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useAppData } from '../data/AppDataContext';
-import { supabase, updateUserProfile } from '../services/api';
-import { TIME_SLOTS } from '../constants/timeSlots';
+import { supabase } from '../services/api';
 import { theme } from '../theme/theme';
 
 import { useFocusEffect } from '@react-navigation/native';
@@ -25,32 +24,6 @@ export const CollectorProfileScreen = ({ navigation }: any) => {
   const { profile, authUser, donations, signOut, refreshProfile } = useAppData();
   const [cachedCompleted, setCachedCompleted] = useState<any[]>([]);
   const [dbProfileData, setDbProfileData] = useState<{ full_name?: string; email?: string } | null>(null);
-  const [availableSlots, setAvailableSlots] = useState<string[]>([]);
-  const [savingAvailability, setSavingAvailability] = useState(false);
-
-  useEffect(() => {
-    setAvailableSlots(profile?.available_slots || []);
-  }, [profile?.available_slots]);
-
-  const toggleAvailableSlot = (slot: string) => {
-    setAvailableSlots((prev) =>
-      prev.includes(slot) ? prev.filter((s) => s !== slot) : [...prev, slot]
-    );
-  };
-
-  const handleSaveAvailability = async () => {
-    if (!authUser?.id || savingAvailability) return;
-    setSavingAvailability(true);
-    try {
-      await updateUserProfile(authUser.id, { available_slots: availableSlots });
-      await refreshProfile();
-      Alert.alert('Availability Saved', 'Your available pickup slots have been updated.');
-    } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Could not save availability. Please try again.');
-    } finally {
-      setSavingAvailability(false);
-    }
-  };
 
   const fetchDirectProfile = async () => {
     try {
@@ -222,32 +195,18 @@ export const CollectorProfileScreen = ({ navigation }: any) => {
         <View style={styles.sectionCard}>
           <Text style={styles.sectionHeader}>Availability</Text>
           <Text style={styles.availabilityHelperText}>
-            Select the pickup slots you're generally available for (11:00 AM - 6:00 PM).
+            Open or close specific dates and pickup slots on the calendar.
           </Text>
-          <View style={styles.slotGrid}>
-            {TIME_SLOTS.map((slot) => {
-              const isSelected = availableSlots.includes(slot);
-              return (
-                <TouchableOpacity
-                  key={slot}
-                  style={[styles.slotChip, isSelected && styles.slotChipSelected]}
-                  onPress={() => toggleAvailableSlot(slot)}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[styles.slotChipText, isSelected && styles.slotChipTextSelected]}>{slot}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
           <TouchableOpacity
-            style={[styles.saveAvailabilityBtn, savingAvailability && styles.saveAvailabilityBtnDisabled]}
-            onPress={handleSaveAvailability}
-            disabled={savingAvailability}
-            activeOpacity={0.85}
+            style={styles.settingRow}
+            onPress={() => navigation.navigate('AdminAvailability')}
+            activeOpacity={0.7}
           >
-            <Text style={styles.saveAvailabilityBtnText}>
-              {savingAvailability ? 'Saving...' : 'Save Availability'}
-            </Text>
+            <View style={styles.settingLeft}>
+              <Icon name="calendar-month-outline" size={22} color={theme.colors.textSecondary} />
+              <Text style={styles.settingText}>Manage Pickup Calendar</Text>
+            </View>
+            <Icon name="chevron-right" size={20} color={theme.colors.textSecondary} />
           </TouchableOpacity>
         </View>
 

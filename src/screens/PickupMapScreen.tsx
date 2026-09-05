@@ -16,6 +16,7 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAppData } from '../data/AppDataContext';
+import { getStatusLabel } from '../services/api';
 import { theme } from '../theme/theme';
 
 export const PickupMapScreen = ({ navigation, route }: any) => {
@@ -78,7 +79,7 @@ export const PickupMapScreen = ({ navigation, route }: any) => {
         return `
           (function() {
             var marker = L.marker([${lat}, ${lng}]).addTo(map)
-              .bindPopup("<div class='popup-title'>${item.category} Donor</div><div class='popup-sub'>${cleanAddress.replace(/"/g, '\\"')}</div><span class='popup-badge'>${weight} kg &bull; ${item.time_slot} &bull; ${item.status.toUpperCase()}</span>");
+              .bindPopup("<div class='popup-title'>${item.category} Donor</div><div class='popup-sub'>${cleanAddress.replace(/"/g, '\\"')}</div><span class='popup-badge'>${weight} kg &bull; ${item.time_slot} &bull; ${getStatusLabel(item.status).toUpperCase()}</span>");
             ${isTarget ? 'marker.openPopup();' : ''}
           })();
         `;

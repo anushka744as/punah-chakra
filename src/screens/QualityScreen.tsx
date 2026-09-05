@@ -23,39 +23,16 @@ import { useCallback } from 'react';
 
 export const QualityScreen = ({ navigation, route }: any) => {
   const insets = useSafeAreaInsets();
-  const { donations, authUser, refreshDonations, refreshProfile, refusePickup } = useAppData();
+  const { donations, authUser, refreshDonations, refreshProfile } = useAppData();
   const [submitting, setSubmitting] = useState(false);
-  const [confirmedIds, setConfirmedIds] = useState<Set<string>>(new Set());
-
-  const loadConfirmedCache = useCallback(async () => {
-    try {
-      const stored = await AsyncStorage.getItem('@confirmed_pickup_ids');
-      if (stored) {
-        setConfirmedIds(new Set(JSON.parse(stored)));
-      }
-    } catch {}
-  }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      loadConfirmedCache();
-    }, [loadConfirmedCache])
-  );
 
   const allPickups = useMemo(() => donations || [], [donations]);
 
-  // Filter strictly to ONLY pickups confirmed by current user
-  const userConfirmedPickups = useMemo(() => {
-    return allPickups.filter((p) => {
-      const isConfirmedByMeInSupabase = Boolean(
-        authUser?.id && (p.confirmed_by === authUser.id || p.collector_id === authUser.id)
-      );
-      const isConfirmedByMeInLocal = Boolean(
-        confirmedIds.has(p.id) || confirmedIds.has(p.request_id || '')
-      );
-      return isConfirmedByMeInSupabase || isConfirmedByMeInLocal;
-    });
-  }, [allPickups, authUser?.id, confirmedIds]);
+  // No confirm/claim step exists — any scheduled (not yet picked up) pickup is
+  // actionable directly by any admin.
+  const pendingPickups = useMemo(() => {
+    return allPickups.filter((p) => !(p.is_picked_up || p.status === 'completed'));
+  }, [allPickups]);
 
   const [selectedDonationId, setSelectedDonationId] = useState<string | null>(
     route.params?.donationId || null
@@ -73,14 +50,14 @@ export const QualityScreen = ({ navigation, route }: any) => {
   const targetId = route.params?.donationId || selectedDonationId;
 
   const currentDonation = targetId
-    ? (userConfirmedPickups.find(d =>
+    ? (pendingPickups.find(d =>
         d.id === targetId ||
         d.request_id === targetId ||
         (d.request_id && d.request_id.replace('#', '').toLowerCase() === targetId.replace('#', '').toLowerCase()) ||
         d.id.includes(targetId) ||
         targetId.includes(d.id)
-      ) || userConfirmedPickups[0] || null)
-    : (userConfirmedPickups.length > 0 ? userConfirmedPickups[0] : null);
+      ) || pendingPickups[0] || null)
+    : (pendingPickups.length > 0 ? pendingPickups[0] : null);
 
   const isAlreadyPickedUp = currentDonation ? (currentDonation.is_picked_up || currentDonation.status === 'completed') : false;
 
@@ -89,106 +66,6 @@ export const QualityScreen = ({ navigation, route }: any) => {
   const weightVal = currentDonation?.weight_kg || currentDonation?.estimated_quantity_kg || 0;
   const fullAddress = currentDonation?.address ? currentDonation.address.replace(/\(Lat:.*?\)/gi, '').trim() : '—';
   const originVal = fullAddress.includes(',') ? fullAddress.split(',')[1].trim() : fullAddress;
-
-  const handleRefuseBatch = async () => {
-    const targetId = currentDonation?.id;
-    if (!targetId || isAlreadyPickedUp) return;
-
-    Alert.alert(
-      'Refuse Pickup Batch?',
-      'Refusing this pickup will unassign it and make it available for all collectors on the platform to confirm again.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Refuse Pickup',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              setSubmitting(true);
-
-              if (refusePickup) {
-                await refusePickup(targetId, currentDonation.request_id);
-              } else {
-                const collectorId = authUser?.id;
-                const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId);
-
-                if (isUuid) {
-                  await supabase
-                    .from('donations')
-                    .update({
-                      status: 'pending',
-                      confirmed_by: null,
-                      collector_id: null,
-                      refused_by: collectorId,
-                      refused_at: new Date().toISOString(),
-                    })
-                    .eq('id', targetId);
-
-                  await supabase
-                    .from('pickups')
-                    .update({
-                      status: 'pending',
-                      collector_id: null,
-                      confirmed_by: null,
-                      refused_by: collectorId,
-                    })
-                    .or(`id.eq.${targetId},donation_id.eq.${targetId}`);
-                } else if (currentDonation.request_id) {
-                  await supabase
-                    .from('donations')
-                    .update({
-                      status: 'pending',
-                      confirmed_by: null,
-                      collector_id: null,
-                      refused_by: collectorId,
-                      refused_at: new Date().toISOString(),
-                    })
-                    .eq('request_id', currentDonation.request_id);
-                }
-              }
-
-              // Remove from local confirmed cache
-              try {
-                const stored = await AsyncStorage.getItem('@confirmed_pickup_ids');
-                if (stored) {
-                  const arr: string[] = JSON.parse(stored);
-                  const filtered = arr.filter(
-                    (id) => id !== targetId && id !== currentDonation.request_id
-                  );
-                  await AsyncStorage.setItem('@confirmed_pickup_ids', JSON.stringify(filtered));
-                  setConfirmedIds(new Set(filtered));
-                }
-              } catch {}
-
-              // Store quality inspection log (REJECTED)
-              try {
-                await supabase.from('quality_inspections').insert([
-                  {
-                    batch_identifier: `${categoryName} Cluster ${requestId}`,
-                    weight_kg: weightVal,
-                    notes: 'REFUSED by collector',
-                    decision: 'REJECTED',
-                  },
-                ]);
-              } catch {}
-
-              await refreshDonations();
-              await refreshProfile();
-              Alert.alert(
-                'Pickup Refused ❌',
-                `Pickup ${requestId} unassigned and re-opened for all collectors to confirm!`
-              );
-              navigation.navigate('CollectorDashboard');
-            } catch (err: any) {
-              Alert.alert('Error', err?.message || 'Could not refuse pickup.');
-            } finally {
-              setSubmitting(false);
-            }
-          },
-        },
-      ]
-    );
-  };
 
   const handleAcceptBatch = async () => {
     const targetId = currentDonation?.id;
@@ -334,7 +211,7 @@ export const QualityScreen = ({ navigation, route }: any) => {
             </View>
             <Text style={styles.guidanceTitle}>No Pickup Selected</Text>
             <Text style={styles.guidanceSub}>
-              Please select a pickup first! Go to the <Text style={{ fontFamily: theme.fonts.bodyBold, color: theme.colors.primary }}>Routes</Text> tab and tap <Text style={{ fontFamily: theme.fonts.bodyBold, color: theme.colors.primary }}>"Complete"</Text> on a confirmed pickup to mark it as picked up.
+              Please select a pickup first! Go to the <Text style={{ fontFamily: theme.fonts.bodyBold, color: theme.colors.primary }}>Routes</Text> tab and tap <Text style={{ fontFamily: theme.fonts.bodyBold, color: theme.colors.primary }}>"Complete"</Text> on a pickup to mark it as picked up.
             </Text>
 
             <TouchableOpacity
@@ -347,11 +224,11 @@ export const QualityScreen = ({ navigation, route }: any) => {
             </TouchableOpacity>
 
             {/* Quick Picker Bar */}
-            {userConfirmedPickups.length > 0 && (
+            {pendingPickups.length > 0 && (
               <View style={styles.quickPickerBox}>
-                <Text style={styles.quickPickerLabel}>YOUR CONFIRMED PICKUPS:</Text>
+                <Text style={styles.quickPickerLabel}>PICKUPS TO COMPLETE:</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pickerScroll}>
-                  {userConfirmedPickups.map((item: DonationItem, idx: number) => {
+                  {pendingPickups.map((item: DonationItem, idx: number) => {
                     const reqCode = item.request_id || `#REC-982${idx + 1}`;
                     const itemDone = item.is_picked_up || item.status === 'completed';
                     return (
@@ -379,11 +256,11 @@ export const QualityScreen = ({ navigation, route }: any) => {
         ) : (
           <>
             {/* Pickup Selector Bar for changing selection */}
-            {userConfirmedPickups.length > 0 && (
+            {pendingPickups.length > 0 && (
               <View style={styles.pickerSection}>
-                <Text style={styles.pickerLabel}>SELECT PICKUP ({userConfirmedPickups.length})</Text>
+                <Text style={styles.pickerLabel}>SELECT PICKUP ({pendingPickups.length})</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pickerScroll}>
-                  {userConfirmedPickups.map((item: DonationItem, idx: number) => {
+                  {pendingPickups.map((item: DonationItem, idx: number) => {
                     const isSelected = item.id === currentDonation.id;
                     const reqCode = item.request_id || `#REC-982${idx + 1}`;
                     const itemDone = item.is_picked_up || item.status === 'completed';
@@ -459,16 +336,6 @@ export const QualityScreen = ({ navigation, route }: any) => {
               </View>
             ) : (
               <View style={styles.actionBtnRow}>
-                <TouchableOpacity
-                  style={[styles.refuseBtn, submitting && { opacity: 0.7 }]}
-                  onPress={handleRefuseBatch}
-                  disabled={submitting}
-                  activeOpacity={0.8}
-                >
-                  <Icon name="close-circle-outline" size={20} color={theme.colors.error} />
-                  <Text style={styles.refuseBtnText}>REFUSE</Text>
-                </TouchableOpacity>
-
                 <TouchableOpacity
                   style={[styles.acceptBtn, submitting && { opacity: 0.7 }]}
                   onPress={handleAcceptBatch}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -7,35 +7,17 @@ import {
   ScrollView,
   TouchableOpacity,
   StatusBar,
-  Alert,
-  ActivityIndicator,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useAppData } from '../data/AppDataContext';
-import { supabase, createNotification, DonationItem } from '../services/api';
 import { theme } from '../theme/theme';
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
 export const CollectorDashboardScreen = ({ navigation }: any) => {
-  const { donations, authUser, refreshDonations, confirmPickup } = useAppData();
-  const [confirmingId, setConfirmingId] = useState<string | null>(null);
-  const [confirmedIds, setConfirmedIds] = useState<Set<string>>(new Set());
+  const { donations, refreshDonations } = useAppData();
 
   useEffect(() => {
     refreshDonations();
-    loadConfirmedCache();
   }, []);
-
-  const loadConfirmedCache = async () => {
-    try {
-      const stored = await AsyncStorage.getItem('@confirmed_pickup_ids');
-      if (stored) {
-        const arr = JSON.parse(stored);
-        setConfirmedIds(new Set(arr));
-      }
-    } catch {}
-  };
 
   const allDonations = useMemo(() => {
     return (donations || []).filter(d => d.status !== 'cancelled');
@@ -45,87 +27,6 @@ export const CollectorDashboardScreen = ({ navigation }: any) => {
   const totalWeight = allDonations
     .filter(item => !item.is_picked_up && item.status !== 'completed')
     .reduce((sum, item) => sum + Number(item.weight_kg || item.estimated_quantity_kg || 10), 0);
-
-  const handleConfirmPickup = (item: DonationItem) => {
-    if (item.confirmed_by && authUser?.id && item.confirmed_by !== authUser.id) {
-      Alert.alert('Already Confirmed', 'This pickup has already been confirmed by another collector.');
-      refreshDonations();
-      return;
-    }
-
-    Alert.alert(
-      'Confirm Pickup Assignment? 🚚',
-      'Only confirm if you want to pickup this donation. Please refuse it after confirming if you change your decision.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Confirm Pickup',
-          onPress: () => executeConfirmPickup(item),
-        },
-      ]
-    );
-  };
-
-  const executeConfirmPickup = async (item: DonationItem) => {
-    try {
-      setConfirmingId(item.id);
-      
-      const updatedSet = new Set(confirmedIds);
-      if (item.id) updatedSet.add(item.id);
-      if (item.request_id) updatedSet.add(item.request_id);
-      setConfirmedIds(updatedSet);
-      await AsyncStorage.setItem('@confirmed_pickup_ids', JSON.stringify(Array.from(updatedSet)));
-
-      if (confirmPickup) {
-        await confirmPickup(item.id, item.request_id);
-      } else {
-        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(item.id);
-        const currentUserId = authUser?.id;
-        if (isUuid) {
-          await supabase
-            .from('donations')
-            .update({ status: 'in_transit', confirmed_by: currentUserId, collector_id: currentUserId })
-            .eq('id', item.id);
-        } else if (item.request_id) {
-          await supabase
-            .from('donations')
-            .update({ status: 'in_transit', confirmed_by: currentUserId, collector_id: currentUserId })
-            .eq('request_id', item.request_id);
-        }
-      }
-
-      // 1. Notify Donor
-      if (item.donor_id) {
-        try {
-          await createNotification(
-            item.donor_id,
-            'Pickup Confirmed! 🚚',
-            `A collector has confirmed your pickup request for ${item.category}. They are currently en route to your address.`,
-            'PICKUP CONFIRMED'
-          );
-        } catch {}
-      }
-
-      // 2. Notify Collector
-      if (authUser?.id) {
-        try {
-          await createNotification(
-            authUser.id,
-            'Pickup Schedule Confirmed',
-            `You confirmed pickup for ${item.category} at ${item.address}.`,
-            'COLLECTOR'
-          );
-        } catch {}
-      }
-
-      Alert.alert('Pickup Confirmed! 🚚', 'Pickup recorded in Supabase. You can now tap "View Map" to navigate!');
-      await refreshDonations();
-    } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Could not update donation status in Supabase.');
-    } finally {
-      setConfirmingId(null);
-    }
-  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -188,18 +89,6 @@ export const CollectorDashboardScreen = ({ navigation }: any) => {
         ) : (
           allDonations.map((item, index) => {
             const isPickedUp = Boolean(item.is_picked_up || item.status === 'completed' || item.status === 'collected');
-            const isConfirmedByMe = Boolean(
-              (authUser?.id && (item.confirmed_by === authUser.id || item.collector_id === authUser.id)) ||
-              confirmedIds.has(item.id) ||
-              confirmedIds.has(item.request_id || '')
-            );
-            const isConfirmedByOther = Boolean(
-              !isConfirmedByMe &&
-              ((item.confirmed_by && authUser?.id && item.confirmed_by !== authUser.id) ||
-               (item.collector_id && authUser?.id && item.collector_id !== authUser.id) ||
-               item.status === 'in_transit' ||
-               item.status === 'assigned')
-            );
             const reqId = item.request_id || `#REC-982${index + 1}`;
 
             return (
@@ -252,56 +141,20 @@ export const CollectorDashboardScreen = ({ navigation }: any) => {
                       <TouchableOpacity
                         style={styles.assessBtn}
                         activeOpacity={0.8}
-                        onPress={() => {
-                          if (!isConfirmedByMe) {
-                            Alert.alert(
-                              'Confirm Pickup First 🚚',
-                              'You must tap "Confirm" on this pickup before you can perform quality assessment and pick it up.',
-                              [
-                                { text: 'Cancel', style: 'cancel' },
-                                { text: 'Confirm Now', onPress: () => handleConfirmPickup(item) },
-                              ]
-                            );
-                            return;
-                          }
-                          navigation.navigate('Quality', { donationId: item.id });
-                        }}
+                        onPress={() => navigation.navigate('Quality', { donationId: item.id })}
                       >
                         <Icon name="decagram-outline" size={18} color={theme.colors.primary} />
                         <Text style={styles.assessBtnText}>Complete</Text>
                       </TouchableOpacity>
-                      
-                      {isConfirmedByMe ? (
-                        <TouchableOpacity
-                          style={styles.viewMapBtn}
-                          activeOpacity={0.8}
-                          onPress={() => navigation.navigate('PickupMap', { mode: 'admin', donationId: item.id })}
-                        >
-                          <Icon name="map-marker-path" size={18} color={theme.colors.surface} />
-                          <Text style={styles.viewMapBtnText}>View Map</Text>
-                        </TouchableOpacity>
-                      ) : isConfirmedByOther ? (
-                        <View style={[styles.confirmBtn, styles.btnDisabled, { backgroundColor: theme.colors.textSecondary }]}>
-                          <Icon name="account-lock-outline" size={18} color={theme.colors.surface} />
-                          <Text style={styles.confirmBtnText}>Confirmed</Text>
-                        </View>
-                      ) : (
-                        <TouchableOpacity
-                          style={[styles.confirmBtn, confirmingId === item.id && styles.btnDisabled]}
-                          activeOpacity={0.8}
-                          disabled={confirmingId === item.id}
-                          onPress={() => handleConfirmPickup(item)}
-                        >
-                          {confirmingId === item.id ? (
-                            <ActivityIndicator size="small" color={theme.colors.surface} />
-                          ) : (
-                            <>
-                              <Icon name="check-circle-outline" size={18} color={theme.colors.surface} />
-                              <Text style={styles.confirmBtnText}>Confirm</Text>
-                            </>
-                          )}
-                        </TouchableOpacity>
-                      )}
+
+                      <TouchableOpacity
+                        style={styles.viewMapBtn}
+                        activeOpacity={0.8}
+                        onPress={() => navigation.navigate('PickupMap', { mode: 'admin', donationId: item.id })}
+                      >
+                        <Icon name="map-marker-path" size={18} color={theme.colors.surface} />
+                        <Text style={styles.viewMapBtnText}>View Map</Text>
+                      </TouchableOpacity>
                     </>
                   )}
                 </View>

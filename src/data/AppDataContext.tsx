@@ -10,6 +10,7 @@ import React, {
   useEffect,
   useCallback,
 } from 'react';
+import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { USER_LOGGED_IN_KEY, LAST_ROLE_KEY } from '../navigation/AppNavigator';
 import {
@@ -100,6 +101,33 @@ export const AppDataProvider = ({ children }: { children: React.ReactNode }) => 
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // Live popup for admins: no approve/reject step exists, so this is the admin's only
+  // heads-up that a pickup was just booked (in addition to the persisted notification
+  // row created alongside it, which still shows up in the Notifications screen).
+  useEffect(() => {
+    if (authUser?.role !== 'admin') return;
+
+    const channel = supabase
+      .channel('admin-new-pickups')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'donations' },
+        (payload: any) => {
+          const row = payload.new;
+          if (!row) return;
+          Alert.alert(
+            'Pickup Scheduled',
+            `Pickup scheduled for ${row.category} (${row.weight_kg || 1} kg) on ${row.pickup_day} at ${row.time_slot} — ${row.address}`
+          );
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [authUser?.role]);
 
   const loadUserData = async (userId: string, email: string) => {
     try {

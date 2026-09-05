@@ -4,7 +4,15 @@
       "Bash(grep -iE \"\\\\.\\(png|jpg|jpeg|svg|webp\\)$\")",
       "Bash(sips -g pixelWidth -g pixelHeight -g hasAlpha \"/Users/anushkashah744/punah-chakra/ss/app_icon_512.png\")",
       "Bash(echo \"launched pid $!\")",
-      "Bash(sips -g pixelWidth -g pixelHeight -g hasAlpha \"/Users/anushkashah744/punah-chakra/ss/app_icon_512.jpg\")"
+      "Bash(sips -g pixelWidth -g pixelHeight -g hasAlpha \"/Users/anushkashah744/punah-chakra/ss/app_icon_512.jpg\")",
+      "Bash(echo \"EXIT CODE: $?\")",
+      "Bash(lsof -i :8081 -sTCP:LISTEN)",
+      "Bash(echo \"started metro pid $!\")",
+      "Bash(/Users/anushkashah744/Library/Android/sdk/platform-tools/adb reverse *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:8081/status)",
+      "Bash(/Users/anushkashah744/Library/Android/sdk/platform-tools/adb devices *)",
+      "Bash(echo \"started $!\")",
+      "Bash(/Users/anushkashah744/Library/Android/sdk/platform-tools/adb emu *)"
     ]
   }
 }
