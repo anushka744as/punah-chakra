@@ -17,6 +17,8 @@ import { LoginScreen } from '../screens/LoginScreen';
 import { SignupScreen } from '../screens/SignUpScreen';
 import { ForgotPasswordScreen } from '../screens/ForgotPasswordScreen';
 import { ResetPasswordScreen } from '../screens/ResetPasswordScreen';
+import { PhoneSignUpScreen } from '../screens/PhoneSignUpScreen';
+import { VerifyPhoneOtpScreen } from '../screens/VerifyPhoneOtpScreen';
 
 // Core Tabs
 import { TabNavigator } from './TabNavigator';
@@ -190,6 +192,8 @@ export const AppNavigator = () => {
         <Stack.Screen name="SignUp" component={SignupScreen} />
         <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
         <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
+        <Stack.Screen name="PhoneSignUp" component={PhoneSignUpScreen} />
+        <Stack.Screen name="VerifyOtp" component={VerifyPhoneOtpScreen} />
 
         {/* Main Application */}
         <Stack.Screen name="MainTabs" component={TabNavigator} />

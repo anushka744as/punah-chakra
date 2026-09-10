@@ -12,7 +12,9 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:8081/status)",
       "Bash(/Users/anushkashah744/Library/Android/sdk/platform-tools/adb devices *)",
       "Bash(echo \"started $!\")",
-      "Bash(/Users/anushkashah744/Library/Android/sdk/platform-tools/adb emu *)"
+      "Bash(/Users/anushkashah744/Library/Android/sdk/platform-tools/adb emu *)",
+      "Bash(grep -iE '\\\\.\\(js|jsx|ts|tsx|json|env\\)$')",
+      "WebFetch(domain:msg91.com)"
     ]
   }
 }

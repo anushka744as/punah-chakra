@@ -149,6 +149,49 @@ export async function signInUser(email: string, password: string) {
   return data;
 }
 
+// Sends an SMS OTP to `phone` (E.164 format, e.g. +919876543210), creating the auth
+// user on first use. `fullName` is stashed in user metadata so the handle_new_user DB
+// trigger can populate profiles.full_name as soon as the auth user row is created —
+// verifyPhoneOtp below also upserts it explicitly once we have a session.
+export async function sendPhoneOtp(phone: string, fullName?: string) {
+  const { error } = await supabase.auth.signInWithOtp({
+    phone,
+    options: fullName ? { data: { full_name: fullName } } : undefined,
+  });
+
+  if (error) throw error;
+}
+
+export async function verifyPhoneOtp(phone: string, token: string, fullName?: string) {
+  const { data, error } = await supabase.auth.verifyOtp({
+    phone,
+    token,
+    type: 'sms',
+  });
+
+  if (error) throw error;
+
+  if (data.user) {
+    await supabase.from('profiles').upsert({
+      id: data.user.id,
+      email: data.user.email || '',
+      full_name: fullName || data.user.user_metadata?.full_name || '',
+      phone,
+      role: 'user',
+    });
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', data.user.id)
+      .single();
+
+    return { user: data.user, session: data.session, profile };
+  }
+
+  return data;
+}
+
 export async function signOutUser() {
   const { error } = await supabase.auth.signOut();
   if (error) throw error;

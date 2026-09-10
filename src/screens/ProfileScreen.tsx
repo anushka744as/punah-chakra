@@ -14,7 +14,7 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { USER_LOGGED_IN_KEY, LAST_ROLE_KEY } from '../navigation/AppNavigator';
-import { supabase, fetchUserProfile, fetchUserDonations, cancelDonationRequest, type UserProfile, type DonationItem } from '../services/api';
+import { supabase, fetchUserProfile, fetchUserDonations, type UserProfile, type DonationItem } from '../services/api';
 import { theme } from '../theme/theme';
 
 export const ProfileScreen = ({ navigation }: any) => {
@@ -50,33 +50,6 @@ export const ProfileScreen = ({ navigation }: any) => {
   const displayCo2 = profile?.co2_offset_kg ?? 0;
   const totalWeightKg = donations.reduce((sum, d) => sum + Number(d.weight_kg || 0), 0);
   const displayWasteDiverted = totalWeightKg >= 1000 ? `${(totalWeightKg / 1000).toFixed(1)} t` : `${totalWeightKg.toFixed(1)} kg`;
-
-  const handleEditDonation = (item: DonationItem) => {
-    navigation.navigate('Donate', { editDonation: item });
-  };
-
-  const handleCancelDonation = (item: DonationItem) => {
-    Alert.alert(
-      'Cancel Pickup Request?',
-      'This will cancel your pickup request. You can schedule a new one anytime.',
-      [
-        { text: 'Keep Request', style: 'cancel' },
-        {
-          text: 'Cancel Pickup',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await cancelDonationRequest(item.id, item.request_id);
-              await loadProfileData();
-            } catch (err: any) {
-              Alert.alert('Error', err?.message || 'Could not cancel pickup request. Please try again.');
-              await loadProfileData();
-            }
-          },
-        },
-      ]
-    );
-  };
 
   const handleSignOut = () => {
     Alert.alert(
@@ -207,26 +180,6 @@ export const ProfileScreen = ({ navigation }: any) => {
                   </View>
                   <Text style={styles.pointsEarned}>+{item.points_awarded || 0} pts</Text>
                 </View>
-                {role === 'user' && item.status === 'pending' && (
-                  <View style={styles.activityActionsRow}>
-                    <TouchableOpacity
-                      style={styles.activityActionBtn}
-                      onPress={() => handleEditDonation(item)}
-                      activeOpacity={0.7}
-                    >
-                      <Icon name="pencil-outline" size={16} color={theme.colors.primary} />
-                      <Text style={styles.activityActionText}>Edit</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.activityActionBtn}
-                      onPress={() => handleCancelDonation(item)}
-                      activeOpacity={0.7}
-                    >
-                      <Icon name="close-circle-outline" size={16} color={theme.colors.error} />
-                      <Text style={[styles.activityActionText, { color: theme.colors.error }]}>Cancel</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
               </React.Fragment>
             ))
           )}

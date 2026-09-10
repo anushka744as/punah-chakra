@@ -119,6 +119,11 @@ export const SignupScreen = ({ navigation }: any) => {
             />
           </Card>
 
+          <TouchableOpacity onPress={() => navigation.navigate('PhoneSignUp')} style={styles.phoneRow}>
+            <Icon name="cellphone" size={18} color={theme.colors.primary} />
+            <Text style={styles.phoneRowText}>Sign up with phone number instead</Text>
+          </TouchableOpacity>
+
           <View style={styles.footerRow}>
             <Text style={styles.footerText}>Already registered? </Text>
             <TouchableOpacity onPress={() => navigation.navigate('Login')}>
@@ -162,6 +167,18 @@ const styles = StyleSheet.create({
   },
   submitBtn: {
     marginTop: theme.spacing.md,
+  },
+  phoneRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: theme.spacing.lg,
+  },
+  phoneRowText: {
+    fontSize: 14,
+    color: theme.colors.primary,
+    fontWeight: '600',
   },
   footerRow: {
     flexDirection: 'row',
