@@ -85,7 +85,7 @@ export const NotificationsScreen = ({ navigation }: any) => {
             <Icon name="bell-off-outline" size={40} color={theme.colors.textSecondary} />
             <Text style={{ fontSize: 16, fontFamily: theme.fonts.bodySemiBold, color: theme.colors.textSecondary }}>No notifications yet</Text>
             <Text style={{ fontSize: 14, color: theme.colors.textSecondary, textAlign: 'center' }}>
-              Alerts about your pickup schedules and rewards will appear here.
+              Alerts about your pickup schedules will appear here.
             </Text>
           </View>
         ) : (

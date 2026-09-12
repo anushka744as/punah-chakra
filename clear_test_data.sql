@@ -1,5 +1,5 @@
 -- Clears transactional/test data from PunahChakra while keeping user
--- accounts, profiles, and reward config (category_points) intact.
+-- accounts and profiles intact.
 -- Run in Supabase Dashboard -> SQL Editor. Review row counts first.
 
 -- 1. See what you're about to delete
@@ -13,7 +13,3 @@ select 'notifications', count(*) from notifications;
 delete from pickups;
 delete from notifications;
 delete from donations;
-
--- 3. Optional: reset accumulated points/CO2 offset on profiles back to zero
--- (these were built up from the test donations you just deleted)
--- update profiles set points = 0, co2_offset_kg = 0.0;

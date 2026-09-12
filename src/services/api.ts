@@ -30,8 +30,6 @@ export interface UserProfile {
   phone?: string;
   address?: string;
   role?: 'user' | 'admin';
-  points?: number;
-  co2_offset_kg?: number;
   available_slots?: string[];
 }
 
@@ -53,7 +51,6 @@ export interface DonationItem {
   instructions: string;
   address: string;
   status: 'pending' | 'scheduled' | 'assigned' | 'in_transit' | 'collected' | 'assessed' | 'completed' | 'cancelled';
-  points_awarded: number;
   created_at?: string;
 }
 
@@ -120,8 +117,6 @@ export async function signUpUser(email: string, password: string, fullName: stri
       email,
       full_name: fullName,
       role,
-      points: 0,
-      co2_offset_kg: 0,
     });
   }
 
@@ -162,7 +157,7 @@ export async function sendPhoneOtp(phone: string, fullName?: string) {
   if (error) throw error;
 }
 
-export async function verifyPhoneOtp(phone: string, token: string, fullName?: string) {
+export async function verifyPhoneOtp(phone: string, token: string, fullName?: string, email?: string) {
   const { data, error } = await supabase.auth.verifyOtp({
     phone,
     token,
@@ -174,7 +169,7 @@ export async function verifyPhoneOtp(phone: string, token: string, fullName?: st
   if (data.user) {
     await supabase.from('profiles').upsert({
       id: data.user.id,
-      email: data.user.email || '',
+      email: email || data.user.email || '',
       full_name: fullName || data.user.user_metadata?.full_name || '',
       phone,
       role: 'user',
@@ -300,83 +295,10 @@ export async function updateUserPassword(newPassword: string) {
   return data;
 }
 
-export interface CategoryPoints {
-  id?: string;
-  category: string;
-  base_points: number;
-  points_per_kg: number;
-  co2_factor_per_kg: number;
-  description?: string;
-}
-
-const DEFAULT_CATEGORY_POINTS: Record<string, CategoryPoints> = {
-  CLOTHES: { category: 'CLOTHES', base_points: 300, points_per_kg: 60, co2_factor_per_kg: 2.5 },
-  SHOES: { category: 'SHOES', base_points: 250, points_per_kg: 50, co2_factor_per_kg: 2.0 },
-  BLANKETS: { category: 'BLANKETS', base_points: 280, points_per_kg: 55, co2_factor_per_kg: 2.2 },
-  BAGS: { category: 'BAGS', base_points: 200, points_per_kg: 45, co2_factor_per_kg: 1.8 },
-  OTHERS: { category: 'OTHERS', base_points: 100, points_per_kg: 30, co2_factor_per_kg: 1.0 },
-};
-
-export async function fetchCategoryPoints(): Promise<CategoryPoints[]> {
-  try {
-    const { data, error } = await supabase.from('category_points').select('*');
-    if (error || !data || data.length === 0) {
-      return Object.values(DEFAULT_CATEGORY_POINTS);
-    }
-    return data as CategoryPoints[];
-  } catch {
-    return Object.values(DEFAULT_CATEGORY_POINTS);
-  }
-}
-
-async function resolveCategoryRule(categoryStr: string): Promise<CategoryPoints> {
-  const pointsRules = await fetchCategoryPoints();
-  const matchedKey = categoryStr.toUpperCase().trim();
-  return pointsRules.find(r => r.category.toUpperCase() === matchedKey)
-    || DEFAULT_CATEGORY_POINTS[matchedKey]
-    || DEFAULT_CATEGORY_POINTS['OTHERS'];
-}
-
-export async function calculateRewardForCategory(categoryStr: string, weightKg: number) {
-  const rule = await resolveCategoryRule(categoryStr);
-
-  const weight = Math.max(weightKg || 1, 1);
-  const pointsAwarded = rule.base_points + Math.round(weight * rule.points_per_kg);
-  const co2OffsetKg = Math.round((weight * rule.co2_factor_per_kg) * 100) / 100;
-
-  return { pointsAwarded, co2OffsetKg };
-}
-
-// A donation can span multiple item categories (e.g. "Clothes, Shoes, Blankets/Bedsheets").
-// Rather than matching the whole joined string as one (unmatched) category — which silently
-// fell back to the lowest generic rate — average each selected category's rate and apply it
-// once to the total weight, so mixing categories neither penalizes nor multiplies the reward.
-export async function calculateRewardForCategories(categoryLabels: string[], weightKg: number) {
-  const labels = categoryLabels.map(c => c.trim()).filter(Boolean);
-  if (labels.length === 0) return calculateRewardForCategory('OTHERS', weightKg);
-
-  const rules = await Promise.all(labels.map(resolveCategoryRule));
-  const avgBasePoints = rules.reduce((sum, r) => sum + r.base_points, 0) / rules.length;
-  const avgPointsPerKg = rules.reduce((sum, r) => sum + r.points_per_kg, 0) / rules.length;
-  const avgCo2Factor = rules.reduce((sum, r) => sum + r.co2_factor_per_kg, 0) / rules.length;
-
-  const weight = Math.max(weightKg || 1, 1);
-  const pointsAwarded = Math.round(avgBasePoints) + Math.round(weight * avgPointsPerKg);
-  const co2OffsetKg = Math.round((weight * avgCo2Factor) * 100) / 100;
-
-  return { pointsAwarded, co2OffsetKg };
-}
-
 // ---------------------------------------------------------------------------
 // DONATIONS API
 // ---------------------------------------------------------------------------
-export async function createDonationRequest(donation: Omit<DonationItem, 'id' | 'status' | 'points_awarded'>, donorId: string) {
-  // 1. Calculate dynamic points & CO2 offset from category_points table
-  const { pointsAwarded, co2OffsetKg } = await calculateRewardForCategories(
-    donation.category.split(','),
-    donation.weight_kg || 1
-  );
-
+export async function createDonationRequest(donation: Omit<DonationItem, 'id' | 'status'>, donorId: string) {
   const generatedRequestId = `#PC-${Math.floor(10000 + Math.random() * 90000)}`;
 
   // 2. Insert into donations table in Supabase
@@ -395,16 +317,12 @@ export async function createDonationRequest(donation: Omit<DonationItem, 'id' | 
         instructions: donation.instructions,
         address: donation.address,
         status: 'pending',
-        points_awarded: pointsAwarded,
       },
     ])
     .select()
     .single();
 
   if (error) throw error;
-
-  // Donor points & CO2 offset are credited only once the pickup is completed
-  // (see creditDonorForCompletedDonation), not at scheduling time.
 
   // 3. Also insert corresponding pickup job for collectors
   try {
@@ -428,7 +346,7 @@ export async function createDonationRequest(donation: Omit<DonationItem, 'id' | 
     await createNotification(
       donorId,
       'Pickup Scheduled',
-      `Your ${donation.category} pickup is scheduled for ${donation.pickup_day} (${donation.time_slot}). You'll earn +${pointsAwarded} impact pts once it's picked up!`,
+      `Your ${donation.category} pickup is scheduled for ${donation.pickup_day} (${donation.time_slot}).`,
       'PICKUP REMINDER'
     );
   } catch {}
@@ -451,24 +369,6 @@ export async function createDonationRequest(donation: Omit<DonationItem, 'id' | 
   } catch {}
 
   return data;
-}
-
-// Credits the donor's points & CO2 offset once a collector marks the pickup complete.
-// Donor points are intentionally NOT awarded at scheduling time (createDonationRequest)
-// to avoid crediting donations that are later cancelled or refused.
-export async function creditDonorForCompletedDonation(donorId: string, pointsAwarded: number, co2OffsetKg: number) {
-  try {
-    const currentProfile = await fetchUserProfile(donorId);
-    if (currentProfile) {
-      const newPoints = (currentProfile.points || 0) + pointsAwarded;
-      const newCo2 = Math.round(((currentProfile.co2_offset_kg || 0) + co2OffsetKg) * 100) / 100;
-
-      await supabase
-        .from('profiles')
-        .update({ points: newPoints, co2_offset_kg: newCo2 })
-        .eq('id', donorId);
-    }
-  } catch {}
 }
 
 export async function fetchUserDonations(donorId: string): Promise<DonationItem[]> {
@@ -546,12 +446,10 @@ export interface DonationRescheduleUpdates {
   address: string;
 }
 
-// Edits a pending donation request's items/weight/schedule/address, recalculating points.
+// Edits a pending donation request's items/weight/schedule/address.
 // Only valid before a collector has confirmed it — callers should gate this on
 // status === 'pending' in the UI.
 export async function rescheduleDonationRequest(donationId: string, updates: DonationRescheduleUpdates) {
-  const { pointsAwarded } = await calculateRewardForCategories(updates.category.split(','), updates.weight_kg || 1);
-
   const { data, error } = await supabase
     .from('donations')
     .update({
@@ -562,7 +460,6 @@ export async function rescheduleDonationRequest(donationId: string, updates: Don
       time_slot: updates.time_slot,
       instructions: updates.instructions,
       address: updates.address,
-      points_awarded: pointsAwarded,
     })
     .eq('id', donationId)
     .select()

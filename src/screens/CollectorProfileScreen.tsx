@@ -91,11 +91,6 @@ export const CollectorProfileScreen = ({ navigation }: any) => {
 
   // Calculate stats from accepted/completed pickups
   const totalKg = completedDonations.reduce((sum, d) => sum + Number(d.weight_kg || d.estimated_quantity_kg || 10), 0);
-  const computedPoints = completedDonations.reduce((sum, d) => sum + Number(d.points_awarded || Math.round((d.weight_kg || 10) * 20)), 0);
-  const computedCo2 = completedDonations.reduce((sum, d) => sum + Math.round(Number(d.weight_kg || 10) * 2.5 * 10) / 10, 0);
-
-  const totalPoints = Math.max(Number(profile?.points || 0), computedPoints);
-  const co2Offset = Math.max(Number(profile?.co2_offset_kg || 0), computedCo2);
   const wasteDivertedText = totalKg >= 1000
     ? `${(totalKg / 1000).toFixed(2)} t`
     : totalKg > 0
@@ -148,18 +143,14 @@ export const CollectorProfileScreen = ({ navigation }: any) => {
         {/* Environmental Impact Card */}
         <View style={styles.impactCard}>
           <Text style={styles.impactTitle}>ENVIRONMENTAL IMPACT</Text>
-          <Text style={styles.impactPts}>{totalPoints.toLocaleString()} <Text style={styles.impactPtsSub}>PTS</Text></Text>
+          <Text style={styles.impactPts}>{wasteDivertedText} <Text style={styles.impactPtsSub}>DIVERTED</Text></Text>
 
           <View style={styles.divider} />
 
           <View style={styles.impactStatsRow}>
             <View style={styles.impactStat}>
-              <Text style={styles.statLabel}>CO₂ OFFSET</Text>
-              <Text style={styles.statVal}>{co2Offset} kg</Text>
-            </View>
-            <View style={styles.impactStat}>
-              <Text style={styles.statLabel}>WASTE DIVERTED</Text>
-              <Text style={styles.statVal}>{wasteDivertedText}</Text>
+              <Text style={styles.statLabel}>PICKUPS COMPLETED</Text>
+              <Text style={styles.statVal}>{completedDonations.length}</Text>
             </View>
           </View>
         </View>
@@ -185,7 +176,6 @@ export const CollectorProfileScreen = ({ navigation }: any) => {
                     {item.pickup_day || 'Today'} • {item.address ? item.address.split(',')[0] : 'Noida'}
                   </Text>
                 </View>
-                <Text style={styles.activityPts}>+{item.points_awarded || Math.round((item.weight_kg || 10) * 20)} pts</Text>
               </View>
             ))
           )}
@@ -440,11 +430,6 @@ const styles = StyleSheet.create({
   activitySub: {
     fontSize: 12,
     color: theme.colors.textSecondary,
-  },
-  activityPts: {
-    fontSize: 14,
-    fontFamily: theme.fonts.bodyBold,
-    color: theme.colors.primary,
   },
   emptyActivityContainer: {
     alignItems: 'center',

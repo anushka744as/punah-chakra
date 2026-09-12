@@ -14,10 +14,8 @@ import { MissionDeploymentScreen } from '../screens/MissionDeploymentScreen';
 // Auth
 import { LandingScreen } from '../screens/LandingScreen';
 import { LoginScreen } from '../screens/LoginScreen';
-import { SignupScreen } from '../screens/SignUpScreen';
 import { ForgotPasswordScreen } from '../screens/ForgotPasswordScreen';
 import { ResetPasswordScreen } from '../screens/ResetPasswordScreen';
-import { PhoneSignUpScreen } from '../screens/PhoneSignUpScreen';
 import { VerifyPhoneOtpScreen } from '../screens/VerifyPhoneOtpScreen';
 
 // Core Tabs
@@ -189,10 +187,9 @@ export const AppNavigator = () => {
         {/* Auth */}
         <Stack.Screen name="Landing" component={LandingScreen} />
         <Stack.Screen name="Login" component={LoginScreen} />
-        <Stack.Screen name="SignUp" component={SignupScreen} />
+        <Stack.Screen name="SignUp" component={LoginScreen} />
         <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
         <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
-        <Stack.Screen name="PhoneSignUp" component={PhoneSignUpScreen} />
         <Stack.Screen name="VerifyOtp" component={VerifyPhoneOtpScreen} />
 
         {/* Main Application */}

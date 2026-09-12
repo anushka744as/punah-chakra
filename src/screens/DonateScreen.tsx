@@ -39,7 +39,7 @@ const addDays = (d: Date, n: number) => {
 };
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { createDonationRequest, rescheduleDonationRequest, fetchSlotAvailability, supabase, calculateRewardForCategories, DonationItem } from '../services/api';
+import { createDonationRequest, rescheduleDonationRequest, fetchSlotAvailability, supabase, DonationItem } from '../services/api';
 import { TIME_SLOTS, slotToMinutes } from '../constants/timeSlots';
 import { theme } from '../theme/theme';
 
@@ -71,13 +71,13 @@ export const DonateScreen = ({ navigation, route }: any) => {
     editDonation?.time_slot && TIME_SLOTS.includes(editDonation.time_slot) ? editDonation.time_slot : TIME_SLOTS[0]
   );
   const [address, setAddress] = useState(editDonation?.address || '');
+  const displayAddress = address.replace(/\s*\(Lat:[^)]*\)/gi, '').trim();
   const [notes, setNotes] = useState(editDonation?.instructions || '');
   const [submitting, setSubmitting] = useState(false);
   const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>({ latitude: 28.5833, longitude: 77.3167 });
   const [locating, setLocating] = useState(false);
   const [showMapModal, setShowMapModal] = useState(false);
   const [mapType, setMapType] = useState<'street' | 'satellite'>('street');
-  const [estimatedPoints, setEstimatedPoints] = useState(0);
   const [adminAvailableSlots, setAdminAvailableSlots] = useState<string[]>([]);
   const [bookedSlots, setBookedSlots] = useState<string[]>([]);
   const [dayClosed, setDayClosed] = useState(false);
@@ -176,20 +176,6 @@ export const DonateScreen = ({ navigation, route }: any) => {
   };
 
   React.useEffect(() => {
-    (async () => {
-      try {
-        if (selectedItems.length === 0) {
-          setEstimatedPoints(0);
-          return;
-        }
-        const labels = ITEM_TYPES.filter((i) => selectedItems.includes(i.id)).map((i) => i.label);
-        const { pointsAwarded } = await calculateRewardForCategories(labels, quantity);
-        setEstimatedPoints(pointsAwarded);
-      } catch {}
-    })();
-  }, [selectedItems, quantity]);
-
-  React.useEffect(() => {
     if (isEditing) return;
     (async () => {
       try {
@@ -234,7 +220,7 @@ export const DonateScreen = ({ navigation, route }: any) => {
         ? `${addressLine} (Lat: ${lat.toFixed(4)}, Long: ${lng.toFixed(4)})`
         : `Lat: ${lat.toFixed(4)}, Long: ${lng.toFixed(4)}`;
       setAddress(formattedAddr);
-      Alert.alert('Location Pin Set', `Address set to:\n${formattedAddr}`);
+      Alert.alert('Location Pin Set', `Address set to:\n${addressLine || 'Selected location on map'}`);
     } catch {
       Alert.alert('Location Error', 'Could not retrieve coordinates. Please enter your address manually.');
     } finally {
@@ -598,7 +584,7 @@ export const DonateScreen = ({ navigation, route }: any) => {
           <TextInput
             placeholder="Enter doorstep pickup address"
             placeholderTextColor={theme.colors.textSecondary}
-            value={address}
+            value={displayAddress}
             onChangeText={setAddress}
             style={[styles.textarea, { height: 60 }]}
           />
@@ -635,7 +621,7 @@ export const DonateScreen = ({ navigation, route }: any) => {
             <View style={[styles.modalHeader, { paddingTop: Math.max(insets.top, 14) }]}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.modalTitle}>Pickup Location Map</Text>
-                <Text style={styles.modalSub} numberOfLines={2}>{address || 'Selected Location'}</Text>
+                <Text style={styles.modalSub} numberOfLines={2}>{displayAddress || 'Selected Location'}</Text>
               </View>
               <TouchableOpacity style={styles.closeModalBtn} onPress={() => setShowMapModal(false)} activeOpacity={0.8}>
                 <Icon name="close" size={24} color={theme.colors.textInverse} />
@@ -696,19 +682,6 @@ export const DonateScreen = ({ navigation, route }: any) => {
             style={styles.textarea}
           />
         </View>
-
-        {/* Estimated Points Banner */}
-        {estimatedPoints > 0 && (
-          <View style={styles.pointsBanner}>
-            <View style={styles.pointsIconBg}>
-              <Icon name="star-four-points" size={24} color={theme.colors.warning} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.pointsBannerTitle}>Estimated Reward</Text>
-              <Text style={styles.pointsBannerSub}>You will earn ~{estimatedPoints} points for this donation.</Text>
-            </View>
-          </View>
-        )}
 
         {/* Confirm Button */}
         <TouchableOpacity
@@ -1193,36 +1166,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: theme.colors.textSecondary,
     textAlign: 'center',
-  },
-  pointsBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFBEB',
-    borderWidth: 1,
-    borderColor: '#FDE68A',
-    borderRadius: theme.radius.md,
-    padding: 16,
-    marginBottom: 24,
-    gap: 14,
-  },
-  pointsIconBg: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#FEF3C7',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pointsBannerTitle: {
-    fontFamily: theme.fonts.bodyBold,
-    fontSize: 15,
-    color: '#92400E',
-    marginBottom: 2,
-  },
-  pointsBannerSub: {
-    fontFamily: theme.fonts.bodySemiBold,
-    fontSize: 13,
-    color: '#B45309',
   },
 });
 

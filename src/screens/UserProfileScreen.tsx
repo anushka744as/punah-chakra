@@ -32,11 +32,8 @@ export const UserProfileScreen = ({ navigation }: any) => {
           />
         </View>
 
-        {/* Points Card */}
+        {/* Activity Summary Card */}
         <View style={styles.pointsCard}>
-          <Text style={styles.pointsLabel}>TOTAL IMPACT POINTS</Text>
-          <Text style={styles.pointsValue}>0 <Text style={styles.pointsUnit}>POINTS</Text></Text>
-          
           <View style={styles.statsRow}>
             <View style={styles.statBox}>
               <Text style={styles.statValue}>{scheduledCount} scheduled</Text>
@@ -164,22 +161,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: theme.spacing.xl,
     borderRadius: theme.radius.md,
-  },
-  pointsLabel: {
-    fontSize: 10,
-    color: theme.colors.textInverse,
-    letterSpacing: 1,
-    marginBottom: theme.spacing.sm,
-  },
-  pointsValue: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: theme.colors.textInverse,
-    marginBottom: theme.spacing.md,
-  },
-  pointsUnit: {
-    fontSize: 14,
-    fontWeight: 'normal',
   },
   statsRow: {
     flexDirection: 'row',

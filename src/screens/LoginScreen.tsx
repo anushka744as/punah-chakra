@@ -13,129 +13,153 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { theme } from '../theme/theme';
 import { Button } from '../components/Button';
 import { InputField } from '../components/InputField';
-import { signInUser } from '../services/api';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { sendPhoneOtp } from '../services/api';
 import { USER_LOGGED_IN_KEY, LAST_ROLE_KEY } from '../navigation/AppNavigator';
 
-export const LoginScreen = ({ navigation }: any) => {
+export const LoginScreen = ({ navigation, route }: any) => {
   const insets = useSafeAreaInsets();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [mode, setMode] = useState<'signin' | 'signup'>(route?.params?.mode === 'signup' ? 'signup' : 'signin');
+  const [fullName, setFullName] = useState('');
+  const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
-  const [secureText, setSecureText] = useState(true);
+  const isSignUp = mode === 'signup';
 
-  const handleLogin = async () => {
-    const trimmedEmail = email.trim();
-    const trimmedPassword = password.trim();
+  const handleDevBypass = async (role: 'user' | 'admin') => {
+    await AsyncStorage.setItem(USER_LOGGED_IN_KEY, 'true');
+    await AsyncStorage.setItem(LAST_ROLE_KEY, role);
+    navigation.replace(role === 'admin' ? 'CollectorDashboard' : 'MainTabs');
+  };
 
-    if (!trimmedEmail || !trimmedPassword) {
-      Alert.alert('Sign In Required', 'Please enter both your email address and password.');
+  const handleSendOtp = async () => {
+    const trimmedName = fullName.trim();
+    const digits = phone.replace(/[^0-9]/g, '');
+
+    if (isSignUp && !trimmedName) {
+      Alert.alert('Required Field', 'Please enter your full name.');
+      return;
+    }
+    if (digits.length !== 10) {
+      Alert.alert('Invalid Phone Number', 'Please enter a valid 10-digit phone number.');
       return;
     }
 
+    const fullPhone = `+91${digits}`;
+
     setLoading(true);
     try {
-      const res = await signInUser(trimmedEmail, trimmedPassword);
+      await sendPhoneOtp(fullPhone, trimmedName || undefined);
       setLoading(false);
-      const role = (res as any)?.profile?.role === 'admin' ? 'admin' : 'user';
-      await AsyncStorage.setItem(USER_LOGGED_IN_KEY, 'true');
-      await AsyncStorage.setItem(LAST_ROLE_KEY, role);
-      navigation.replace(role === 'admin' ? 'CollectorDashboard' : 'MainTabs');
+      navigation.navigate('VerifyOtp', { phone: fullPhone, fullName: trimmedName || undefined });
     } catch (err: any) {
       setLoading(false);
-      Alert.alert('Sign In Error', err?.message || 'Invalid email or password. Please try again.');
+      Alert.alert('Could Not Send Code', err?.message || 'Please try again.');
     }
   };
 
   return (
     <SafeAreaView style={styles.container}>
+      <Icon name="leaf" size={40} color={theme.colors.primaryContainer} style={styles.leafTopLeft} />
+      <Icon name="leaf" size={56} color={theme.colors.primaryContainer} style={styles.leafTopRight} />
+      <Icon name="leaf" size={48} color={theme.colors.primaryContainer} style={styles.leafBottomLeft} />
+
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
       >
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          {/* Header Banner */}
-          <View style={[styles.topBanner, { paddingTop: Math.max(insets.top, 24) }]}>
+        <ScrollView
+          contentContainerStyle={[
+            styles.scrollContent,
+            {
+              paddingTop: Math.max(insets.top, theme.spacing.lg),
+              paddingBottom: Math.max(insets.bottom, theme.spacing.lg) + 16,
+            },
+          ]}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Header Branding */}
+          <View style={styles.logoRow}>
             <Image
-              source={require('../assets/logo_icon.png')}
+              source={require('../assets/image.png')}
               style={styles.logoIconImg}
               resizeMode="contain"
             />
-            <Text style={styles.bannerTitle}>Sign In</Text>
-            <Text style={styles.bannerSubtitle}>
-              Enter your credentials to continue giving items a second life.
+            <Text style={styles.logoText}>
+              Punah<Text style={{ color: theme.colors.primary }}>Chakra</Text>
             </Text>
+            <Text style={styles.tagline}>A Greener Tomorrow{'\n'}Starts With You</Text>
           </View>
 
-          {/* Form */}
-          <View style={[styles.formContainer, { paddingBottom: Math.max(insets.bottom, 24) + 16 }]}>
-            <InputField
-              label="EMAIL ADDRESS"
-              placeholder="name@example.com"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-
-            <View style={styles.passwordLabelRow}>
-              <Text style={styles.label}>PASSWORD</Text>
-              <TouchableOpacity onPress={() => navigation.navigate('ForgotPassword')}>
-                <Text style={styles.forgotText}>Forgot?</Text>
+          {/* Card */}
+          <View style={styles.card}>
+            {/* Tabs */}
+            <View style={styles.tabRow}>
+              <TouchableOpacity style={styles.tabItem} onPress={() => setMode('signin')}>
+                <Text style={[styles.tabText, !isSignUp && styles.tabTextActive]}>Login</Text>
+                {!isSignUp && <View style={styles.tabIndicator} />}
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.tabItem} onPress={() => setMode('signup')}>
+                <Text style={[styles.tabText, isSignUp && styles.tabTextActive]}>Sign Up</Text>
+                {isSignUp && <View style={styles.tabIndicator} />}
               </TouchableOpacity>
             </View>
-            <View style={styles.passwordInputContainer}>
+
+            {isSignUp && (
               <InputField
-                placeholder="••••••••"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry={secureText}
+                placeholder="Enter your full name"
+                value={fullName}
+                onChangeText={setFullName}
+                leftIcon={<Icon name="account-outline" size={20} color={theme.colors.textSecondary} />}
+              />
+            )}
+
+            <View style={styles.phoneRow}>
+              <View style={styles.countryCode}>
+                <Text style={styles.countryCodeText}>+91</Text>
+              </View>
+              <InputField
+                placeholder="Enter your phone number"
+                value={phone}
+                onChangeText={(t) => setPhone(t.replace(/[^0-9]/g, '').slice(0, 10))}
+                keyboardType="number-pad"
+                maxLength={10}
                 containerStyle={{ marginBottom: 0, flex: 1 }}
-                rightIcon={
-                  <TouchableOpacity onPress={() => setSecureText(!secureText)}>
-                    <Icon name={secureText ? 'eye-outline' : 'eye-off-outline'} size={20} color="#6C7A71" />
-                  </TouchableOpacity>
-                }
+                leftIcon={<Icon name="phone-outline" size={20} color={theme.colors.textSecondary} />}
               />
             </View>
 
             <Button
-              title="SIGN IN"
+              title={isSignUp ? 'Send OTP' : 'Login'}
               variant="primary"
               size="lg"
               loading={loading}
-              onPress={handleLogin}
+              onPress={handleSendOtp}
               style={styles.submitBtn}
             />
+          </View>
 
-            <View style={styles.divider} />
+          <View style={styles.footerRow}>
+            <Text style={styles.footerText}>
+              {isSignUp ? 'Already registered? ' : 'New to PunahChakra? '}
+            </Text>
+            <TouchableOpacity onPress={() => setMode(isSignUp ? 'signin' : 'signup')}>
+              <Text style={styles.signupText}>{isSignUp ? 'Login' : 'Sign Up'}</Text>
+            </TouchableOpacity>
+          </View>
 
-            <View style={styles.footerRow}>
-              <Text style={styles.footerText}>New to PunahChakra? </Text>
-              <TouchableOpacity onPress={() => navigation.navigate('SignUp')}>
-                <Text style={styles.signupText}>CREATE AN ACCOUNT</Text>
+          {__DEV__ && (
+            <View style={styles.devBypassRow}>
+              <TouchableOpacity onPress={() => handleDevBypass('user')} style={styles.devBypassBtn}>
+                <Text style={styles.devBypassText}>DEV: Skip as User</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => handleDevBypass('admin')} style={styles.devBypassBtn}>
+                <Text style={styles.devBypassText}>DEV: Skip as Admin</Text>
               </TouchableOpacity>
             </View>
-
-            {/* Trust Badges */}
-            <View style={styles.badgesRow}>
-              <View style={styles.badgeItem}>
-                <Icon name="shield-check-outline" size={24} color="#475569" />
-                <Text style={styles.badgeLabel}>SECURE</Text>
-              </View>
-              <View style={styles.badgeItem}>
-                <Icon name="hand-heart-outline" size={24} color="#475569" />
-                <Text style={styles.badgeLabel}>COMMUNITY-LED</Text>
-              </View>
-              <View style={styles.badgeItem}>
-                <Icon name="leaf" size={24} color="#475569" />
-                <Text style={styles.badgeLabel}>0% LANDFILL</Text>
-              </View>
-            </View>
-          </View>
+          )}
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -145,77 +169,116 @@ export const LoginScreen = ({ navigation }: any) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.colors.background,
+  },
+  leafTopLeft: {
+    position: 'absolute',
+    top: 8,
+    left: 4,
+    transform: [{ rotate: '-20deg' }],
+  },
+  leafTopRight: {
+    position: 'absolute',
+    top: 20,
+    right: -6,
+    transform: [{ rotate: '30deg' }],
+  },
+  leafBottomLeft: {
+    position: 'absolute',
+    bottom: 90,
+    left: -4,
+    transform: [{ rotate: '15deg' }],
   },
   scrollContent: {
+    paddingHorizontal: theme.spacing.lg,
     flexGrow: 1,
   },
-  topBanner: {
-    backgroundColor: theme.colors.primary,
-    borderBottomLeftRadius: 28,
-    borderBottomRightRadius: 28,
-    padding: 24,
-    paddingTop: 36,
+  logoRow: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: theme.spacing.lg,
+    marginBottom: theme.spacing.xl,
   },
   logoIconImg: {
-    width: 52,
-    height: 52,
-    borderRadius: 12,
-    backgroundColor: theme.colors.surface,
-    marginBottom: 16,
+    width: 88,
+    height: 88,
+    marginBottom: theme.spacing.sm,
   },
-  bannerTitle: {
-    fontSize: 32,
+  logoText: {
     fontFamily: theme.fonts.heading,
-    color: theme.colors.textInverse,
-    marginBottom: 8,
+    fontSize: 28,
+    color: theme.colors.secondary,
+    marginBottom: theme.spacing.xs,
   },
-  bannerSubtitle: {
+  tagline: {
+    textAlign: 'center',
+    fontFamily: theme.fonts.bodyMedium,
     fontSize: 14,
-    color: 'rgba(255,255,255,0.8)',
+    color: theme.colors.textSecondary,
     lineHeight: 20,
   },
-  formContainer: {
-    padding: 24,
+  card: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radius.xl,
+    padding: theme.spacing.lg,
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
   },
-  passwordLabelRow: {
+  tabRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: theme.spacing.lg,
   },
-  label: {
-    fontSize: 12,
-    fontFamily: theme.fonts.bodyBold,
-    color: theme.colors.text,
-    letterSpacing: 0.5,
+  tabItem: {
+    marginRight: theme.spacing.xl,
+    paddingBottom: theme.spacing.sm,
   },
-  forgotText: {
-    fontSize: 12,
-    fontFamily: theme.fonts.bodyBold,
+  tabText: {
+    fontFamily: theme.fonts.bodySemiBold,
+    fontSize: 17,
+    color: theme.colors.textSecondary,
+  },
+  tabTextActive: {
     color: theme.colors.primary,
+    fontFamily: theme.fonts.heading,
   },
-  passwordInputContainer: {
+  tabIndicator: {
+    height: 3,
+    borderRadius: theme.radius.full,
+    backgroundColor: theme.colors.primary,
+    marginTop: theme.spacing.xs,
+  },
+  phoneRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: theme.spacing.md,
+    gap: theme.spacing.sm,
+  },
+  countryCode: {
+    height: 52,
+    paddingHorizontal: theme.spacing.md,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: theme.radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  countryCodeText: {
+    ...theme.typography.body,
+    fontSize: 15,
+    color: theme.colors.text,
   },
   submitBtn: {
-    backgroundColor: theme.colors.primary,
-    borderRadius: 24,
-    height: 52,
-    marginTop: 8,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: theme.colors.border,
-    marginVertical: 24,
+    marginTop: theme.spacing.sm,
   },
   footerRow: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 36,
+    marginTop: theme.spacing.xl,
   },
   footerText: {
     fontSize: 13,
@@ -227,20 +290,23 @@ const styles = StyleSheet.create({
     fontFamily: theme.fonts.bodyBold,
     letterSpacing: 0.5,
   },
-  badgesRow: {
+  devBypassRow: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    paddingTop: 12,
+    justifyContent: 'center',
+    gap: theme.spacing.sm,
+    marginTop: theme.spacing.lg,
   },
-  badgeItem: {
-    alignItems: 'center',
-    gap: 4,
+  devBypassBtn: {
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.warning,
+    borderStyle: 'dashed',
   },
-  badgeLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#64748B',
-    letterSpacing: 0.5,
+  devBypassText: {
+    fontSize: 12,
+    color: theme.colors.warning,
+    fontFamily: theme.fonts.bodySemiBold,
   },
 });

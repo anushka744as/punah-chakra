@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
+  Image,
   Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -16,7 +17,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { theme } from '../theme/theme';
 import { Button } from '../components/Button';
 import { InputField } from '../components/InputField';
-import { Card } from '../components/Card';
 import { sendPhoneOtp, verifyPhoneOtp } from '../services/api';
 import { USER_LOGGED_IN_KEY, LAST_ROLE_KEY } from '../navigation/AppNavigator';
 
@@ -24,7 +24,7 @@ const RESEND_COOLDOWN_SECONDS = 30;
 
 export const VerifyPhoneOtpScreen = ({ navigation, route }: any) => {
   const insets = useSafeAreaInsets();
-  const { phone, fullName } = route.params || {};
+  const { phone, fullName, email } = route.params || {};
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
@@ -44,22 +44,22 @@ export const VerifyPhoneOtpScreen = ({ navigation, route }: any) => {
 
     setLoading(true);
     try {
-      const res = await verifyPhoneOtp(phone, code.trim(), fullName);
+      const res = await verifyPhoneOtp(phone, code.trim(), fullName, email);
       setLoading(false);
+      const role = (res as any)?.profile?.role === 'admin' ? 'admin' : 'user';
       await AsyncStorage.setItem(USER_LOGGED_IN_KEY, 'true');
-      await AsyncStorage.setItem(LAST_ROLE_KEY, 'user');
+      await AsyncStorage.setItem(LAST_ROLE_KEY, role);
       Alert.alert('Account Created', 'Successfully registered!', [
         {
           text: 'Continue',
-          onPress: () => navigation.replace('MainTabs'),
+          onPress: () => navigation.replace(role === 'admin' ? 'CollectorDashboard' : 'MainTabs'),
         },
       ]);
-      void res;
     } catch (err: any) {
       setLoading(false);
       Alert.alert('Verification Failed', err?.message || 'That code is invalid or expired. Please try again.');
     }
-  }, [code, phone, fullName, navigation]);
+  }, [code, phone, fullName, email, navigation]);
 
   const handleResend = async () => {
     setResending(true);
@@ -76,6 +76,10 @@ export const VerifyPhoneOtpScreen = ({ navigation, route }: any) => {
 
   return (
     <SafeAreaView style={styles.container}>
+      <Icon name="leaf" size={40} color={theme.colors.primaryContainer} style={styles.leafTopLeft} />
+      <Icon name="leaf" size={56} color={theme.colors.primaryContainer} style={styles.leafTopRight} />
+      <Icon name="leaf" size={48} color={theme.colors.primaryContainer} style={styles.leafBottomLeft} />
+
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
@@ -94,12 +98,21 @@ export const VerifyPhoneOtpScreen = ({ navigation, route }: any) => {
             <Icon name="arrow-left" size={24} color={theme.colors.text} />
           </TouchableOpacity>
 
-          <View style={styles.header}>
-            <Text style={styles.title}>Verify Your Number</Text>
-            <Text style={styles.subtitle}>Enter the code we texted to {phone}.</Text>
+          {/* Header Branding */}
+          <View style={styles.logoRow}>
+            <Image
+              source={require('../assets/image.png')}
+              style={styles.logoIconImg}
+              resizeMode="contain"
+            />
+            <Text style={styles.logoText}>
+              Punah<Text style={{ color: theme.colors.primary }}>Chakra</Text>
+            </Text>
           </View>
+          <Text style={styles.tagline}>Verify Your Number</Text>
+          <Text style={styles.subtitle}>Enter the code we texted to {phone}.</Text>
 
-          <Card variant="outlined" style={styles.formCard}>
+          <View style={styles.card}>
             <InputField
               label="VERIFICATION CODE"
               placeholder="123456"
@@ -107,17 +120,18 @@ export const VerifyPhoneOtpScreen = ({ navigation, route }: any) => {
               onChangeText={(t) => setCode(t.replace(/[^0-9]/g, '').slice(0, 6))}
               keyboardType="number-pad"
               maxLength={6}
+              leftIcon={<Icon name="lock-outline" size={20} color={theme.colors.textSecondary} />}
             />
 
             <Button
-              title="VERIFY & CONTINUE →"
+              title="Verify & Continue"
               variant="primary"
               size="lg"
               loading={loading}
               onPress={handleVerify}
               style={styles.submitBtn}
             />
-          </Card>
+          </View>
 
           <View style={styles.footerRow}>
             <Text style={styles.footerText}>Didn't get a code? </Text>
@@ -138,37 +152,79 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background,
   },
+  leafTopLeft: {
+    position: 'absolute',
+    top: 8,
+    left: 4,
+    transform: [{ rotate: '-20deg' }],
+  },
+  leafTopRight: {
+    position: 'absolute',
+    top: 20,
+    right: -6,
+    transform: [{ rotate: '30deg' }],
+  },
+  leafBottomLeft: {
+    position: 'absolute',
+    bottom: 90,
+    left: -4,
+    transform: [{ rotate: '15deg' }],
+  },
   scrollContent: {
-    padding: theme.spacing.lg,
+    paddingHorizontal: theme.spacing.lg,
+    flexGrow: 1,
   },
   backBtn: {
     marginBottom: theme.spacing.md,
   },
-  header: {
-    marginBottom: theme.spacing.lg,
+  logoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: theme.spacing.xs,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: theme.colors.text,
-    marginBottom: 4,
+  logoIconImg: {
+    width: 36,
+    height: 36,
+    marginRight: 8,
+  },
+  logoText: {
+    fontFamily: theme.fonts.heading,
+    fontSize: 24,
+    color: theme.colors.secondary,
+  },
+  tagline: {
+    textAlign: 'center',
+    fontFamily: theme.fonts.heading,
+    fontSize: 20,
+    color: theme.colors.secondary,
+    marginBottom: theme.spacing.xs,
   },
   subtitle: {
+    textAlign: 'center',
     fontSize: 14,
     color: theme.colors.textSecondary,
     lineHeight: 20,
-  },
-  formCard: {
-    padding: theme.spacing.lg,
     marginBottom: theme.spacing.xl,
   },
+  card: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radius.xl,
+    padding: theme.spacing.lg,
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
+  },
   submitBtn: {
-    marginTop: theme.spacing.md,
+    marginTop: theme.spacing.sm,
   },
   footerRow: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
+    marginTop: theme.spacing.xl,
   },
   footerText: {
     fontSize: 14,

@@ -15,7 +15,7 @@ import { useAppData } from '../data/AppDataContext';
 
 import { Alert, ActivityIndicator } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { supabase, DonationItem, calculateRewardForCategories, creditDonorForCompletedDonation } from '../services/api';
+import { supabase, DonationItem } from '../services/api';
 import { theme } from '../theme/theme';
 
 import { useFocusEffect } from '@react-navigation/native';
@@ -75,8 +75,6 @@ export const QualityScreen = ({ navigation, route }: any) => {
       setSubmitting(true);
 
       const collectorId = authUser?.id;
-      const pointsAwarded = Math.round(weightVal * 20);
-      const co2OffsetKg = Math.round(weightVal * 2.5 * 10) / 10;
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId);
 
       if (isUuid) {
@@ -109,39 +107,6 @@ export const QualityScreen = ({ navigation, route }: any) => {
           .eq('request_id', currentDonation.request_id);
       }
 
-      // Update collector's profile points & CO2 offset in Supabase
-      if (collectorId) {
-        try {
-          const { data: prof } = await supabase
-            .from('profiles')
-            .select('points, co2_offset_kg')
-            .eq('id', collectorId)
-            .single();
-
-          const currentPts = Number(prof?.points || 0);
-          const currentCo2 = Number(prof?.co2_offset_kg || 0);
-
-          await supabase
-            .from('profiles')
-            .update({
-              points: currentPts + pointsAwarded,
-              co2_offset_kg: Math.round((currentCo2 + co2OffsetKg) * 10) / 10,
-            })
-            .eq('id', collectorId);
-        } catch {}
-      }
-
-      // Credit the donor now that the pickup is actually completed (not at scheduling time)
-      if (currentDonation.donor_id) {
-        try {
-          const { pointsAwarded: donorPoints, co2OffsetKg: donorCo2 } = await calculateRewardForCategories(
-            categoryName.split(','),
-            weightVal
-          );
-          await creditDonorForCompletedDonation(currentDonation.donor_id, donorPoints, donorCo2);
-        } catch {}
-      }
-
       // Store in local completed pickups cache for instant UI response in CollectorProfile
       try {
         const existingCache = await AsyncStorage.getItem('@completed_collector_pickups');
@@ -151,8 +116,6 @@ export const QualityScreen = ({ navigation, route }: any) => {
           request_id: requestId,
           category: categoryName,
           weight_kg: weightVal,
-          points_awarded: pointsAwarded,
-          co2_offset_kg: co2OffsetKg,
           address: fullAddress,
           pickup_day: currentDonation.pickup_day || 'Today',
           completed_at: new Date().toISOString(),
@@ -174,7 +137,7 @@ export const QualityScreen = ({ navigation, route }: any) => {
 
       await refreshDonations();
       await refreshProfile();
-      Alert.alert('Batch Accepted & Collected! 🚚', `Pickup ${requestId} (+${pointsAwarded} pts) stored & updated in Collector Profile!`);
+      Alert.alert('Batch Accepted & Collected! 🚚', `Pickup ${requestId} stored & updated in Collector Profile!`);
       navigation.navigate('CollectorDashboard');
     } catch (err: any) {
       Alert.alert('Success', `Pickup ${requestId} accepted and collected successfully!`);

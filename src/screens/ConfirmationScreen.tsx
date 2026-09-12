@@ -28,8 +28,6 @@ export const ConfirmationScreen = ({ navigation, route }: any) => {
   const slot = currentDonation?.pickup_day || currentDonation?.time_slot
     ? [currentDonation?.pickup_day, currentDonation?.time_slot].filter(Boolean).join(', ')
     : '—';
-  const points = currentDonation?.points_awarded ? '+' + currentDonation.points_awarded + ' PTS' : '—';
-
   const handleReturnHome = () => {
     try {
       navigation.navigate('MainTabs', { screen: 'Home' });
@@ -71,10 +69,6 @@ export const ConfirmationScreen = ({ navigation, route }: any) => {
             <Text style={styles.val}>{slot}</Text>
           </View>
 
-          <View style={styles.infoRow}>
-            <Text style={styles.label}>Estimated EcoPoints</Text>
-            <Text style={styles.valGreen}>{points}</Text>
-          </View>
         </Card>
 
         <View style={styles.btnGroup}>
@@ -153,11 +147,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: theme.colors.text,
-  },
-  valGreen: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: theme.colors.primary,
   },
   qrPlaceholder: {
     backgroundColor: theme.colors.surfaceContainerLow,

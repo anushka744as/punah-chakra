@@ -51,7 +51,7 @@ type AppState = {
   refreshDonations: () => Promise<void>;
   refreshPickups: () => Promise<void>;
   refreshProfile: () => Promise<void>;
-  saveDonation: (d: Omit<DonationItem, 'id' | 'status' | 'points_awarded'>) => Promise<void>;
+  saveDonation: (d: Omit<DonationItem, 'id' | 'status'>) => Promise<void>;
   updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
   confirmPickup: (pickupId: string, requestId?: string) => Promise<void>;
   refusePickup: (pickupId: string, requestId?: string) => Promise<void>;
@@ -182,7 +182,7 @@ export const AppDataProvider = ({ children }: { children: React.ReactNode }) => 
   }, [authUser]);
 
   const saveDonation = useCallback(
-    async (donation: Omit<DonationItem, 'id' | 'status' | 'points_awarded'>) => {
+    async (donation: Omit<DonationItem, 'id' | 'status'>) => {
       if (!authUser) return;
       await createDonationRequest(donation, authUser.id);
       await refreshDonations();

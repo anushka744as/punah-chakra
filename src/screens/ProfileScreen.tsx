@@ -46,11 +46,6 @@ export const ProfileScreen = ({ navigation }: any) => {
 
   const displayName = profile?.full_name || 'PunahChakra User';
   const displayEmail = profile?.email || '';
-  const displayPoints = profile?.points ?? 0;
-  const displayCo2 = profile?.co2_offset_kg ?? 0;
-  const totalWeightKg = donations.reduce((sum, d) => sum + Number(d.weight_kg || 0), 0);
-  const displayWasteDiverted = totalWeightKg >= 1000 ? `${(totalWeightKg / 1000).toFixed(1)} t` : `${totalWeightKg.toFixed(1)} kg`;
-
   const handleSignOut = () => {
     Alert.alert(
       'Sign Out',
@@ -109,51 +104,6 @@ export const ProfileScreen = ({ navigation }: any) => {
           <Text style={styles.userEmail}>{displayEmail}</Text>
         </View>
 
-        {/* Impact Banner Card */}
-        {role === 'user' ? (
-          <View style={styles.impactCard}>
-            <Text style={styles.impactTitleLabel}>ENVIRONMENTAL IMPACT</Text>
-            <View style={styles.ptsRow}>
-              <Text style={styles.ptsValue}>{displayPoints.toLocaleString()}</Text>
-              <Text style={styles.ptsUnit}>PTS</Text>
-            </View>
-
-            <View style={styles.impactDivider} />
-
-            <View style={styles.statsRow}>
-              <View style={styles.statCol}>
-                <Text style={styles.subLabel}>CO₂ OFFSET</Text>
-                <Text style={styles.subVal}>{displayCo2} kg</Text>
-              </View>
-              <View style={styles.statCol}>
-                <Text style={styles.subLabel}>WASTE DIVERTED</Text>
-                <Text style={styles.subVal}>{displayWasteDiverted}</Text>
-              </View>
-            </View>
-          </View>
-        ) : (
-          <View style={styles.impactCard}>
-            <Text style={styles.impactTitleLabel}>COLLECTION LOGISTICS IMPACT</Text>
-            <View style={styles.ptsRow}>
-              <Text style={styles.ptsValue}>{totalWeightKg.toFixed(1)}</Text>
-              <Text style={styles.ptsUnit}>KG COLLECTED</Text>
-            </View>
-
-            <View style={styles.impactDivider} />
-
-            <View style={styles.statsRow}>
-              <View style={styles.statCol}>
-                <Text style={styles.subLabel}>PICKUPS DONE</Text>
-                <Text style={styles.subVal}>{donations.length} Jobs</Text>
-              </View>
-              <View style={styles.statCol}>
-                <Text style={styles.subLabel}>STATUS</Text>
-                <Text style={styles.subVal}>Active</Text>
-              </View>
-            </View>
-          </View>
-        )}
-
         {/* Recent Activity */}
         <Text style={styles.sectionTitle}>
           {role === 'user' ? 'Recent activity' : 'Collection history'}
@@ -178,7 +128,6 @@ export const ProfileScreen = ({ navigation }: any) => {
                     <Text style={styles.activityTitle}>{item.category || 'Donation Batch'}</Text>
                     <Text style={styles.activityMeta}>{item.pickup_day} · {item.address}</Text>
                   </View>
-                  <Text style={styles.pointsEarned}>+{item.points_awarded || 0} pts</Text>
                 </View>
               </React.Fragment>
             ))
@@ -363,59 +312,6 @@ const styles = StyleSheet.create({
     color: theme.colors.primary,
     letterSpacing: 0.4,
   },
-  impactCard: {
-    backgroundColor: theme.colors.text,
-    borderRadius: theme.radius.md,
-    padding: 20,
-    marginBottom: 20,
-  },
-  impactTitleLabel: {
-    fontFamily: theme.fonts.bodySemiBold,
-    fontSize: 10.5,
-    color: 'rgba(255,255,255,0.6)',
-    letterSpacing: 0.4,
-    marginBottom: 6,
-  },
-  ptsRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 8,
-    marginBottom: 16,
-  },
-  ptsValue: {
-    fontFamily: theme.fonts.heading,
-    fontSize: 32,
-    color: theme.colors.secondary,
-  },
-  ptsUnit: {
-    fontFamily: theme.fonts.bodySemiBold,
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.65)',
-  },
-  impactDivider: {
-    height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    marginBottom: 16,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  statCol: {
-    flex: 1,
-  },
-  subLabel: {
-    fontFamily: theme.fonts.bodySemiBold,
-    fontSize: 9,
-    color: 'rgba(255,255,255,0.55)',
-    letterSpacing: 0.4,
-    marginBottom: 4,
-  },
-  subVal: {
-    fontFamily: theme.fonts.bodyBold,
-    fontSize: 15,
-    color: theme.colors.textInverse,
-  },
   sectionTitle: {
     fontFamily: theme.fonts.heading,
     fontSize: 16,
@@ -457,11 +353,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: theme.colors.textSecondary,
     marginTop: 2,
-  },
-  pointsEarned: {
-    fontFamily: theme.fonts.bodyBold,
-    fontSize: 14,
-    color: theme.colors.secondary,
   },
   activityActionsRow: {
     flexDirection: 'row',

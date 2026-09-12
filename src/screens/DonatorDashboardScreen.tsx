@@ -8,10 +8,6 @@ import { useAppData } from '../data/AppDataContext';
 export const DonatorDashboardScreen = ({ navigation }: any) => {
   const { donations } = useAppData();
   const latestDonation = donations[0];
-  const collectedCount = donations.filter(item => item.status === 'collected').length;
-  const totalKnownWeightKg = 0;
-  const impactPoints = collectedCount * 0;
-
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
@@ -77,7 +73,7 @@ export const DonatorDashboardScreen = ({ navigation }: any) => {
                     </View>
                   </View>
                   <Text style={styles.contributionDate}>{item.pickup_day} · {item.time_slot}</Text>
-                  <Text style={styles.contributionPoints}>{item.address}</Text>
+                  <Text style={styles.contributionAddress}>{item.address}</Text>
                   <Button
                     title="VIEW MAP"
                     variant="outlined"
@@ -90,23 +86,6 @@ export const DonatorDashboardScreen = ({ navigation }: any) => {
             ))}
           </View>
         )}
-
-        {/* Total Impact Points */}
-        <View style={styles.impactCard}>
-          <Text style={styles.impactTitle}>TOTAL IMPACT POINTS</Text>
-          <Text style={styles.impactScore}>{impactPoints}</Text>
-          <View style={styles.progressBarContainer}>
-            <View style={[styles.progressBarFill, { width: '0%' }]} />
-          </View>
-          <Text style={styles.impactSubtitle}>Points appear after verified collections.</Text>
-        </View>
-
-        {/* CO2 Offset */}
-        <View style={styles.co2Card}>
-          <Icon name="pine-tree" size={32} color={theme.colors.primary} />
-          <Text style={styles.co2Score}>{totalKnownWeightKg} kg</Text>
-          <Text style={styles.co2Label}>CO2 OFFSET</Text>
-        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -250,7 +229,7 @@ const styles = StyleSheet.create({
     color: theme.colors.textSecondary,
     marginBottom: 4,
   },
-  contributionPoints: {
+  contributionAddress: {
     fontSize: 10,
     fontWeight: 'bold',
     color: theme.colors.primary,
@@ -265,54 +244,5 @@ const styles = StyleSheet.create({
   inlineMapButtonText: {
     color: theme.colors.primary,
     fontSize: 10,
-  },
-  impactCard: {
-    backgroundColor: theme.colors.primaryDark,
-    padding: theme.spacing.lg,
-    marginBottom: theme.spacing.md,
-  },
-  impactTitle: {
-    fontSize: 10,
-    color: theme.colors.textInverse,
-    letterSpacing: 1,
-    fontWeight: 'bold',
-    marginBottom: theme.spacing.xs,
-  },
-  impactScore: {
-    ...theme.typography.h2,
-    color: theme.colors.textInverse,
-    marginBottom: theme.spacing.md,
-  },
-  progressBarContainer: {
-    height: 8,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 4,
-    marginBottom: theme.spacing.sm,
-    overflow: 'hidden',
-  },
-  progressBarFill: {
-    width: '70%',
-    height: '100%',
-    backgroundColor: theme.colors.primaryLight,
-  },
-  impactSubtitle: {
-    fontSize: 10,
-    color: theme.colors.textInverse,
-  },
-  co2Card: {
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    padding: theme.spacing.lg,
-    alignItems: 'center',
-    marginBottom: theme.spacing.xl,
-  },
-  co2Score: {
-    ...theme.typography.label,
-    fontWeight: 'bold',
-    marginTop: theme.spacing.xs,
-  },
-  co2Label: {
-    fontSize: 10,
-    color: theme.colors.textSecondary,
   },
 });

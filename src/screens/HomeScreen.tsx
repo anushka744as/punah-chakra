@@ -8,22 +8,19 @@ import {
   StatusBar,
   TouchableOpacity,
   Image,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import { supabase, fetchUserDonations, fetchUserProfile, getStatusLabel } from '../services/api';
+import { supabase, fetchUserDonations, getStatusLabel, cancelDonationRequest, DonationItem } from '../services/api';
 import { theme } from '../theme/theme';
-import { ProgressRing } from '../components/ProgressRing';
-
-const TIER_SIZE = 1000;
 
 export const HomeScreen = ({ navigation }: any) => {
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
-  const [points, setPoints] = useState(0);
-  const [co2Offset, setCo2Offset] = useState('0 kg');
   const [scheduledPickup, setScheduledPickup] = useState<string | null>(null);
   const [contributions, setContributions] = useState<any[]>([]);
+  const [donationsById, setDonationsById] = useState<Record<string, DonationItem>>({});
 
   useFocusEffect(
     useCallback(() => {
@@ -36,19 +33,15 @@ export const HomeScreen = ({ navigation }: any) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const profile = await fetchUserProfile(user.id);
-        if (profile) {
-          setPoints(profile.points ?? 0);
-          setCo2Offset(`${profile.co2_offset_kg ?? 0} kg`);
-        }
         const donations = await fetchUserDonations(user.id);
         if (donations && donations.length > 0) {
+          setDonationsById(Object.fromEntries(donations.map((d) => [d.id, d])));
           setContributions(donations.map((d) => ({
             id: d.id,
             title: d.category || 'Donation',
             date: `${d.pickup_day}${d.weight_kg ? ' · ' + d.weight_kg + ' kg' : ''}`,
-            points: `+${d.points_awarded ?? 0} pts`,
             status: getStatusLabel(d.status),
+            rawStatus: d.status,
             icon: (d.category || '').toLowerCase().includes('textile') || (d.category || '').toLowerCase().includes('clothes')
               ? 'tshirt-crew-outline'
               : (d.category || '').toLowerCase().includes('shoe')
@@ -63,6 +56,7 @@ export const HomeScreen = ({ navigation }: any) => {
           const active = donations.find((d) => d.status === 'pending' || d.status === 'scheduled' || d.status === 'assigned');
           setScheduledPickup(active ? `${active.pickup_day}, ${active.time_slot}` : null);
         } else {
+          setDonationsById({});
           setContributions([]);
           setScheduledPickup(null);
         }
@@ -74,8 +68,33 @@ export const HomeScreen = ({ navigation }: any) => {
     }
   };
 
-  const pointsIntoTier = points % TIER_SIZE;
-  const pointsToGo = TIER_SIZE - pointsIntoTier;
+  const handleEdit = (id: string) => {
+    const donation = donationsById[id];
+    if (!donation) return;
+    navigation.navigate('Donate', { editDonation: donation });
+  };
+
+  const handleDelete = (id: string) => {
+    Alert.alert(
+      'Cancel Pickup',
+      'Are you sure you want to cancel this donation pickup?',
+      [
+        { text: 'No', style: 'cancel' },
+        {
+          text: 'Yes, Cancel',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await cancelDonationRequest(id);
+              await loadLiveData();
+            } catch (e: any) {
+              Alert.alert('Unable to Cancel', e?.message || 'This pickup could no longer be cancelled.');
+            }
+          },
+        },
+      ]
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -85,7 +104,7 @@ export const HomeScreen = ({ navigation }: any) => {
       <View style={[styles.headerBar, { paddingTop: Math.max(insets.top, 14) }]}>
         <View style={styles.headerLeft}>
           <Image
-            source={require('../assets/logo_icon.png')}
+            source={require('../assets/image.png')}
             style={styles.headerLogoImg}
             resizeMode="contain"
           />
@@ -99,32 +118,6 @@ export const HomeScreen = ({ navigation }: any) => {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Total Impact Points Card */}
-        <View style={styles.impactCard}>
-          <ProgressRing
-            progress={pointsIntoTier / TIER_SIZE}
-            centerValue={points.toLocaleString()}
-            centerLabel="POINTS"
-          />
-          <View style={styles.impactCopy}>
-            <Text style={styles.impactLabel}>EARTH WARRIOR TIER</Text>
-            <Text style={styles.impactSubtext}>
-              <Text style={styles.impactSubtextEmphasis}>{pointsToGo} pts</Text> to go — keep donating to level up.
-            </Text>
-          </View>
-        </View>
-
-        {/* Stats Row */}
-        <View style={styles.statsGrid}>
-          <View style={styles.statCard}>
-            <View style={[styles.statIconBg, { backgroundColor: theme.colors.primaryContainer }]}>
-              <Icon name="pine-tree" size={16} color={theme.colors.primary} />
-            </View>
-            <Text style={styles.statValue}>{co2Offset}</Text>
-            <Text style={styles.statLabel}>CO₂ OFFSET</Text>
-          </View>
-        </View>
-
         {/* Pickup Scheduled Banner */}
         <View style={styles.scheduledBanner}>
           <View style={styles.truckIconBg}>
@@ -179,7 +172,26 @@ export const HomeScreen = ({ navigation }: any) => {
                   </View>
                 </View>
                 <Text style={styles.itemMeta}>{item.date}</Text>
-                <Text style={styles.itemPoints}>{item.points}</Text>
+                {item.rawStatus === 'pending' && (
+                  <View style={styles.cardActionsRow}>
+                    <TouchableOpacity
+                      style={styles.cardActionBtn}
+                      onPress={() => handleEdit(item.id)}
+                      activeOpacity={0.7}
+                    >
+                      <Icon name="pencil-outline" size={14} color={theme.colors.text} />
+                      <Text style={styles.cardActionText}>Edit</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.cardActionBtn}
+                      onPress={() => handleDelete(item.id)}
+                      activeOpacity={0.7}
+                    >
+                      <Icon name="trash-can-outline" size={14} color={theme.colors.error} />
+                      <Text style={[styles.cardActionText, { color: theme.colors.error }]}>Delete</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
             </View>
           ))
@@ -233,69 +245,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 16,
     paddingBottom: 32,
-  },
-  impactCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-    backgroundColor: theme.colors.primary,
-    borderRadius: theme.radius.xl,
-    padding: 20,
-    marginBottom: 16,
-  },
-  impactCopy: {
-    flex: 1,
-  },
-  impactLabel: {
-    fontFamily: theme.fonts.bodySemiBold,
-    fontSize: 10.5,
-    color: 'rgba(255,255,255,0.65)',
-    letterSpacing: 0.4,
-    marginBottom: 4,
-  },
-  impactSubtext: {
-    fontFamily: theme.fonts.body,
-    fontSize: 13,
-    lineHeight: 18,
-    color: theme.colors.textInverse,
-  },
-  impactSubtextEmphasis: {
-    fontFamily: theme.fonts.bodyBold,
-    color: theme.colors.secondary,
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 16,
-  },
-  statCard: {
-    flex: 1,
-    paddingVertical: 14,
-    paddingHorizontal: 12,
-    borderRadius: theme.radius.lg,
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  statIconBg: {
-    width: 30,
-    height: 30,
-    borderRadius: 9,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 9,
-  },
-  statValue: {
-    fontFamily: theme.fonts.heading,
-    fontSize: 19,
-    color: theme.colors.text,
-    marginBottom: 2,
-  },
-  statLabel: {
-    fontFamily: theme.fonts.bodySemiBold,
-    fontSize: 10,
-    color: theme.colors.textSecondary,
-    letterSpacing: 0.4,
   },
   scheduledBanner: {
     flexDirection: 'row',
@@ -441,10 +390,20 @@ const styles = StyleSheet.create({
     color: theme.colors.textSecondary,
     marginBottom: 4,
   },
-  itemPoints: {
+  cardActionsRow: {
+    flexDirection: 'row',
+    gap: 16,
+    marginTop: 6,
+  },
+  cardActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  cardActionText: {
     fontFamily: theme.fonts.bodyBold,
-    fontSize: 15,
-    color: theme.colors.secondary,
+    fontSize: 12,
+    color: theme.colors.text,
   },
 });
 
