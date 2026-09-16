@@ -14,7 +14,13 @@
       "Bash(echo \"started $!\")",
       "Bash(/Users/anushkashah744/Library/Android/sdk/platform-tools/adb emu *)",
       "Bash(grep -iE '\\\\.\\(js|jsx|ts|tsx|json|env\\)$')",
-      "WebFetch(domain:msg91.com)"
+      "WebFetch(domain:msg91.com)",
+      "Bash(xcrun simctl *)",
+      "WebFetch(domain:supabase.com)",
+      "Bash(supabase logout *)",
+      "Bash(supabase login *)",
+      "Bash(jobs)",
+      "Bash(sips -g pixelWidth -g pixelHeight \"ss/image copy.png\")"
     ]
   }
 }

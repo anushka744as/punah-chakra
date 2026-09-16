@@ -29,6 +29,7 @@ export interface UserProfile {
   full_name: string;
   phone?: string;
   address?: string;
+  pincode?: string;
   role?: 'user' | 'admin';
   available_slots?: string[];
 }
@@ -148,16 +149,20 @@ export async function signInUser(email: string, password: string) {
 // user on first use. `fullName` is stashed in user metadata so the handle_new_user DB
 // trigger can populate profiles.full_name as soon as the auth user row is created —
 // verifyPhoneOtp below also upserts it explicitly once we have a session.
-export async function sendPhoneOtp(phone: string, fullName?: string) {
+export async function sendPhoneOtp(phone: string, fullName?: string, pincode?: string) {
+  const metadata: Record<string, string> = {};
+  if (fullName) metadata.full_name = fullName;
+  if (pincode) metadata.pincode = pincode;
+
   const { error } = await supabase.auth.signInWithOtp({
     phone,
-    options: fullName ? { data: { full_name: fullName } } : undefined,
+    options: Object.keys(metadata).length ? { data: metadata } : undefined,
   });
 
   if (error) throw error;
 }
 
-export async function verifyPhoneOtp(phone: string, token: string, fullName?: string, email?: string) {
+export async function verifyPhoneOtp(phone: string, token: string, fullName?: string, email?: string, pincode?: string) {
   const { data, error } = await supabase.auth.verifyOtp({
     phone,
     token,
@@ -172,6 +177,7 @@ export async function verifyPhoneOtp(phone: string, token: string, fullName?: st
       email: email || data.user.email || '',
       full_name: fullName || data.user.user_metadata?.full_name || '',
       phone,
+      pincode: pincode || data.user.user_metadata?.pincode || '',
       role: 'user',
     });
 

@@ -24,7 +24,7 @@ const RESEND_COOLDOWN_SECONDS = 30;
 
 export const VerifyPhoneOtpScreen = ({ navigation, route }: any) => {
   const insets = useSafeAreaInsets();
-  const { phone, fullName, email } = route.params || {};
+  const { phone, fullName, email, pincode } = route.params || {};
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
@@ -44,7 +44,7 @@ export const VerifyPhoneOtpScreen = ({ navigation, route }: any) => {
 
     setLoading(true);
     try {
-      const res = await verifyPhoneOtp(phone, code.trim(), fullName, email);
+      const res = await verifyPhoneOtp(phone, code.trim(), fullName, email, pincode);
       setLoading(false);
       const role = (res as any)?.profile?.role === 'admin' ? 'admin' : 'user';
       await AsyncStorage.setItem(USER_LOGGED_IN_KEY, 'true');
@@ -59,7 +59,7 @@ export const VerifyPhoneOtpScreen = ({ navigation, route }: any) => {
       setLoading(false);
       Alert.alert('Verification Failed', err?.message || 'That code is invalid or expired. Please try again.');
     }
-  }, [code, phone, fullName, email, navigation]);
+  }, [code, phone, fullName, email, pincode, navigation]);
 
   const handleResend = async () => {
     setResending(true);
