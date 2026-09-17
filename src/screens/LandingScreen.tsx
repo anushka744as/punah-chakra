@@ -42,17 +42,16 @@ export const LandingScreen = ({ navigation }: any) => {
         {/* Header Branding */}
         <View style={styles.logoRow}>
           <Image
-            source={require('../assets/image.png')}
+            source={require('../assets/logo_transparent.png')}
             style={styles.logoIconImg}
             resizeMode="contain"
           />
-          <Text style={styles.logoText}>
-            Punah<Text style={{ color: theme.colors.primary }}>Chakra</Text>
-          </Text>
+          <Image
+            source={require('../assets/logo_wordmark_transparent.png')}
+            style={styles.logoWordmark}
+            resizeMode="contain"
+          />
         </View>
-        <Text style={styles.tagline}>
-          {'\n'}
-        </Text>
 
         {/* Hero Section */}
         <View style={styles.heroSection}>
@@ -128,25 +127,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: theme.spacing.lg,
-    marginBottom: theme.spacing.xs,
+    marginBottom: theme.spacing.lg,
   },
   logoIconImg: {
-    width: 36,
-    height: 36,
-    marginRight: 8,
+    width: 56,
+    height: 56,
+    marginRight: 10,
   },
-  logoText: {
-    fontFamily: theme.fonts.heading,
-    fontSize: 24,
-    color: theme.colors.secondary,
-  },
-  tagline: {
-    textAlign: 'center',
-    fontFamily: theme.fonts.bodyMedium,
-    fontSize: 13,
-    color: theme.colors.textSecondary,
-    lineHeight: 18,
-    marginBottom: theme.spacing.lg,
+  logoWordmark: {
+    width: 200,
+    height: 66,
   },
   heroSection: {
     marginBottom: theme.spacing.md,

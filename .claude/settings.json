@@ -20,7 +20,8 @@
       "Bash(supabase logout *)",
       "Bash(supabase login *)",
       "Bash(jobs)",
-      "Bash(sips -g pixelWidth -g pixelHeight \"ss/image copy.png\")"
+      "Bash(sips -g pixelWidth -g pixelHeight \"ss/image copy.png\")",
+      "Bash(grep -n \"Semi-transparent Loading Overlay\\\\|</View>$\" src/screens/DonateScreen.tsx)"
     ]
   }
 }

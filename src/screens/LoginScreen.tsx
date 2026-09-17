@@ -18,7 +18,6 @@ import { theme } from '../theme/theme';
 import { Button } from '../components/Button';
 import { InputField } from '../components/InputField';
 import { sendPhoneOtp } from '../services/api';
-import { isServiceablePincode } from '../utils/serviceability';
 import { USER_LOGGED_IN_KEY, LAST_ROLE_KEY } from '../navigation/AppNavigator';
 
 export const LoginScreen = ({ navigation, route }: any) => {
@@ -26,7 +25,6 @@ export const LoginScreen = ({ navigation, route }: any) => {
   const [mode, setMode] = useState<'signin' | 'signup'>(route?.params?.mode === 'signup' ? 'signup' : 'signin');
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
-  const [pincode, setPincode] = useState('');
   const [loading, setLoading] = useState(false);
   const isSignUp = mode === 'signup';
 
@@ -48,30 +46,15 @@ export const LoginScreen = ({ navigation, route }: any) => {
       Alert.alert('Invalid Phone Number', 'Please enter a valid 10-digit phone number.');
       return;
     }
-    if (isSignUp) {
-      if (pincode.length !== 6) {
-        Alert.alert('Invalid Pincode', 'Please enter a valid 6-digit pincode.');
-        return;
-      }
-      if (!isServiceablePincode(pincode)) {
-        Alert.alert(
-          'Not Serviceable Yet',
-          'PunahChakra currently operates only in Delhi and Noida. We’ll be in your area soon!'
-        );
-        return;
-      }
-    }
-
     const fullPhone = `+91${digits}`;
 
     setLoading(true);
     try {
-      await sendPhoneOtp(fullPhone, trimmedName || undefined, isSignUp ? pincode : undefined);
+      await sendPhoneOtp(fullPhone, trimmedName || undefined);
       setLoading(false);
       navigation.navigate('VerifyOtp', {
         phone: fullPhone,
         fullName: trimmedName || undefined,
-        pincode: isSignUp ? pincode : undefined,
       });
     } catch (err: any) {
       setLoading(false);
@@ -102,14 +85,16 @@ export const LoginScreen = ({ navigation, route }: any) => {
           {/* Header Branding */}
           <View style={styles.logoRow}>
             <Image
-              source={require('../assets/image.png')}
+              source={require('../assets/logo_transparent.png')}
               style={styles.logoIconImg}
               resizeMode="contain"
             />
-            <Text style={styles.logoText}>
-              Punah<Text style={{ color: theme.colors.primary }}>Chakra</Text>
-            </Text>
-            <Text style={styles.tagline}>A Greener Tomorrow{'\n'}Starts With You</Text>
+            <Image
+              source={require('../assets/logo_wordmark_transparent.png')}
+              style={styles.logoWordmark}
+              resizeMode="contain"
+            />
+            <Text style={styles.tagline}>A Community Platform for{'\n'}Reuse, Redistribution, and Impact</Text>
           </View>
 
           {/* Card */}
@@ -133,20 +118,6 @@ export const LoginScreen = ({ navigation, route }: any) => {
                 onChangeText={setFullName}
                 leftIcon={<Icon name="account-outline" size={20} color={theme.colors.textSecondary} />}
               />
-            )}
-
-            {isSignUp && (
-              <InputField
-                placeholder="Enter your area pincode"
-                value={pincode}
-                onChangeText={(t) => setPincode(t.replace(/[^0-9]/g, '').slice(0, 6))}
-                keyboardType="number-pad"
-                maxLength={6}
-                leftIcon={<Icon name="map-marker-outline" size={20} color={theme.colors.textSecondary} />}
-              />
-            )}
-            {isSignUp && (
-              <Text style={styles.serviceAreaHint}>We currently serve Delhi and Noida only.</Text>
             )}
 
             <View style={styles.phoneRow}>
@@ -237,10 +208,9 @@ const styles = StyleSheet.create({
     height: 88,
     marginBottom: theme.spacing.sm,
   },
-  logoText: {
-    fontFamily: theme.fonts.heading,
-    fontSize: 28,
-    color: theme.colors.secondary,
+  logoWordmark: {
+    width: 260,
+    height: 70,
     marginBottom: theme.spacing.xs,
   },
   tagline: {
@@ -306,12 +276,6 @@ const styles = StyleSheet.create({
   },
   submitBtn: {
     marginTop: theme.spacing.sm,
-  },
-  serviceAreaHint: {
-    fontSize: 12,
-    color: theme.colors.textSecondary,
-    marginTop: -theme.spacing.sm,
-    marginBottom: theme.spacing.md,
   },
   footerRow: {
     flexDirection: 'row',

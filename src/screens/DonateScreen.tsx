@@ -39,8 +39,10 @@ const addDays = (d: Date, n: number) => {
 };
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { createDonationRequest, rescheduleDonationRequest, fetchSlotAvailability, supabase, DonationItem } from '../services/api';
+import { createDonationRequest, rescheduleDonationRequest, fetchSlotAvailability, fetchUserProfile, updateUserProfile, supabase, DonationItem } from '../services/api';
 import { TIME_SLOTS, slotToMinutes } from '../constants/timeSlots';
+import { isServiceablePincode } from '../utils/serviceability';
+import { useAppData } from '../data/AppDataContext';
 import { theme } from '../theme/theme';
 
 const deriveSelectedItems = (donation?: DonationItem) => {
@@ -53,6 +55,7 @@ const deriveSelectedItems = (donation?: DonationItem) => {
 
 export const DonateScreen = ({ navigation, route }: any) => {
   const insets = useSafeAreaInsets();
+  const { serviceablePincodes } = useAppData();
 
   // Bottom-tab screens stay mounted across tab switches, so deriving `editDonation` straight from
   // `route.params` doesn't reliably clear itself: a sibling tab's listener trying to clear it via
@@ -83,6 +86,13 @@ export const DonateScreen = ({ navigation, route }: any) => {
   const [dayClosed, setDayClosed] = useState(false);
   const [loadingSlots, setLoadingSlots] = useState(false);
 
+  const [pincode, setPincode] = useState('');
+  const [pincodeVerified, setPincodeVerified] = useState(false);
+  const [showPincodeModal, setShowPincodeModal] = useState(false);
+  const [pincodeInput, setPincodeInput] = useState('');
+  const [pincodeError, setPincodeError] = useState('');
+  const [checkingPincode, setCheckingPincode] = useState(false);
+
   const pickupDayStr = pickupDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
   const pickupIsToday = isSameDay(pickupDate, getToday());
   const nowMinutes = new Date().getHours() * 60 + new Date().getMinutes();
@@ -95,11 +105,13 @@ export const DonateScreen = ({ navigation, route }: any) => {
   const weekDays = React.useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
 
   React.useEffect(() => {
+    if (!pincode) return;
     let cancelled = false;
     (async () => {
       setLoadingSlots(true);
       try {
         const { availableSlots, bookedSlots: booked, isClosed } = await fetchSlotAvailability(
+          pincode,
           pickupDayStr,
           editDonation?.id
         );
@@ -121,7 +133,7 @@ export const DonateScreen = ({ navigation, route }: any) => {
     return () => {
       cancelled = true;
     };
-  }, [pickupDayStr, editDonation?.id]);
+  }, [pincode, pickupDayStr, editDonation?.id]);
 
   // If the currently selected slot becomes unavailable (date changed, got booked, or fell
   // into the past), fall back to the first still-selectable slot instead of leaving a stale pick.
@@ -176,18 +188,51 @@ export const DonateScreen = ({ navigation, route }: any) => {
   };
 
   React.useEffect(() => {
-    if (isEditing) return;
     (async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-          const { fetchUserProfile } = require('../services/api');
           const p = await fetchUserProfile(user.id);
-          if (p?.address) setAddress(p.address);
+          if (!isEditing && p?.address) setAddress(p.address);
+          if (p?.pincode && isServiceablePincode(p.pincode, serviceablePincodes)) {
+            setPincode(p.pincode);
+            setPincodeVerified(true);
+            return;
+          }
         }
       } catch {}
+      if (isEditing) {
+        setPincode(serviceablePincodes[0] || '');
+        setPincodeVerified(true);
+        return;
+      }
+      setShowPincodeModal(true);
     })();
   }, []);
+
+  const handleCheckPincode = async () => {
+    if (pincodeInput.length !== 6) {
+      setPincodeError('Please enter a valid 6-digit pincode.');
+      return;
+    }
+    if (!isServiceablePincode(pincodeInput, serviceablePincodes)) {
+      setPincodeError('PunahChakra currently operates only in Delhi and Noida. We’ll be in your area soon!');
+      return;
+    }
+    setCheckingPincode(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await updateUserProfile(user.id, { pincode: pincodeInput });
+      }
+    } catch {
+      // Best-effort save — serviceability has already been confirmed locally, so proceed regardless.
+    }
+    setCheckingPincode(false);
+    setPincode(pincodeInput);
+    setPincodeVerified(true);
+    setShowPincodeModal(false);
+  };
 
   const handleGetLocation = async () => {
     setLocating(true);
@@ -230,6 +275,10 @@ export const DonateScreen = ({ navigation, route }: any) => {
 
   const handleConfirm = async () => {
     if (submitting) return;
+    if (!pincodeVerified) {
+      setShowPincodeModal(true);
+      return;
+    }
     if (selectedItems.length === 0) {
       Alert.alert('Select Item Type', 'Please select at least one type of item to donate.');
       return;
@@ -277,6 +326,7 @@ export const DonateScreen = ({ navigation, route }: any) => {
           time_slot: timeStr,
           instructions: notes || 'Doorstep pickup',
           address: address.trim() || 'Address not specified',
+          pincode,
         },
         user.id
       );
@@ -707,6 +757,55 @@ export const DonateScreen = ({ navigation, route }: any) => {
           </View>
         </View>
       )}
+
+      {/* Pincode Serviceability Check */}
+      <Modal
+        visible={showPincodeModal}
+        animationType="fade"
+        transparent
+        onRequestClose={() => {
+          if (!pincodeVerified) navigation.goBack();
+          else setShowPincodeModal(false);
+        }}
+      >
+        <View style={styles.pincodeOverlay}>
+          <View style={styles.pincodeCard}>
+            <Icon name="map-marker-check-outline" size={32} color={theme.colors.primary} />
+            <Text style={styles.pincodeTitle}>Check Serviceability</Text>
+            <Text style={styles.pincodeSubtitle}>
+              Enter your area pincode to confirm we can pick up from your location.
+            </Text>
+            <TextInput
+              placeholder="Enter your area pincode"
+              placeholderTextColor={theme.colors.textSecondary}
+              value={pincodeInput}
+              onChangeText={(t) => {
+                setPincodeInput(t.replace(/[^0-9]/g, '').slice(0, 6));
+                setPincodeError('');
+              }}
+              keyboardType="number-pad"
+              maxLength={6}
+              style={styles.pincodeInput}
+            />
+            {pincodeError ? <Text style={styles.pincodeErrorText}>{pincodeError}</Text> : null}
+            <TouchableOpacity
+              style={[styles.pincodeCheckBtn, checkingPincode && styles.confirmBtnDisabled]}
+              onPress={handleCheckPincode}
+              disabled={checkingPincode}
+              activeOpacity={0.85}
+            >
+              {checkingPincode ? (
+                <ActivityIndicator size="small" color={theme.colors.textInverse} />
+              ) : (
+                <Text style={styles.pincodeCheckBtnText}>Check & Continue</Text>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.7}>
+              <Text style={styles.pincodeCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -1166,6 +1265,73 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: theme.colors.textSecondary,
     textAlign: 'center',
+  },
+  pincodeOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(30, 42, 34, 0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  pincodeCard: {
+    width: '100%',
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radius.xl,
+    padding: 24,
+    alignItems: 'center',
+  },
+  pincodeTitle: {
+    fontFamily: theme.fonts.heading,
+    fontSize: 18,
+    color: theme.colors.text,
+    marginTop: 12,
+  },
+  pincodeSubtitle: {
+    fontFamily: theme.fonts.body,
+    fontSize: 13,
+    color: theme.colors.textSecondary,
+    textAlign: 'center',
+    marginTop: 6,
+    marginBottom: 18,
+  },
+  pincodeInput: {
+    width: '100%',
+    height: 50,
+    borderWidth: 1.5,
+    borderColor: theme.colors.border,
+    borderRadius: theme.radius.md,
+    paddingHorizontal: 14,
+    fontFamily: theme.fonts.body,
+    fontSize: 15,
+    color: theme.colors.text,
+    marginBottom: 8,
+  },
+  pincodeErrorText: {
+    fontFamily: theme.fonts.body,
+    fontSize: 12,
+    color: theme.colors.error || '#c0392b',
+    alignSelf: 'flex-start',
+    marginBottom: 8,
+  },
+  pincodeCheckBtn: {
+    width: '100%',
+    height: 50,
+    borderRadius: theme.radius.full,
+    backgroundColor: theme.colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+  },
+  pincodeCheckBtnText: {
+    fontFamily: theme.fonts.bodyBold,
+    fontSize: 15,
+    color: theme.colors.textInverse,
+  },
+  pincodeCancelText: {
+    fontFamily: theme.fonts.bodySemiBold,
+    fontSize: 13,
+    color: theme.colors.textSecondary,
+    marginTop: 16,
   },
 });
 

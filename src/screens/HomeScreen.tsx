@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
@@ -12,65 +12,44 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import { supabase, fetchUserDonations, getStatusLabel, cancelDonationRequest, DonationItem } from '../services/api';
+import { useAppData } from '../data/AppDataContext';
+import { getStatusLabel, cancelDonationRequest, DonationItem } from '../services/api';
 import { theme } from '../theme/theme';
+
+const categoryIcon = (category: string) => {
+  const c = (category || '').toLowerCase();
+  if (c.includes('textile') || c.includes('clothes')) return 'tshirt-crew-outline';
+  if (c.includes('shoe')) return 'shoe-sneaker';
+  if (c.includes('blanket') || c.includes('bedsheet')) return 'bed-king-outline';
+  if (c.includes('bag')) return 'bag-personal-outline';
+  return 'package-variant-closed';
+};
+
+const CATEGORIES: { label: string; icon: string }[] = [
+  { label: 'Clothes', icon: 'tshirt-crew-outline' },
+  { label: 'Shoes', icon: 'shoe-sneaker' },
+  { label: 'Bags', icon: 'bag-personal-outline' },
+  { label: 'Bedsheets', icon: 'bed-king-outline' },
+  { label: 'Blankets', icon: 'sofa-outline' },
+];
 
 export const HomeScreen = ({ navigation }: any) => {
   const insets = useSafeAreaInsets();
-  const [loading, setLoading] = useState(true);
-  const [scheduledPickup, setScheduledPickup] = useState<string | null>(null);
-  const [contributions, setContributions] = useState<any[]>([]);
-  const [donationsById, setDonationsById] = useState<Record<string, DonationItem>>({});
+  const { authUser, donations, refreshDonations } = useAppData();
 
   useFocusEffect(
     useCallback(() => {
-      loadLiveData();
-    }, [])
+      refreshDonations();
+    }, [refreshDonations])
   );
 
-  const loadLiveData = async () => {
-    setLoading(true);
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const donations = await fetchUserDonations(user.id);
-        if (donations && donations.length > 0) {
-          setDonationsById(Object.fromEntries(donations.map((d) => [d.id, d])));
-          setContributions(donations.map((d) => ({
-            id: d.id,
-            title: d.category || 'Donation',
-            date: `${d.pickup_day}${d.weight_kg ? ' · ' + d.weight_kg + ' kg' : ''}`,
-            status: getStatusLabel(d.status),
-            rawStatus: d.status,
-            icon: (d.category || '').toLowerCase().includes('textile') || (d.category || '').toLowerCase().includes('clothes')
-              ? 'tshirt-crew-outline'
-              : (d.category || '').toLowerCase().includes('shoe')
-              ? 'shoe-sneaker'
-              : (d.category || '').toLowerCase().includes('blanket') || (d.category || '').toLowerCase().includes('bedsheet')
-              ? 'bed-king-outline'
-              : (d.category || '').toLowerCase().includes('bag')
-              ? 'bag-personal-outline'
-              : 'package-variant-closed',
-          })));
+  const firstName = (authUser?.full_name || '').trim().split(' ')[0] || 'there';
 
-          const active = donations.find((d) => d.status === 'pending' || d.status === 'scheduled' || d.status === 'assigned');
-          setScheduledPickup(active ? `${active.pickup_day}, ${active.time_slot}` : null);
-        } else {
-          setDonationsById({});
-          setContributions([]);
-          setScheduledPickup(null);
-        }
-      }
-    } catch {
-      // fail silently — state stays empty
-    } finally {
-      setLoading(false);
-    }
-  };
+  const latestPickup = donations.find(
+    (d) => d.status === 'pending' || d.status === 'scheduled' || d.status === 'assigned'
+  );
 
-  const handleEdit = (id: string) => {
-    const donation = donationsById[id];
-    if (!donation) return;
+  const handleEdit = (donation: DonationItem) => {
     navigation.navigate('Donate', { editDonation: donation });
   };
 
@@ -86,7 +65,7 @@ export const HomeScreen = ({ navigation }: any) => {
           onPress: async () => {
             try {
               await cancelDonationRequest(id);
-              await loadLiveData();
+              await refreshDonations();
             } catch (e: any) {
               Alert.alert('Unable to Cancel', e?.message || 'This pickup could no longer be cancelled.');
             }
@@ -98,85 +77,144 @@ export const HomeScreen = ({ navigation }: any) => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
+      <StatusBar barStyle="dark-content" backgroundColor={theme.colors.background} />
 
       {/* Top Header */}
-      <View style={[styles.headerBar, { paddingTop: Math.max(insets.top, 14) }]}>
+      <View style={[styles.headerBar, { paddingTop: Math.max(insets.top, 20) }]}>
         <View style={styles.headerLeft}>
           <Image
-            source={require('../assets/image.png')}
+            source={require('../assets/logo_transparent.png')}
             style={styles.headerLogoImg}
             resizeMode="contain"
           />
-          <Text style={styles.logoText}>PunahChakra</Text>
+       
         </View>
-        <TouchableOpacity style={styles.userAvatarBtn} onPress={() => { try { navigation.navigate('MainTabs', { screen: 'Profile' }); } catch { navigation.navigate('Profile'); } }} activeOpacity={0.7}>
+        <TouchableOpacity
+          style={styles.userAvatarBtn}
+          onPress={() => { try { navigation.navigate('MainTabs', { screen: 'Profile' }); } catch { navigation.navigate('Profile'); } }}
+          activeOpacity={0.7}
+        >
           <View style={styles.userAvatarCircle}>
-            <Icon name="account-outline" size={20} color={theme.colors.textInverse} />
+            <Icon name="account-outline" size={20} color={theme.colors.textSecondary} />
           </View>
+          <Text style={styles.welcomeText}>Welcome,{'\n'}{firstName}!</Text>
         </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Pickup Scheduled Banner */}
-        <View style={styles.scheduledBanner}>
-          <View style={styles.truckIconBg}>
-            <Icon name="truck-delivery" size={20} color={theme.colors.textInverse} />
+        {/* Hero Card */}
+        <View style={styles.heroCard}>
+          <View style={styles.heroTextCol}>
+            <Text style={styles.heroTitle}>Give Your Items{'\n'}a Second Chance</Text>
+            <Text style={styles.heroSubtitle}>Have clean, usable items{'\n'}you no longer need?</Text>
+            <TouchableOpacity
+              style={styles.giveItemsBtn}
+              onPress={() => navigation.navigate('Donate')}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.giveItemsBtnText}>GIVE ITEMS</Text>
+              <Icon name="arrow-right" size={16} color={theme.colors.textInverse} />
+            </TouchableOpacity>
           </View>
-          <View style={styles.scheduledTextCol}>
-            <Text style={styles.scheduledLabel}>PICKUP STATUS</Text>
-            <Text style={styles.scheduledTime}>
-              {scheduledPickup ?? 'No pickup scheduled'}
-            </Text>
+          <View style={styles.heroIconCol}>
+            <Icon name="tshirt-crew" size={64} color={theme.colors.primaryDark} />
+            <Text style={styles.heroTagline}>Reuse{'\n'}Redistribute{'\n'}Make a Difference</Text>
           </View>
-          <TouchableOpacity
-            style={styles.viewBtn}
-            onPress={() => navigation.navigate('Alerts')}
-          >
-            <Text style={styles.viewBtnText}>View</Text>
-          </TouchableOpacity>
         </View>
 
-        {/* Schedule New Donation Button */}
+        {/* We currently collect */}
+        <View style={styles.collectSection}>
+          <Text style={styles.collectTitle}>We currently collect:</Text>
+          <View style={styles.collectRow}>
+            {CATEGORIES.map((cat) => (
+              <View key={cat.label} style={styles.collectItem}>
+                <View style={styles.collectIconBg}>
+                  <Icon name={cat.icon} size={24} color={theme.colors.primaryDark} />
+                </View>
+                <Text style={styles.collectLabel}>{cat.label}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        {/* Schedule a Pickup */}
+        <View style={styles.scheduleCard}>
+          <View style={styles.truckIconBg}>
+            <Icon name="truck-delivery-outline" size={22} color={theme.colors.primaryDark} />
+          </View>
+          <View style={styles.scheduleTextCol}>
+            <Text style={styles.scheduleTitle}>Schedule a Pickup</Text>
+            <Text style={styles.scheduleSubtitle}>We'll collect your items from your doorstep.</Text>
+          </View>
+        </View>
         <TouchableOpacity
-          style={styles.scheduleBtn}
+          style={styles.schedulePickupBtn}
           onPress={() => navigation.navigate('Donate')}
-          activeOpacity={0.8}
+          activeOpacity={0.85}
         >
-          <Icon name="plus" size={18} color={theme.colors.secondary} />
-          <Text style={styles.scheduleBtnText}>Schedule new donation</Text>
+          <Text style={styles.schedulePickupBtnText}>SCHEDULE PICKUP</Text>
+          <Icon name="arrow-right" size={16} color={theme.colors.textInverse} />
         </TouchableOpacity>
 
-        {/* Recent Contributions Section */}
-        <Text style={styles.sectionTitle}>Recent contributions</Text>
+        {/* Your Latest Pickup */}
+        <Text style={styles.sectionTitle}>Your Latest Pickup</Text>
+        {latestPickup ? (
+          <View style={styles.latestPickupCard}>
+            <View style={styles.calendarIconBg}>
+              <Icon name="calendar-check-outline" size={20} color={theme.colors.primaryDark} />
+            </View>
+            <View style={styles.latestPickupTextCol}>
+              <Text style={styles.latestPickupStatus}>{getStatusLabel(latestPickup.status)}</Text>
+              <Text style={styles.latestPickupMeta}>
+                {latestPickup.pickup_day} · {latestPickup.time_slot}
+              </Text>
+              <Text style={styles.latestPickupAddress}>{latestPickup.address}</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.viewDetailsBtn}
+              onPress={() => navigation.navigate('Alerts')}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.viewDetailsBtnText}>VIEW DETAILS</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.emptyBox}>
+            <Icon name="package-variant-closed" size={28} color={theme.colors.primary} />
+            <Text style={styles.emptyTitle}>Nothing scheduled yet</Text>
+            <Text style={styles.emptyText}>Schedule your first pickup and it will show up here.</Text>
+          </View>
+        )}
 
-        {loading ? (
-          <Text style={styles.emptyText}>Loading...</Text>
-        ) : contributions.length === 0 ? (
+        {/* Recent contributions */}
+        <Text style={[styles.sectionTitle, styles.contributionsTitle]}>Recent contributions</Text>
+        {donations.length === 0 ? (
           <View style={styles.emptyBox}>
             <Icon name="package-variant-closed" size={28} color={theme.colors.primary} />
             <Text style={styles.emptyTitle}>Nothing here yet</Text>
             <Text style={styles.emptyText}>Schedule your first pickup and it will show up here.</Text>
           </View>
         ) : (
-          contributions.map((item) => (
+          donations.map((item) => (
             <View key={item.id} style={styles.contributionCard}>
               <View style={styles.itemIconBg}>
-                <Icon name={item.icon || 'package-variant-closed'} size={24} color={theme.colors.primary} />
+                <Icon name={categoryIcon(item.category)} size={24} color={theme.colors.primaryDark} />
               </View>
               <View style={styles.contributionDetails}>
                 <View style={styles.cardHeaderRow}>
-                  <Text style={styles.itemTitle}>{item.title}</Text>
+                  <Text style={styles.itemTitle}>{item.category || 'Donation'}</Text>
                   <View style={styles.statusBadge}>
-                    <Text style={styles.statusText}>{item.status}</Text>
+                    <Text style={styles.statusText}>{getStatusLabel(item.status)}</Text>
                   </View>
                 </View>
-                <Text style={styles.itemMeta}>{item.date}</Text>
-                {item.rawStatus === 'pending' && (
+                <Text style={styles.itemMeta}>
+                  {item.pickup_day}{item.weight_kg ? ` · ${item.weight_kg} kg` : ''}
+                </Text>
+                {item.status === 'pending' && (
                   <View style={styles.cardActionsRow}>
                     <TouchableOpacity
                       style={styles.cardActionBtn}
-                      onPress={() => handleEdit(item.id)}
+                      onPress={() => handleEdit(item)}
                       activeOpacity={0.7}
                     >
                       <Icon name="pencil-outline" size={14} color={theme.colors.text} />
@@ -196,6 +234,14 @@ export const HomeScreen = ({ navigation }: any) => {
             </View>
           ))
         )}
+
+        {/* Footer quote */}
+        <View style={styles.footerDivider}>
+          <View style={styles.footerLine} />
+          <Icon name="leaf" size={16} color={theme.colors.primaryDark} style={styles.footerLeaf} />
+          <View style={styles.footerLine} />
+        </View>
+        <Text style={styles.footerQuote}>Every Item Deserves Another Chance.</Text>
       </ScrollView>
     </View>
   );
@@ -209,8 +255,8 @@ const styles = StyleSheet.create({
   headerBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: theme.colors.primary,
+    alignItems: 'flex-start',
+    backgroundColor: theme.colors.background,
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
@@ -218,99 +264,244 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    flexShrink: 1,
   },
   headerLogoImg: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: theme.colors.surface,
+    width: 44,
+    height: 44,
   },
   logoText: {
     fontFamily: theme.fonts.heading,
-    fontSize: 20,
-    color: theme.colors.textInverse,
+    fontSize: 19,
+    color: theme.colors.primaryDark,
+  },
+  logoSubtitle: {
+    fontFamily: theme.fonts.body,
+    fontSize: 9.5,
+    color: theme.colors.textSecondary,
+    lineHeight: 12,
+    marginTop: 2,
   },
   userAvatarBtn: {
-    padding: 2,
+    alignItems: 'center',
+    gap: 4,
   },
   userAvatarCircle: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.6)',
+    backgroundColor: theme.colors.surfaceContainerLow,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  welcomeText: {
+    fontFamily: theme.fonts.bodySemiBold,
+    fontSize: 10,
+    color: theme.colors.text,
+    textAlign: 'center',
+    lineHeight: 13,
   },
   scrollContent: {
     padding: 16,
     paddingBottom: 32,
   },
-  scheduledBanner: {
+  heroCard: {
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: theme.colors.secondaryContainer,
-    borderWidth: 1,
-    borderColor: '#BFDCE6',
-    borderRadius: theme.radius.lg,
-    padding: 12,
-    marginBottom: 14,
+    backgroundColor: theme.colors.primaryContainer,
+    borderRadius: theme.radius.xl,
+    padding: 20,
+    marginBottom: 20,
   },
-  truckIconBg: {
-    width: 34,
-    height: 34,
-    borderRadius: 9,
-    backgroundColor: theme.colors.secondary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 11,
-  },
-  scheduledTextCol: {
+  heroTextCol: {
     flex: 1,
   },
-  scheduledLabel: {
-    fontFamily: theme.fonts.bodyBold,
-    fontSize: 9.5,
-    color: theme.colors.clay,
-    letterSpacing: 0.4,
-  },
-  scheduledTime: {
-    fontFamily: theme.fonts.bodySemiBold,
-    fontSize: 12.5,
+  heroTitle: {
+    fontFamily: theme.fonts.heading,
+    fontSize: 22,
     color: theme.colors.text,
-    marginTop: 2,
+    lineHeight: 28,
+    marginBottom: 10,
   },
-  viewBtn: {
-    backgroundColor: theme.colors.text,
+  heroSubtitle: {
+    fontFamily: theme.fonts.body,
+    fontSize: 13,
+    color: theme.colors.textSecondary,
+    lineHeight: 18,
+    marginBottom: 16,
+  },
+  giveItemsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: theme.colors.primary,
     borderRadius: theme.radius.full,
-    paddingHorizontal: 16,
-    paddingVertical: 7,
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    gap: 8,
   },
-  viewBtnText: {
+  giveItemsBtnText: {
     fontFamily: theme.fonts.bodyBold,
+    fontSize: 13,
     color: theme.colors.textInverse,
-    fontSize: 12,
+    letterSpacing: 0.3,
   },
-  scheduleBtn: {
+  heroIconCol: {
+    width: 90,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  heroTagline: {
+    fontFamily: theme.fonts.headingRegular,
+    fontStyle: 'italic',
+    fontSize: 10.5,
+    color: theme.colors.primaryDark,
+    textAlign: 'center',
+    lineHeight: 14,
+  },
+  collectSection: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radius.lg,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    padding: 16,
+    marginBottom: 16,
+  },
+  collectTitle: {
+    fontFamily: theme.fonts.bodyBold,
+    fontSize: 15,
+    color: theme.colors.text,
+    marginBottom: 14,
+  },
+  collectRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  collectItem: {
+    alignItems: 'center',
+    gap: 6,
+    flex: 1,
+  },
+  collectIconBg: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: theme.colors.primaryContainer,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  collectLabel: {
+    fontFamily: theme.fonts.bodySemiBold,
+    fontSize: 10.5,
+    color: theme.colors.text,
+    textAlign: 'center',
+  },
+  scheduleCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: theme.radius.lg,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+    padding: 16,
+    gap: 12,
+  },
+  truckIconBg: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: theme.colors.primaryContainer,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scheduleTextCol: {
+    flex: 1,
+  },
+  scheduleTitle: {
+    fontFamily: theme.fonts.bodyBold,
+    fontSize: 15,
+    color: theme.colors.text,
+    marginBottom: 2,
+  },
+  scheduleSubtitle: {
+    fontFamily: theme.fonts.body,
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+  },
+  schedulePickupBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: theme.colors.text,
-    borderRadius: theme.radius.full,
-    height: 52,
+    backgroundColor: theme.colors.primary,
+    borderBottomLeftRadius: theme.radius.lg,
+    borderBottomRightRadius: theme.radius.lg,
+    height: 48,
     gap: 8,
-    marginBottom: 24,
+    marginBottom: 20,
   },
-  scheduleBtnText: {
+  schedulePickupBtnText: {
     fontFamily: theme.fonts.bodyBold,
-    fontSize: 15,
+    fontSize: 14,
     color: theme.colors.textInverse,
+    letterSpacing: 0.3,
   },
   sectionTitle: {
     fontFamily: theme.fonts.heading,
-    fontSize: 18,
+    fontSize: 17,
     color: theme.colors.text,
-    marginBottom: 14,
+    marginBottom: 12,
+  },
+  latestPickupCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: theme.radius.lg,
+    padding: 14,
+    gap: 12,
+  },
+  calendarIconBg: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: theme.colors.primaryContainer,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  latestPickupTextCol: {
+    flex: 1,
+  },
+  latestPickupStatus: {
+    fontFamily: theme.fonts.bodyBold,
+    fontSize: 13,
+    color: theme.colors.primaryDark,
+    marginBottom: 2,
+  },
+  latestPickupMeta: {
+    fontFamily: theme.fonts.bodyMedium,
+    fontSize: 12,
+    color: theme.colors.text,
+    marginBottom: 2,
+  },
+  latestPickupAddress: {
+    fontFamily: theme.fonts.body,
+    fontSize: 11.5,
+    color: theme.colors.textSecondary,
+  },
+  viewDetailsBtn: {
+    borderWidth: 1.5,
+    borderColor: theme.colors.primary,
+    borderRadius: theme.radius.full,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  viewDetailsBtnText: {
+    fontFamily: theme.fonts.bodyBold,
+    fontSize: 10.5,
+    color: theme.colors.primaryDark,
   },
   emptyBox: {
     alignItems: 'center',
@@ -334,6 +525,9 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: theme.colors.textSecondary,
     textAlign: 'center',
+  },
+  contributionsTitle: {
+    marginTop: 20,
   },
   contributionCard: {
     flexDirection: 'row',
@@ -405,5 +599,26 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: theme.colors.text,
   },
+  footerDivider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 28,
+    marginBottom: 10,
+    gap: 10,
+  },
+  footerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: theme.colors.border,
+  },
+  footerLeaf: {
+    transform: [{ rotate: '90deg' }],
+  },
+  footerQuote: {
+    fontFamily: theme.fonts.headingRegular,
+    fontStyle: 'italic',
+    fontSize: 15,
+    color: theme.colors.primaryDark,
+    textAlign: 'center',
+  },
 });
-

@@ -7,17 +7,40 @@ import {
   ScrollView,
   TouchableOpacity,
   StatusBar,
+  Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useAppData } from '../data/AppDataContext';
+import { markDonationCompleted, DonationItem } from '../services/api';
 import { theme } from '../theme/theme';
 
 export const CollectorDashboardScreen = ({ navigation }: any) => {
-  const { donations, refreshDonations } = useAppData();
+  const { donations, authUser, refreshDonations } = useAppData();
 
   useEffect(() => {
     refreshDonations();
   }, []);
+
+  const handleMarkDone = (item: DonationItem) => {
+    Alert.alert(
+      'Mark as Done',
+      `Mark this ${item.category} pickup as completed? It will be removed from the map.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Mark Done',
+          onPress: async () => {
+            try {
+              await markDonationCompleted(item.id, authUser?.id);
+              await refreshDonations();
+            } catch (err: any) {
+              Alert.alert('Error', err?.message || 'Could not mark this pickup as done.');
+            }
+          },
+        },
+      ]
+    );
+  };
 
   const allDonations = useMemo(() => {
     return (donations || []).filter(d => d.status !== 'cancelled');
@@ -155,6 +178,14 @@ export const CollectorDashboardScreen = ({ navigation }: any) => {
                         <Icon name="map-marker-path" size={18} color={theme.colors.surface} />
                         <Text style={styles.viewMapBtnText}>View Map</Text>
                       </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={styles.markDoneBtn}
+                        activeOpacity={0.8}
+                        onPress={() => handleMarkDone(item)}
+                      >
+                        <Icon name="check-bold" size={18} color={theme.colors.success} />
+                      </TouchableOpacity>
                     </>
                   )}
                 </View>
@@ -177,9 +208,9 @@ export const CollectorDashboardScreen = ({ navigation }: any) => {
           <Icon name="map-outline" size={24} color={theme.colors.textSecondary} />
           <Text style={styles.tabLabel}>Map</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.tabItem} activeOpacity={0.7} onPress={() => navigation.navigate('Quality')}>
-          <Icon name="shield-check-outline" size={24} color={theme.colors.textSecondary} />
-          <Text style={styles.tabLabel}>Quality</Text>
+        <TouchableOpacity style={styles.tabItem} activeOpacity={0.7} onPress={() => navigation.navigate('AdminAvailability')}>
+          <Icon name="calendar-month-outline" size={24} color={theme.colors.textSecondary} />
+          <Text style={styles.tabLabel}>Calendar</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.tabItem} activeOpacity={0.7} onPress={() => navigation.navigate('CollectorProfile')}>
           <Icon name="account-outline" size={24} color={theme.colors.textSecondary} />
@@ -408,6 +439,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: theme.fonts.bodyBold,
     color: theme.colors.surface,
+  },
+  markDoneBtn: {
+    width: 46,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: theme.colors.success,
+    borderRadius: 24,
   },
   emptyState: {
     alignItems: 'center',

@@ -83,13 +83,6 @@ export const RecyclerHomeScreen = ({ navigation }: any) => {
             <Badge label="Unloading" variant="warning" />
           </View>
           <Text style={styles.shipmentSub}>Payload: 1.2 Tons PET Bales  •  Driver: Fleet Unit 08</Text>
-          <Button
-            title="Perform Quality Audit"
-            variant="primary"
-            size="sm"
-            onPress={() => navigation.navigate('Quality')}
-            style={{ marginTop: theme.spacing.md }}
-          />
         </Card>
       </ScrollView>
     </SafeAreaView>

@@ -155,17 +155,6 @@ export const CollectionScreen = ({ navigation }: any) => {
 
               <View style={styles.actionBtnRow}>
                 <TouchableOpacity
-                  style={styles.assessBtn}
-                  onPress={() => navigation.navigate('Quality')}
-                  activeOpacity={0.8}
-                >
-                  <View style={styles.badgeCheckIconCircle}>
-                    <Icon name="checkbox-marked-circle-outline" size={18} color={theme.colors.primary} />
-                  </View>
-                  <Text style={styles.assessBtnText}>Assess</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
                   style={styles.confirmBtn}
                   onPress={() => handleConfirmPickup(item)}
                   activeOpacity={0.8}
@@ -351,26 +340,6 @@ const styles = StyleSheet.create({
   actionBtnRow: {
     flexDirection: 'row',
     gap: 12,
-  },
-  assessBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1.5,
-    borderColor: theme.colors.primary,
-    borderRadius: 25,
-    height: 46,
-    gap: 8,
-  },
-  badgeCheckIconCircle: {
-    marginRight: 2,
-  },
-  assessBtnText: {
-    color: theme.colors.primary,
-    fontSize: 15,
-    fontFamily: theme.fonts.bodyBold,
   },
   confirmBtn: {
     flex: 1,

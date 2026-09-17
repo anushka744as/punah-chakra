@@ -338,6 +338,10 @@ export const QualityScreen = ({ navigation, route }: any) => {
           </View>
           <Text style={styles.tabLabelActive}>Quality</Text>
         </TouchableOpacity>
+        <TouchableOpacity style={styles.tabItem} activeOpacity={0.7} onPress={() => navigation.navigate('AdminAvailability')}>
+          <Icon name="calendar-month-outline" size={24} color={theme.colors.textSecondary} />
+          <Text style={styles.tabLabel}>Calendar</Text>
+        </TouchableOpacity>
         <TouchableOpacity style={styles.tabItem} activeOpacity={0.7} onPress={() => navigation.navigate('CollectorProfile')}>
           <Icon name="account-outline" size={24} color={theme.colors.textSecondary} />
           <Text style={styles.tabLabel}>Profile</Text>

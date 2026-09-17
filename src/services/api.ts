@@ -51,6 +51,7 @@ export interface DonationItem {
   time_slot: string;
   instructions: string;
   address: string;
+  pincode?: string;
   status: 'pending' | 'scheduled' | 'assigned' | 'in_transit' | 'collected' | 'assessed' | 'completed' | 'cancelled';
   created_at?: string;
 }
@@ -198,6 +199,28 @@ export async function signOutUser() {
   if (error) throw error;
 }
 
+// Pincodes PunahChakra currently operates in. Admin-managed (add/remove), read by every
+// user's serviceability check and by the admin calendar's pincode dropdown.
+export async function fetchServiceablePincodes(): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('serviceable_pincodes')
+    .select('pincode')
+    .order('pincode', { ascending: true });
+
+  if (error) throw error;
+  return ((data || []) as any[]).map((row) => row.pincode);
+}
+
+export async function addServiceablePincode(pincode: string) {
+  const { error } = await supabase.from('serviceable_pincodes').insert([{ pincode }]);
+  if (error) throw error;
+}
+
+export async function removeServiceablePincode(pincode: string) {
+  const { error } = await supabase.from('serviceable_pincodes').delete().eq('pincode', pincode);
+  if (error) throw error;
+}
+
 export async function fetchUserProfile(userId: string): Promise<UserProfile | null> {
   const { data, error } = await supabase
     .from('profiles')
@@ -221,13 +244,14 @@ export async function updateUserProfile(userId: string, updates: Partial<UserPro
   return data;
 }
 
-// Admin-configured availability for one specific calendar day (day_availability table).
-// No row for a date means it's fully open (fail-open) — same default as the old flat
-// per-admin slot list this replaces.
-export async function fetchDayAvailability(day: string): Promise<{ slots: string[]; isClosed: boolean }> {
+// Admin-configured availability for one specific calendar day, scoped to a serviceable
+// pincode (day_availability table). No row for a pincode+date means it's fully open
+// (fail-open) — same default as the old flat per-admin slot list this replaces.
+export async function fetchDayAvailability(pincode: string, day: string): Promise<{ slots: string[]; isClosed: boolean }> {
   const { data } = await supabase
     .from('day_availability')
     .select('available_slots, is_closed')
+    .eq('pincode', pincode)
     .eq('day', day)
     .maybeSingle();
 
@@ -237,15 +261,17 @@ export async function fetchDayAvailability(day: string): Promise<{ slots: string
   };
 }
 
-// All configured day_availability rows in a date range (inclusive), keyed by day —
-// used by the admin calendar to mark which dates already have custom availability set.
+// All configured day_availability rows for one pincode in a date range (inclusive), keyed
+// by day — used by the admin calendar to mark which dates already have custom availability set.
 export async function fetchMonthAvailability(
+  pincode: string,
   startDay: string,
   endDay: string
 ): Promise<Record<string, { slots: string[]; isClosed: boolean }>> {
   const { data } = await supabase
     .from('day_availability')
     .select('day, available_slots, is_closed')
+    .eq('pincode', pincode)
     .gte('day', startDay)
     .lte('day', endDay);
 
@@ -256,13 +282,13 @@ export async function fetchMonthAvailability(
   return map;
 }
 
-// Admin saves which slots are open (and/or closes the whole day) for one calendar date.
-export async function upsertDayAvailability(day: string, slots: string[], isClosed: boolean) {
+// Admin saves which slots are open (and/or closes the whole day) for one pincode + calendar date.
+export async function upsertDayAvailability(pincode: string, day: string, slots: string[], isClosed: boolean) {
   const { data, error } = await supabase
     .from('day_availability')
     .upsert(
-      { day, available_slots: slots, is_closed: isClosed, updated_at: new Date().toISOString() },
-      { onConflict: 'day' }
+      { pincode, day, available_slots: slots, is_closed: isClosed, updated_at: new Date().toISOString() },
+      { onConflict: 'pincode,day' }
     )
     .select()
     .single();
@@ -271,16 +297,17 @@ export async function upsertDayAvailability(day: string, slots: string[], isClos
   return data;
 }
 
-// Slots a donor may pick for a given pickup day: slots the admin opened for that specific
-// date (fail-open if unconfigured), minus slots another active (non-cancelled) donation
-// has already booked for that same day. `excludeDonationId` lets a donor keep their own
-// slot while rescheduling/editing an existing request.
+// Slots a donor may pick for a given pincode + pickup day: slots the admin opened for that
+// specific pincode/date (fail-open if unconfigured), minus slots another active
+// (non-cancelled) donation has already booked for that same day. `excludeDonationId` lets a
+// donor keep their own slot while rescheduling/editing an existing request.
 export async function fetchSlotAvailability(
+  pincode: string,
   pickupDay: string,
   excludeDonationId?: string
 ): Promise<{ availableSlots: string[]; bookedSlots: string[]; isClosed: boolean }> {
   const [{ slots, isClosed }, { data: bookings }] = await Promise.all([
-    fetchDayAvailability(pickupDay),
+    fetchDayAvailability(pincode, pickupDay),
     supabase.from('donations').select('id, time_slot').eq('pickup_day', pickupDay).neq('status', 'cancelled'),
   ]);
 
@@ -322,6 +349,7 @@ export async function createDonationRequest(donation: Omit<DonationItem, 'id' | 
         time_slot: donation.time_slot,
         instructions: donation.instructions,
         address: donation.address,
+        pincode: donation.pincode || '',
         status: 'pending',
       },
     ])
@@ -440,6 +468,31 @@ export async function cancelDonationRequest(donationId: string, requestId?: stri
         )
       );
     }
+  } catch {}
+}
+
+// Marks a pickup as completed/done directly from the admin routes list — a quicker path
+// than the full Quality assessment flow. This is also what makes the pin disappear from
+// the admin map, since PickupMapScreen only plots non-completed pickups.
+export async function markDonationCompleted(donationId: string, collectorId?: string) {
+  const { error } = await supabase
+    .from('donations')
+    .update({
+      status: 'completed',
+      is_picked_up: true,
+      picked_up_at: new Date().toISOString(),
+      collector_id: collectorId,
+      confirmed_by: collectorId,
+    })
+    .eq('id', donationId);
+
+  if (error) throw error;
+
+  try {
+    await supabase
+      .from('pickups')
+      .update({ status: 'completed', collector_id: collectorId })
+      .or(`id.eq.${donationId},donation_id.eq.${donationId}`);
   } catch {}
 }
 

@@ -10,11 +10,14 @@ import {
   Alert,
   ActivityIndicator,
   Switch,
+  Modal,
+  TextInput,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { theme } from '../theme/theme';
 import { TIME_SLOTS } from '../constants/timeSlots';
 import { fetchDayAvailability, fetchMonthAvailability, upsertDayAvailability } from '../services/api';
+import { useAppData } from '../data/AppDataContext';
 
 const WEEKDAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
@@ -36,6 +39,65 @@ const getToday = () => {
 };
 
 export const AdminAvailabilityScreen = ({ navigation }: any) => {
+  const { serviceablePincodes, addServiceablePincode, removeServiceablePincode } = useAppData();
+  const [pincode, setPincode] = useState('');
+  const [pincodePickerOpen, setPincodePickerOpen] = useState(false);
+  const [newPincodeInput, setNewPincodeInput] = useState('');
+  const [addPincodeError, setAddPincodeError] = useState('');
+  const [savingPincode, setSavingPincode] = useState(false);
+
+  // Default to (or fall back onto) the first serviceable pincode once the list loads, or if
+  // the currently-selected one gets removed from under us.
+  useEffect(() => {
+    if (serviceablePincodes.length === 0) return;
+    if (!pincode || !serviceablePincodes.includes(pincode)) {
+      setPincode(serviceablePincodes[0]);
+    }
+  }, [serviceablePincodes, pincode]);
+
+  const handleAddPincode = async () => {
+    setAddPincodeError('');
+    if (!/^\d{6}$/.test(newPincodeInput)) {
+      setAddPincodeError('Enter a valid 6-digit pincode.');
+      return;
+    }
+    if (serviceablePincodes.includes(newPincodeInput)) {
+      setAddPincodeError('This pincode is already serviceable.');
+      return;
+    }
+    setSavingPincode(true);
+    try {
+      await addServiceablePincode(newPincodeInput);
+      setPincode(newPincodeInput);
+      setNewPincodeInput('');
+    } catch (err: any) {
+      setAddPincodeError(err?.message || 'Could not add this pincode. Please try again.');
+    } finally {
+      setSavingPincode(false);
+    }
+  };
+
+  const handleRemovePincode = (pc: string) => {
+    Alert.alert(
+      'Remove Pincode',
+      `Stop providing pickup service in ${pc}? Users in this pincode will see it as not serviceable.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await removeServiceablePincode(pc);
+            } catch (err: any) {
+              Alert.alert('Error', err?.message || 'Could not remove this pincode.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const [viewMonth, setViewMonth] = useState(() => startOfMonth(new Date()));
   const [monthMap, setMonthMap] = useState<Record<string, { slots: string[]; isClosed: boolean }>>({});
   const [loadingMonth, setLoadingMonth] = useState(false);
@@ -47,11 +109,12 @@ export const AdminAvailabilityScreen = ({ navigation }: any) => {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    if (!pincode) return;
     let cancelled = false;
     (async () => {
       setLoadingMonth(true);
       try {
-        const map = await fetchMonthAvailability(toDayKey(startOfMonth(viewMonth)), toDayKey(endOfMonth(viewMonth)));
+        const map = await fetchMonthAvailability(pincode, toDayKey(startOfMonth(viewMonth)), toDayKey(endOfMonth(viewMonth)));
         if (!cancelled) setMonthMap(map);
       } catch {
         if (!cancelled) setMonthMap({});
@@ -62,13 +125,19 @@ export const AdminAvailabilityScreen = ({ navigation }: any) => {
     return () => {
       cancelled = true;
     };
-  }, [viewMonth]);
+  }, [pincode, viewMonth]);
+
+  // Switching pincode invalidates whichever date's editor is open — its slots belong to
+  // the previous pincode's calendar, not this one.
+  useEffect(() => {
+    setSelectedDate(null);
+  }, [pincode]);
 
   const loadDay = async (date: Date) => {
     setSelectedDate(date);
     setLoadingDay(true);
     try {
-      const { slots, isClosed } = await fetchDayAvailability(toDayKey(date));
+      const { slots, isClosed } = await fetchDayAvailability(pincode, toDayKey(date));
       setSelectedSlots(slots);
       setDayClosed(isClosed);
     } catch {
@@ -87,10 +156,10 @@ export const AdminAvailabilityScreen = ({ navigation }: any) => {
     if (!selectedDate || saving) return;
     setSaving(true);
     try {
-      await upsertDayAvailability(toDayKey(selectedDate), selectedSlots, dayClosed);
-      const map = await fetchMonthAvailability(toDayKey(startOfMonth(viewMonth)), toDayKey(endOfMonth(viewMonth)));
+      await upsertDayAvailability(pincode, toDayKey(selectedDate), selectedSlots, dayClosed);
+      const map = await fetchMonthAvailability(pincode, toDayKey(startOfMonth(viewMonth)), toDayKey(endOfMonth(viewMonth)));
       setMonthMap(map);
-      Alert.alert('Saved', `Availability updated for ${selectedDate.toDateString()}.`);
+      Alert.alert('Saved', `Availability updated for ${selectedDate.toDateString()} (${pincode}).`);
     } catch (err: any) {
       Alert.alert('Error', err?.message || 'Could not save availability. Please try again.');
     } finally {
@@ -120,11 +189,107 @@ export const AdminAvailabilityScreen = ({ navigation }: any) => {
         <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.7}>
           <Icon name="arrow-left" size={24} color={theme.colors.surface} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Pickup Calendar</Text>
+        <Text style={styles.headerTitle}>Calendar</Text>
         <View style={{ width: 24 }} />
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Pincode selector */}
+        <Text style={styles.pincodeLabel}>PINCODE</Text>
+        <TouchableOpacity
+          style={styles.pincodeDropdown}
+          onPress={() => setPincodePickerOpen(true)}
+          activeOpacity={0.8}
+        >
+          <Icon name="map-marker-outline" size={18} color={theme.colors.primary} />
+          <Text style={styles.pincodeDropdownText}>{pincode}</Text>
+          <Icon name="chevron-down" size={20} color={theme.colors.textSecondary} />
+        </TouchableOpacity>
+
+        <Modal
+          visible={pincodePickerOpen}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setPincodePickerOpen(false)}
+        >
+          <View style={styles.pincodeModalBackdrop}>
+            <TouchableOpacity
+              style={StyleSheet.absoluteFill}
+              activeOpacity={1}
+              onPress={() => setPincodePickerOpen(false)}
+            />
+            <View style={styles.pincodeModalCard}>
+              <Text style={styles.pincodeModalTitle}>Serviceable Pincodes</Text>
+              <ScrollView style={styles.pincodeOptionList}>
+                {serviceablePincodes.map((pc) => (
+                  <View key={pc} style={styles.pincodeOption}>
+                    <TouchableOpacity
+                      style={styles.pincodeOptionTouchable}
+                      onPress={() => {
+                        setPincode(pc);
+                        setPincodePickerOpen(false);
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[styles.pincodeOptionText, pc === pincode && styles.pincodeOptionTextActive]}>
+                        {pc}
+                      </Text>
+                      {pc === pincode && <Icon name="check" size={18} color={theme.colors.primary} />}
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.pincodeRemoveBtn}
+                      onPress={() => handleRemovePincode(pc)}
+                      activeOpacity={0.7}
+                    >
+                      <Icon name="trash-can-outline" size={18} color={theme.colors.error} />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+                {serviceablePincodes.length === 0 && (
+                  <Text style={styles.pincodeEmptyText}>No serviceable pincodes yet.</Text>
+                )}
+              </ScrollView>
+
+              <Text style={styles.addPincodeLabel}>ADD A NEW PINCODE</Text>
+              <View style={styles.addPincodeRow}>
+                <TextInput
+                  style={styles.addPincodeInput}
+                  placeholder="e.g. 110001"
+                  placeholderTextColor={theme.colors.textSecondary}
+                  keyboardType="number-pad"
+                  maxLength={6}
+                  value={newPincodeInput}
+                  onChangeText={(t) => {
+                    setNewPincodeInput(t.replace(/[^0-9]/g, ''));
+                    setAddPincodeError('');
+                  }}
+                />
+                <TouchableOpacity
+                  style={[styles.addPincodeBtn, savingPincode && styles.addPincodeBtnDisabled]}
+                  onPress={handleAddPincode}
+                  disabled={savingPincode}
+                  activeOpacity={0.85}
+                >
+                  {savingPincode ? (
+                    <ActivityIndicator size="small" color={theme.colors.surface} />
+                  ) : (
+                    <Icon name="plus" size={20} color={theme.colors.surface} />
+                  )}
+                </TouchableOpacity>
+              </View>
+              {addPincodeError ? <Text style={styles.addPincodeError}>{addPincodeError}</Text> : null}
+
+              <TouchableOpacity
+                style={styles.pincodeModalCloseBtn}
+                onPress={() => setPincodePickerOpen(false)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.pincodeModalCloseBtnText}>Done</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
         {/* Month navigation */}
         <View style={styles.monthNavRow}>
           <TouchableOpacity
@@ -300,6 +465,144 @@ const styles = StyleSheet.create({
   content: {
     padding: 16,
     paddingBottom: 40,
+  },
+  pincodeLabel: {
+    fontSize: 11,
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.textSecondary,
+    letterSpacing: 0.6,
+    marginBottom: 8,
+  },
+  pincodeDropdown: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginBottom: 18,
+  },
+  pincodeDropdownText: {
+    flex: 1,
+    fontSize: 15,
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.text,
+  },
+  pincodeModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 32,
+  },
+  pincodeModalCard: {
+    width: '100%',
+    backgroundColor: theme.colors.surface,
+    borderRadius: 20,
+    padding: 16,
+  },
+  pincodeModalTitle: {
+    fontSize: 16,
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.text,
+    marginBottom: 8,
+    paddingHorizontal: 8,
+  },
+  pincodeOptionList: {
+    maxHeight: 220,
+  },
+  pincodeOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+  },
+  pincodeOptionTouchable: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+  },
+  pincodeOptionText: {
+    fontSize: 15,
+    fontFamily: theme.fonts.bodyMedium,
+    color: theme.colors.text,
+  },
+  pincodeOptionTextActive: {
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.primary,
+  },
+  pincodeRemoveBtn: {
+    padding: 8,
+  },
+  pincodeEmptyText: {
+    fontSize: 13,
+    fontFamily: theme.fonts.body,
+    color: theme.colors.textSecondary,
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+  },
+  addPincodeLabel: {
+    fontSize: 11,
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.textSecondary,
+    letterSpacing: 0.6,
+    marginTop: 14,
+    marginBottom: 8,
+    paddingHorizontal: 8,
+  },
+  addPincodeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 8,
+  },
+  addPincodeInput: {
+    flex: 1,
+    backgroundColor: theme.colors.background,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 15,
+    fontFamily: theme.fonts.bodyMedium,
+    color: theme.colors.text,
+  },
+  addPincodeBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: theme.colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addPincodeBtnDisabled: {
+    opacity: 0.6,
+  },
+  addPincodeError: {
+    fontSize: 12,
+    fontFamily: theme.fonts.bodyMedium,
+    color: theme.colors.error,
+    marginTop: 8,
+    paddingHorizontal: 8,
+  },
+  pincodeModalCloseBtn: {
+    marginTop: 16,
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
+  pincodeModalCloseBtnText: {
+    fontSize: 14,
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.primary,
   },
   monthNavRow: {
     flexDirection: 'row',

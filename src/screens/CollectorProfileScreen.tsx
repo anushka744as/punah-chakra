@@ -253,9 +253,9 @@ export const CollectorProfileScreen = ({ navigation }: any) => {
           <Icon name="map-outline" size={24} color={theme.colors.textSecondary} />
           <Text style={styles.tabLabel}>Map</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.tabItem} activeOpacity={0.7} onPress={() => navigation.navigate('Quality')}>
-          <Icon name="shield-check-outline" size={24} color={theme.colors.textSecondary} />
-          <Text style={styles.tabLabel}>Quality</Text>
+        <TouchableOpacity style={styles.tabItem} activeOpacity={0.7} onPress={() => navigation.navigate('AdminAvailability')}>
+          <Icon name="calendar-month-outline" size={24} color={theme.colors.textSecondary} />
+          <Text style={styles.tabLabel}>Calendar</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.tabItem} activeOpacity={0.7}>
           <View style={styles.tabIconActiveBg}>

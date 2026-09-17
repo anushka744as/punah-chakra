@@ -24,10 +24,14 @@ import {
   updateUserProfile as apiUpdateProfile,
   confirmPickupInSupabase,
   refusePickupInSupabase,
+  fetchServiceablePincodes,
+  addServiceablePincode as apiAddServiceablePincode,
+  removeServiceablePincode as apiRemoveServiceablePincode,
   type UserProfile,
   type DonationItem,
   type PickupJob,
 } from '../services/api';
+import { FALLBACK_SERVICEABLE_PINCODE_LIST } from '../utils/serviceability';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 export type AppRole = 'user' | 'admin';
@@ -45,16 +49,20 @@ type AppState = {
   donations: DonationItem[];
   pickups: PickupJob[];
   notifications: any[];
+  serviceablePincodes: string[];
   loading: boolean;
   // actions
   signOut: () => Promise<void>;
   refreshDonations: () => Promise<void>;
   refreshPickups: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  refreshServiceablePincodes: () => Promise<void>;
   saveDonation: (d: Omit<DonationItem, 'id' | 'status'>) => Promise<void>;
   updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
   confirmPickup: (pickupId: string, requestId?: string) => Promise<void>;
   refusePickup: (pickupId: string, requestId?: string) => Promise<void>;
+  addServiceablePincode: (pincode: string) => Promise<void>;
+  removeServiceablePincode: (pincode: string) => Promise<void>;
 };
 
 const AppDataContext = createContext<AppState | undefined>(undefined);
@@ -66,7 +74,37 @@ export const AppDataProvider = ({ children }: { children: React.ReactNode }) => 
   const [donations, setDonations] = useState<DonationItem[]>([]);
   const [pickups, setPickups] = useState<PickupJob[]>([]);
   const [notifications, setNotifications] = useState<any[]>([]);
+  const [serviceablePincodes, setServiceablePincodes] = useState<string[]>(FALLBACK_SERVICEABLE_PINCODE_LIST);
   const [loading, setLoading] = useState(true);
+
+  const refreshServiceablePincodes = useCallback(async () => {
+    try {
+      const list = await fetchServiceablePincodes();
+      setServiceablePincodes(list);
+    } catch {
+      // Keep whatever list is already in state (fallback or last successful fetch).
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshServiceablePincodes();
+  }, [refreshServiceablePincodes]);
+
+  const addServiceablePincode = useCallback(
+    async (pincode: string) => {
+      await apiAddServiceablePincode(pincode);
+      await refreshServiceablePincodes();
+    },
+    [refreshServiceablePincodes]
+  );
+
+  const removeServiceablePincode = useCallback(
+    async (pincode: string) => {
+      await apiRemoveServiceablePincode(pincode);
+      await refreshServiceablePincodes();
+    },
+    [refreshServiceablePincodes]
+  );
 
   // ── Bootstrap current session on mount ────────────────────────────────────
   useEffect(() => {
@@ -227,15 +265,19 @@ export const AppDataProvider = ({ children }: { children: React.ReactNode }) => 
         donations,
         pickups,
         notifications,
+        serviceablePincodes,
         loading,
         signOut,
         refreshDonations,
         refreshPickups,
         refreshProfile,
+        refreshServiceablePincodes,
         saveDonation,
         updateProfile,
         confirmPickup,
         refusePickup,
+        addServiceablePincode,
+        removeServiceablePincode,
       }}
     >
       {children}

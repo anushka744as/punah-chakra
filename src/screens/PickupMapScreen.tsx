@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  Modal,
   PermissionsAndroid,
   Platform,
   SafeAreaView,
@@ -21,9 +22,11 @@ import { theme } from '../theme/theme';
 
 export const PickupMapScreen = ({ navigation, route }: any) => {
   const insets = useSafeAreaInsets();
-  const { donations, authUser } = useAppData();
+  const { donations, authUser, serviceablePincodes } = useAppData();
   const [locationGranted, setLocationGranted] = useState(false);
   const [mapType, setMapType] = useState<'street' | 'satellite'>('street');
+  const [areaPincode, setAreaPincode] = useState<string>('all');
+  const [areaPickerOpen, setAreaPickerOpen] = useState(false);
 
   const mode = route.params?.mode === 'admin' ? 'admin' : 'user';
   const targetDonationId = route.params?.donationId;
@@ -50,9 +53,19 @@ export const PickupMapScreen = ({ navigation, route }: any) => {
       // donors' addresses.
       return donations.filter((d) => d.donor_id === authUser?.id);
     }
-    const confirmed = donations.filter((d) => ['assigned', 'in_transit', 'completed'].includes(d.status));
-    return confirmed.length > 0 ? confirmed : donations;
-  }, [donations, mode, authUser?.id]);
+    // Completed pickups are deliberately excluded — marking a pickup done removes its pin.
+    const active = donations.filter((d) => d.status !== 'completed' && d.status !== 'cancelled');
+    const confirmed = active.filter((d) => ['assigned', 'in_transit'].includes(d.status));
+    const base = confirmed.length > 0 ? confirmed : active;
+    return areaPincode === 'all' ? base : base.filter((d) => d.pincode === areaPincode);
+  }, [donations, mode, authUser?.id, areaPincode]);
+
+  // All orders (any status) in the selected area — not just the confirmed/mapped subset —
+  // so the admin can see everything happening in that pincode, not only what's pinned.
+  const areaOrders = useMemo(() => {
+    if (mode !== 'admin' || areaPincode === 'all') return [];
+    return donations.filter((d) => d.pincode === areaPincode && d.status !== 'cancelled');
+  }, [donations, mode, areaPincode]);
 
   // Falls back to the donor's most recently active pickup when no explicit donationId is
   // given (e.g. opened from the Map tab rather than "Track this pickup").
@@ -214,10 +227,24 @@ export const PickupMapScreen = ({ navigation, route }: any) => {
 
       {/* Map Control Bar */}
       <View style={styles.mapControlBar}>
-        <View style={styles.zoneChip}>
-          <Icon name="map-marker-check" size={16} color={theme.colors.primary} />
-          <Text style={styles.zoneChipText}>Noida Sector 15A & 44</Text>
-        </View>
+        {mode === 'admin' ? (
+          <TouchableOpacity
+            style={styles.zoneChip}
+            onPress={() => setAreaPickerOpen(true)}
+            activeOpacity={0.8}
+          >
+            <Icon name="map-marker-check" size={16} color={theme.colors.primary} />
+            <Text style={styles.zoneChipText}>
+              {areaPincode === 'all' ? 'All Areas' : areaPincode}
+            </Text>
+            <Icon name="chevron-down" size={16} color={theme.colors.primary} />
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.zoneChip}>
+            <Icon name="map-marker-check" size={16} color={theme.colors.primary} />
+            <Text style={styles.zoneChipText}>Noida Sector 15A & 44</Text>
+          </View>
+        )}
 
         <View style={styles.toggleGroup}>
           <TouchableOpacity
@@ -239,6 +266,55 @@ export const PickupMapScreen = ({ navigation, route }: any) => {
           </TouchableOpacity>
         </View>
       </View>
+
+      {mode === 'admin' && (
+        <Modal
+          visible={areaPickerOpen}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setAreaPickerOpen(false)}
+        >
+          <View style={styles.areaModalBackdrop}>
+            <TouchableOpacity
+              style={StyleSheet.absoluteFill}
+              activeOpacity={1}
+              onPress={() => setAreaPickerOpen(false)}
+            />
+            <View style={styles.areaModalCard}>
+              <Text style={styles.areaModalTitle}>View Area</Text>
+              <TouchableOpacity
+                style={styles.areaOption}
+                onPress={() => {
+                  setAreaPincode('all');
+                  setAreaPickerOpen(false);
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.areaOptionText, areaPincode === 'all' && styles.areaOptionTextActive]}>
+                  All Areas
+                </Text>
+                {areaPincode === 'all' && <Icon name="check" size={18} color={theme.colors.primary} />}
+              </TouchableOpacity>
+              {serviceablePincodes.map((pc) => (
+                <TouchableOpacity
+                  key={pc}
+                  style={styles.areaOption}
+                  onPress={() => {
+                    setAreaPincode(pc);
+                    setAreaPickerOpen(false);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.areaOptionText, areaPincode === pc && styles.areaOptionTextActive]}>
+                    {pc}
+                  </Text>
+                  {areaPincode === pc && <Icon name="check" size={18} color={theme.colors.primary} />}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </Modal>
+      )}
 
       {/* Mode Specific Info Banner */}
       {mode === 'admin' && !targetDonationId && (
@@ -311,26 +387,53 @@ export const PickupMapScreen = ({ navigation, route }: any) => {
         )}
       </View>
 
+      {/* Orders in the selected area */}
+      {mode === 'admin' && areaPincode !== 'all' && (
+        <View style={styles.areaOrdersPanel}>
+          <Text style={styles.areaOrdersTitle}>
+            ORDERS IN {areaPincode} ({areaOrders.length})
+          </Text>
+          {areaOrders.length === 0 ? (
+            <Text style={styles.areaOrdersEmpty}>No orders in this pincode yet.</Text>
+          ) : (
+            <ScrollView style={styles.areaOrdersList} showsVerticalScrollIndicator={false}>
+              {areaOrders.map((item) => (
+                <TouchableOpacity
+                  key={item.id}
+                  style={styles.areaOrderRow}
+                  activeOpacity={0.7}
+                  onPress={() => navigation.navigate('PickupMap', { mode: 'admin', donationId: item.id })}
+                >
+                  <View style={styles.areaOrderIconBg}>
+                    <Icon name="package-variant-closed" size={16} color={theme.colors.primary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.areaOrderTitle} numberOfLines={1}>
+                      {item.category || 'Donation'} · {item.request_id || item.id.slice(0, 8)}
+                    </Text>
+                    <Text style={styles.areaOrderSub} numberOfLines={1}>
+                      {item.address.replace(/\(Lat:.*?\)/gi, '').trim()}
+                    </Text>
+                  </View>
+                  <Text style={styles.areaOrderStatus}>{getStatusLabel(item.status).toUpperCase()}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
+        </View>
+      )}
+
       {/* Info Banner */}
-      <View style={styles.bottomInfoPanel}>
-        {mode === 'user' ? (
-          <>
-            <Text style={styles.infoHeading}>YOUR PICKUP ACTIVITY</Text>
-            <Text style={styles.infoBody}>
-              {confirmedDonations.length === 0
-                ? 'No scheduled pickups yet.'
-                : `You have ${confirmedDonations.length} pickup${confirmedDonations.length === 1 ? '' : 's'} shown on the map above.`}
-            </Text>
-          </>
-        ) : (
-          <>
-            <Text style={styles.infoHeading}>CURRENT SERVICE COVERAGE</Text>
-            <Text style={styles.infoBody}>
-              Doorstep pickups currently live in <Text style={styles.boldText}>Noida Sector 15A</Text> and <Text style={styles.boldText}>Noida Sector 44</Text>.
-            </Text>
-          </>
-        )}
-      </View>
+      {mode === 'user' && (
+        <View style={styles.bottomInfoPanel}>
+          <Text style={styles.infoHeading}>YOUR PICKUP ACTIVITY</Text>
+          <Text style={styles.infoBody}>
+            {confirmedDonations.length === 0
+              ? 'No scheduled pickups yet.'
+              : `You have ${confirmedDonations.length} pickup${confirmedDonations.length === 1 ? '' : 's'} shown on the map above.`}
+          </Text>
+        </View>
+      )}
 
       {/* Bottom Navigation Tab Bar for Collector */}
       {mode === 'admin' && (
@@ -345,9 +448,9 @@ export const PickupMapScreen = ({ navigation, route }: any) => {
             </View>
             <Text style={styles.tabLabelActive}>Map</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.tabItem} activeOpacity={0.7} onPress={() => navigation.navigate('Quality')}>
-            <Icon name="shield-check-outline" size={24} color={theme.colors.textSecondary} />
-            <Text style={styles.tabLabel}>Quality</Text>
+          <TouchableOpacity style={styles.tabItem} activeOpacity={0.7} onPress={() => navigation.navigate('AdminAvailability')}>
+            <Icon name="calendar-month-outline" size={24} color={theme.colors.textSecondary} />
+            <Text style={styles.tabLabel}>Calendar</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.tabItem} activeOpacity={0.7} onPress={() => navigation.navigate('CollectorProfile')}>
             <Icon name="account-outline" size={24} color={theme.colors.textSecondary} />
@@ -487,6 +590,101 @@ const styles = StyleSheet.create({
     fontFamily: theme.fonts.bodyBold,
     color: theme.colors.surface,
   },
+  areaModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 32,
+  },
+  areaModalCard: {
+    width: '100%',
+    backgroundColor: theme.colors.surface,
+    borderRadius: 20,
+    padding: 16,
+  },
+  areaModalTitle: {
+    fontSize: 16,
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.text,
+    marginBottom: 8,
+    paddingHorizontal: 8,
+  },
+  areaOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 8,
+    paddingVertical: 14,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+  },
+  areaOptionText: {
+    fontSize: 15,
+    fontFamily: theme.fonts.bodyMedium,
+    color: theme.colors.text,
+  },
+  areaOptionTextActive: {
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.primary,
+  },
+  areaOrdersPanel: {
+    backgroundColor: theme.colors.surface,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+    paddingTop: 12,
+    paddingHorizontal: 16,
+    maxHeight: 220,
+  },
+  areaOrdersTitle: {
+    fontSize: 11,
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.textSecondary,
+    letterSpacing: 0.6,
+    marginBottom: 8,
+  },
+  areaOrdersEmpty: {
+    fontSize: 13,
+    fontFamily: theme.fonts.body,
+    color: theme.colors.textSecondary,
+    paddingBottom: 12,
+  },
+  areaOrdersList: {
+    maxHeight: 180,
+  },
+  areaOrderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+  },
+  areaOrderIconBg: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: theme.colors.primaryContainer,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  areaOrderTitle: {
+    fontSize: 13,
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.text,
+  },
+  areaOrderSub: {
+    fontSize: 11,
+    fontFamily: theme.fonts.body,
+    color: theme.colors.textSecondary,
+    marginTop: 1,
+  },
+  areaOrderStatus: {
+    fontSize: 9,
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.primary,
+    letterSpacing: 0.3,
+  },
   bottomInfoPanel: {
     backgroundColor: theme.colors.surface,
     borderTopWidth: 1,
@@ -504,10 +702,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: theme.colors.text,
     lineHeight: 18,
-  },
-  boldText: {
-    fontFamily: theme.fonts.bodyBold,
-    color: theme.colors.primary,
   },
   promptBanner: {
     flexDirection: 'row',
