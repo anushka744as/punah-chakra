@@ -37,6 +37,8 @@ export interface UserProfile {
 export interface DonationItem {
   id: string;
   donor_id?: string;
+  donor_name?: string;
+  donor_phone?: string;
   collector_id?: string;
   confirmed_by?: string;
   confirmed_at?: string;
@@ -419,11 +421,18 @@ export async function fetchUserDonations(donorId: string): Promise<DonationItem[
 export async function fetchAllScheduledDonations(): Promise<DonationItem[]> {
   const { data, error } = await supabase
     .from('donations')
-    .select('*')
+    .select('*, profiles(full_name, phone)')
     .order('created_at', { ascending: false });
 
   if (error) return [];
-  return data as DonationItem[];
+  return (data || []).map((row: any) => {
+    const { profiles, ...rest } = row;
+    return {
+      ...rest,
+      donor_name: profiles?.full_name,
+      donor_phone: profiles?.phone,
+    };
+  }) as DonationItem[];
 }
 
 // Cancels a pending donation request. Only valid before a collector has confirmed it.

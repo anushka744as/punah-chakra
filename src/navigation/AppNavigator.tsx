@@ -5,12 +5,6 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { theme } from '../theme/theme';
 
-// Onboarding Steps
-import { MissionFoundationsScreen } from '../screens/MissionFoundationsScreen';
-import { MissionCorePillarsScreen } from '../screens/MissionCorePillarsScreen';
-import { MissionLogisticsScreen } from '../screens/MissionLogisticsScreen';
-import { MissionDeploymentScreen } from '../screens/MissionDeploymentScreen';
-
 // Auth
 import { LandingScreen } from '../screens/LandingScreen';
 import { LoginScreen } from '../screens/LoginScreen';
@@ -39,7 +33,6 @@ import { HelpSettingsScreen } from '../screens/HelpSettingsScreen';
 import { supabase, fetchUserProfile } from '../services/api';
 
 const Stack = createNativeStackNavigator();
-export const ONBOARDING_COMPLETE_KEY = '@punahchakra_onboarding_completed';
 export const USER_LOGGED_IN_KEY = '@punahchakra_user_logged_in';
 export const LAST_ROLE_KEY = '@punahchakra_last_role';
 export const navigationRef = createNavigationContainerRef();
@@ -85,7 +78,7 @@ const handleRecoveryUrl = async (url: string | null) => {
 
 export const AppNavigator = () => {
   const [loading, setLoading] = useState(true);
-  const [initialRoute, setInitialRoute] = useState<'MissionFoundations' | 'Landing' | 'MainTabs' | 'CollectorDashboard' | 'ResetPassword'>('Landing');
+  const [initialRoute, setInitialRoute] = useState<'Landing' | 'MainTabs' | 'CollectorDashboard' | 'ResetPassword'>('Landing');
 
   useEffect(() => {
     (async () => {
@@ -142,17 +135,12 @@ export const AppNavigator = () => {
       }
 
       // 3. No active Supabase session — clear any stale "logged in" cache from a
-      // previous session that never got persisted/expired, then check onboarding.
+      // previous session that never got persisted/expired.
       if (isUserLoggedIn === 'true') {
         await AsyncStorage.removeItem(USER_LOGGED_IN_KEY);
         await AsyncStorage.removeItem(LAST_ROLE_KEY);
       }
-      const onboardingDone = await AsyncStorage.getItem(ONBOARDING_COMPLETE_KEY);
-      if (onboardingDone === 'true') {
-        setInitialRoute('Landing');
-      } else {
-        setInitialRoute('MissionFoundations');
-      }
+      setInitialRoute('Landing');
     } catch (e) {
       // Graceful fallback to Landing
       setInitialRoute('Landing');
@@ -178,12 +166,6 @@ export const AppNavigator = () => {
         }}
         initialRouteName={initialRoute}
       >
-        {/* Onboarding Flow for First Time Users */}
-        <Stack.Screen name="MissionFoundations" component={MissionFoundationsScreen} />
-        <Stack.Screen name="MissionCorePillars" component={MissionCorePillarsScreen} />
-        <Stack.Screen name="MissionLogistics" component={MissionLogisticsScreen} />
-        <Stack.Screen name="MissionDeployment" component={MissionDeploymentScreen} />
-
         {/* Auth */}
         <Stack.Screen name="Landing" component={LandingScreen} />
         <Stack.Screen name="Login" component={LoginScreen} />

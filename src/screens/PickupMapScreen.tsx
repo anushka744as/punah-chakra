@@ -89,10 +89,12 @@ export const PickupMapScreen = ({ navigation, route }: any) => {
         const cleanAddress = item.address.replace(/\(Lat:.*?\)/gi, '').trim();
         const isTarget = item.id === targetDonationId;
         const weight = item.weight_kg || item.estimated_quantity_kg || 10;
+        const donorLabel = (item.donor_name || `${item.category} Donor`).replace(/"/g, '\\"');
+        const phoneLabel = item.donor_phone ? ` &bull; ${item.donor_phone}` : '';
         return `
           (function() {
             var marker = L.marker([${lat}, ${lng}]).addTo(map)
-              .bindPopup("<div class='popup-title'>${item.category} Donor</div><div class='popup-sub'>${cleanAddress.replace(/"/g, '\\"')}</div><span class='popup-badge'>${weight} kg &bull; ${item.time_slot} &bull; ${getStatusLabel(item.status).toUpperCase()}</span>");
+              .bindPopup("<div class='popup-title'>${donorLabel}</div><div class='popup-sub'>${cleanAddress.replace(/"/g, '\\"')}${phoneLabel}</div><span class='popup-badge'>${item.category} &bull; ${weight} kg &bull; ${item.time_slot} &bull; ${getStatusLabel(item.status).toUpperCase()}</span>");
             ${isTarget ? 'marker.openPopup();' : ''}
           })();
         `;
@@ -409,10 +411,11 @@ export const PickupMapScreen = ({ navigation, route }: any) => {
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.areaOrderTitle} numberOfLines={1}>
-                      {item.category || 'Donation'} · {item.request_id || item.id.slice(0, 8)}
+                      {item.donor_name || item.category || 'Donation'} · {item.category} · {item.weight_kg || item.estimated_quantity_kg || 10} kg
                     </Text>
                     <Text style={styles.areaOrderSub} numberOfLines={1}>
                       {item.address.replace(/\(Lat:.*?\)/gi, '').trim()}
+                      {item.donor_phone ? ` · ${item.donor_phone}` : ''}
                     </Text>
                   </View>
                   <Text style={styles.areaOrderStatus}>{getStatusLabel(item.status).toUpperCase()}</Text>

@@ -21,7 +21,9 @@
       "Bash(supabase login *)",
       "Bash(jobs)",
       "Bash(sips -g pixelWidth -g pixelHeight \"ss/image copy.png\")",
-      "Bash(grep -n \"Semi-transparent Loading Overlay\\\\|</View>$\" src/screens/DonateScreen.tsx)"
+      "Bash(grep -n \"Semi-transparent Loading Overlay\\\\|</View>$\" src/screens/DonateScreen.tsx)",
+      "Bash(sips -g hasAlpha src/assets/logo_transparent.png)",
+      "Bash(python3 -c \"from PIL import Image; print\\('ok'\\)\")"
     ]
   }
 }

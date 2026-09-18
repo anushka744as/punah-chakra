@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   StatusBar,
   Alert,
+  Linking,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useAppData } from '../data/AppDataContext';
@@ -124,7 +125,7 @@ export const CollectorDashboardScreen = ({ navigation }: any) => {
                       <Icon name="account-outline" size={24} color={isPickedUp ? theme.colors.textSecondary : theme.colors.primary} />
                     </View>
                     <View>
-                      <Text style={[styles.donorName, isPickedUp && styles.textMuted]}>{item.category} Donor</Text>
+                      <Text style={[styles.donorName, isPickedUp && styles.textMuted]}>{item.donor_name || `${item.category} Donor`}</Text>
                       <Text style={styles.donorId}>ID {reqId}</Text>
                     </View>
                   </View>
@@ -133,8 +134,24 @@ export const CollectorDashboardScreen = ({ navigation }: any) => {
                   </Text>
                 </View>
 
-                {/* Card Info (Address / Time) */}
+                {/* Card Info (Item type / Phone / Address / Time) */}
                 <View style={styles.cardInfoBox}>
+                  <View style={styles.infoItemTime}>
+                    <Icon name="tshirt-crew-outline" size={16} color={theme.colors.textSecondary} />
+                    <Text style={styles.infoTextTime}>{item.category}</Text>
+                  </View>
+
+                  {!!item.donor_phone && (
+                    <TouchableOpacity
+                      style={styles.infoItemTime}
+                      onPress={() => Linking.openURL(`tel:${item.donor_phone}`)}
+                      activeOpacity={0.7}
+                    >
+                      <Icon name="phone-outline" size={16} color={theme.colors.textSecondary} />
+                      <Text style={styles.infoTextTime}>{item.donor_phone}</Text>
+                    </TouchableOpacity>
+                  )}
+
                   <TouchableOpacity
                     style={styles.infoItemAddress}
                     onPress={() => navigation.navigate('PickupMap', { mode: 'admin', donationId: item.id })}

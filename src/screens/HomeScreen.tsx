@@ -156,46 +156,51 @@ export const HomeScreen = ({ navigation }: any) => {
           <Icon name="arrow-right" size={16} color={theme.colors.textInverse} />
         </TouchableOpacity>
 
-        {/* Your Latest Pickup */}
-        <Text style={styles.sectionTitle}>Your Latest Pickup</Text>
-        {latestPickup ? (
-          <View style={styles.latestPickupCard}>
-            <View style={styles.calendarIconBg}>
-              <Icon name="calendar-check-outline" size={20} color={theme.colors.primaryDark} />
-            </View>
-            <View style={styles.latestPickupTextCol}>
-              <Text style={styles.latestPickupStatus}>{getStatusLabel(latestPickup.status)}</Text>
-              <Text style={styles.latestPickupMeta}>
-                {latestPickup.pickup_day} · {latestPickup.time_slot}
-              </Text>
-              <Text style={styles.latestPickupAddress}>{latestPickup.address}</Text>
-            </View>
-            <TouchableOpacity
-              style={styles.viewDetailsBtn}
-              onPress={() => navigation.navigate('Alerts')}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.viewDetailsBtnText}>VIEW DETAILS</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <View style={styles.emptyBox}>
-            <Icon name="package-variant-closed" size={28} color={theme.colors.primary} />
-            <Text style={styles.emptyTitle}>Nothing scheduled yet</Text>
-            <Text style={styles.emptyText}>Schedule your first pickup and it will show up here.</Text>
-          </View>
-        )}
-
-        {/* Recent contributions */}
-        <Text style={[styles.sectionTitle, styles.contributionsTitle]}>Recent contributions</Text>
         {donations.length === 0 ? (
-          <View style={styles.emptyBox}>
-            <Icon name="package-variant-closed" size={28} color={theme.colors.primary} />
-            <Text style={styles.emptyTitle}>Nothing here yet</Text>
-            <Text style={styles.emptyText}>Schedule your first pickup and it will show up here.</Text>
-          </View>
+          <>
+            {/* Your Latest Pickup (empty state covers both sections) */}
+            <Text style={styles.sectionTitle}>Your Latest Pickup</Text>
+            <View style={styles.emptyBox}>
+              <Icon name="package-variant-closed" size={28} color={theme.colors.primary} />
+              <Text style={styles.emptyTitle}>Nothing scheduled yet</Text>
+              <Text style={styles.emptyText}>Schedule your first pickup and it will show up here.</Text>
+            </View>
+          </>
         ) : (
-          donations.map((item) => (
+          <>
+            {/* Your Latest Pickup */}
+            <Text style={styles.sectionTitle}>Your Latest Pickup</Text>
+            {latestPickup ? (
+              <View style={styles.latestPickupCard}>
+                <View style={styles.calendarIconBg}>
+                  <Icon name="calendar-check-outline" size={20} color={theme.colors.primaryDark} />
+                </View>
+                <View style={styles.latestPickupTextCol}>
+                  <Text style={styles.latestPickupStatus}>{getStatusLabel(latestPickup.status)}</Text>
+                  <Text style={styles.latestPickupMeta}>
+                    {latestPickup.pickup_day} · {latestPickup.time_slot}
+                  </Text>
+                  <Text style={styles.latestPickupAddress}>{latestPickup.address}</Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.viewDetailsBtn}
+                  onPress={() => navigation.navigate('Alerts')}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.viewDetailsBtnText}>VIEW DETAILS</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.emptyBox}>
+                <Icon name="package-variant-closed" size={28} color={theme.colors.primary} />
+                <Text style={styles.emptyTitle}>Nothing scheduled yet</Text>
+                <Text style={styles.emptyText}>Schedule your first pickup and it will show up here.</Text>
+              </View>
+            )}
+
+            {/* Recent contributions */}
+            <Text style={[styles.sectionTitle, styles.contributionsTitle]}>Recent contributions</Text>
+            {donations.map((item) => (
             <View key={item.id} style={styles.contributionCard}>
               <View style={styles.itemIconBg}>
                 <Icon name={categoryIcon(item.category)} size={24} color={theme.colors.primaryDark} />
@@ -231,8 +236,9 @@ export const HomeScreen = ({ navigation }: any) => {
                   </View>
                 )}
               </View>
-            </View>
-          ))
+              </View>
+            ))}
+          </>
         )}
 
         {/* Footer quote */}
