@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
-  Image,
+  TextInput,
   Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -16,11 +16,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { theme } from '../theme/theme';
 import { Button } from '../components/Button';
-import { InputField } from '../components/InputField';
 import { sendPhoneOtp, verifyPhoneOtp } from '../services/api';
 import { USER_LOGGED_IN_KEY, LAST_ROLE_KEY } from '../navigation/AppNavigator';
 
 const RESEND_COOLDOWN_SECONDS = 30;
+const OTP_LENGTH = 6;
 
 export const VerifyPhoneOtpScreen = ({ navigation, route }: any) => {
   const insets = useSafeAreaInsets();
@@ -29,6 +29,7 @@ export const VerifyPhoneOtpScreen = ({ navigation, route }: any) => {
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
   const [cooldown, setCooldown] = useState(RESEND_COOLDOWN_SECONDS);
+  const inputRefs = useRef<Array<TextInput | null>>([]);
 
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -36,36 +37,75 @@ export const VerifyPhoneOtpScreen = ({ navigation, route }: any) => {
     return () => clearTimeout(timer);
   }, [cooldown]);
 
-  const handleVerify = useCallback(async () => {
-    if (code.trim().length < 4) {
-      Alert.alert('Invalid Code', 'Please enter the code we texted you.');
-      return;
-    }
+  const handleVerify = useCallback(
+    async (otpValue?: string) => {
+      const otp = (otpValue ?? code).trim();
+      if (otp.length < OTP_LENGTH) {
+        Alert.alert('Invalid Code', 'Please enter the code we texted you.');
+        return;
+      }
 
-    setLoading(true);
-    try {
-      const res = await verifyPhoneOtp(phone, code.trim(), fullName, email, pincode);
-      setLoading(false);
-      const role = (res as any)?.profile?.role === 'admin' ? 'admin' : 'user';
-      await AsyncStorage.setItem(USER_LOGGED_IN_KEY, 'true');
-      await AsyncStorage.setItem(LAST_ROLE_KEY, role);
-      Alert.alert('Account Created', 'Successfully registered!', [
-        {
-          text: 'Continue',
-          onPress: () => navigation.replace(role === 'admin' ? 'CollectorDashboard' : 'MainTabs'),
-        },
-      ]);
-    } catch (err: any) {
-      setLoading(false);
-      Alert.alert('Verification Failed', err?.message || 'That code is invalid or expired. Please try again.');
-    }
-  }, [code, phone, fullName, email, pincode, navigation]);
+      setLoading(true);
+      try {
+        const res = await verifyPhoneOtp(phone, otp, fullName, email, pincode);
+        setLoading(false);
+        const role = (res as any)?.profile?.role === 'admin' ? 'admin' : 'user';
+        await AsyncStorage.setItem(USER_LOGGED_IN_KEY, 'true');
+        await AsyncStorage.setItem(LAST_ROLE_KEY, role);
+        Alert.alert('Account Created', 'Successfully registered!', [
+          {
+            text: 'Continue',
+            onPress: () => navigation.replace(role === 'admin' ? 'CollectorDashboard' : 'MainTabs'),
+          },
+        ]);
+      } catch (err: any) {
+        setLoading(false);
+        Alert.alert('Verification Failed', err?.message || 'That code is invalid or expired. Please try again.');
+      }
+    },
+    [code, phone, fullName, email, pincode, navigation]
+  );
+
+  // Android SMS User Consent API: shows the system "Allow <app> to read this message?"
+  // dialog when the OTP text arrives, then hands the message back to us — no SMS
+  // permission needed and no change to the DLT-registered message template required.
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+
+    let subscription: { remove: () => void } | undefined;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const otpVerify = await import('@pushpendersingh/react-native-otp-verify');
+        subscription = otpVerify.addSmsListener((message: any) => {
+          if (cancelled || message?.status !== 'success' || !message.message) return;
+          const otp = otpVerify.extractOtp(message.message);
+          if (otp && otp.length === OTP_LENGTH) {
+            setCode(otp);
+            handleVerify(otp);
+          }
+        });
+        await otpVerify.requestPhoneNumber();
+      } catch {
+        // Play Services unavailable or consent denied — user can still type the code manually.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      subscription?.remove();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleResend = async () => {
     setResending(true);
     try {
       await sendPhoneOtp(phone, fullName);
       setCooldown(RESEND_COOLDOWN_SECONDS);
+      setCode('');
+      inputRefs.current[0]?.focus();
       Alert.alert('Code Sent', `A new code was sent to ${phone}.`);
     } catch (err: any) {
       Alert.alert('Could Not Resend Code', err?.message || 'Please try again.');
@@ -74,11 +114,51 @@ export const VerifyPhoneOtpScreen = ({ navigation, route }: any) => {
     }
   };
 
+  const handleDigitChange = (text: string, index: number) => {
+    const digits = text.replace(/[^0-9]/g, '');
+
+    if (digits.length > 1) {
+      // Handles pasting/autofill of the full code into a single box.
+      const next = digits.slice(0, OTP_LENGTH);
+      setCode(next);
+      if (next.length === OTP_LENGTH) {
+        inputRefs.current[OTP_LENGTH - 1]?.blur();
+        handleVerify(next);
+      } else {
+        inputRefs.current[next.length]?.focus();
+      }
+      return;
+    }
+
+    const chars = code.split('');
+    chars[index] = digits;
+    const next = chars.join('').slice(0, OTP_LENGTH);
+    setCode(next);
+
+    if (digits && index < OTP_LENGTH - 1) {
+      inputRefs.current[index + 1]?.focus();
+    }
+    if (digits && next.length === OTP_LENGTH) {
+      inputRefs.current[index]?.blur();
+      handleVerify(next);
+    }
+  };
+
+  const handleKeyPress = (e: any, index: number) => {
+    if (e.nativeEvent.key === 'Backspace' && !code[index] && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
-      <Icon name="leaf" size={40} color={theme.colors.primaryContainer} style={styles.leafTopLeft} />
-      <Icon name="leaf" size={56} color={theme.colors.primaryContainer} style={styles.leafTopRight} />
-      <Icon name="leaf" size={48} color={theme.colors.primaryContainer} style={styles.leafBottomLeft} />
+      <View style={[styles.header, { paddingTop: Math.max(insets.top, theme.spacing.md) }]}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <Icon name="arrow-left" size={24} color={theme.colors.text} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Verify mobile number</Text>
+        <View style={styles.backBtn} />
+      </View>
 
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -87,60 +167,53 @@ export const VerifyPhoneOtpScreen = ({ navigation, route }: any) => {
         <ScrollView
           contentContainerStyle={[
             styles.scrollContent,
-            {
-              paddingTop: Math.max(insets.top, theme.spacing.lg),
-              paddingBottom: Math.max(insets.bottom, theme.spacing.xl) + 16,
-            },
+            { paddingBottom: Math.max(insets.bottom, theme.spacing.xl) + 16 },
           ]}
           showsVerticalScrollIndicator={false}
         >
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <Icon name="arrow-left" size={24} color={theme.colors.text} />
-          </TouchableOpacity>
+          <Text style={styles.sectionTitle}>Verify with OTP</Text>
+          <Text style={styles.subtitle}>Sent via SMS to {phone}</Text>
 
-          {/* Header Branding */}
-          <View style={styles.logoRow}>
-            <Image
-              source={require('../assets/image.png')}
-              style={styles.logoIconImg}
-              resizeMode="contain"
-            />
-            <Text style={styles.logoText}>
-              Punah<Text style={{ color: theme.colors.primary }}>Chakra</Text>
-            </Text>
-          </View>
-          <Text style={styles.tagline}>Verify Your Number</Text>
-          <Text style={styles.subtitle}>Enter the code we texted to {phone}.</Text>
-
-          <View style={styles.card}>
-            <InputField
-              label="VERIFICATION CODE"
-              placeholder="123456"
-              value={code}
-              onChangeText={(t) => setCode(t.replace(/[^0-9]/g, '').slice(0, 6))}
-              keyboardType="number-pad"
-              maxLength={6}
-              leftIcon={<Icon name="lock-outline" size={20} color={theme.colors.textSecondary} />}
-            />
-
-            <Button
-              title="Verify & Continue"
-              variant="primary"
-              size="lg"
-              loading={loading}
-              onPress={handleVerify}
-              style={styles.submitBtn}
-            />
+          <View style={styles.otpRow}>
+            {Array.from({ length: OTP_LENGTH }).map((_, index) => (
+              <TextInput
+                key={index}
+                ref={(ref) => {
+                  inputRefs.current[index] = ref;
+                }}
+                style={[styles.otpBox, code[index] && styles.otpBoxFilled]}
+                value={code[index] || ''}
+                onChangeText={(t) => handleDigitChange(t, index)}
+                onKeyPress={(e) => handleKeyPress(e, index)}
+                keyboardType="number-pad"
+                maxLength={index === 0 ? OTP_LENGTH : 1}
+                textContentType="oneTimeCode"
+                autoComplete={Platform.OS === 'android' ? 'sms-otp' : 'one-time-code'}
+                autoFocus={index === 0}
+              />
+            ))}
           </View>
 
-          <View style={styles.footerRow}>
-            <Text style={styles.footerText}>Didn't get a code? </Text>
-            <TouchableOpacity onPress={handleResend} disabled={cooldown > 0 || resending}>
-              <Text style={[styles.loginText, (cooldown > 0 || resending) && styles.loginTextDisabled]}>
-                {cooldown > 0 ? `RESEND IN ${cooldown}s` : 'RESEND CODE'}
+          <View style={styles.resendRow}>
+            {cooldown > 0 ? (
+              <Text style={styles.resendText}>
+                Resend OTP in <Text style={styles.resendTimer}>00:{cooldown.toString().padStart(2, '0')}</Text>
               </Text>
-            </TouchableOpacity>
+            ) : (
+              <TouchableOpacity onPress={handleResend} disabled={resending}>
+                <Text style={styles.resendLink}>Resend OTP</Text>
+              </TouchableOpacity>
+            )}
           </View>
+
+          <Button
+            title="Confirm OTP"
+            variant="primary"
+            size="lg"
+            loading={loading}
+            onPress={() => handleVerify()}
+            style={styles.submitBtn}
+          />
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -152,90 +225,76 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background,
   },
-  leafTopLeft: {
-    position: 'absolute',
-    top: 8,
-    left: 4,
-    transform: [{ rotate: '-20deg' }],
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: theme.spacing.md,
+    paddingBottom: theme.spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
   },
-  leafTopRight: {
-    position: 'absolute',
-    top: 20,
-    right: -6,
-    transform: [{ rotate: '30deg' }],
+  backBtn: {
+    width: 32,
   },
-  leafBottomLeft: {
-    position: 'absolute',
-    bottom: 90,
-    left: -4,
-    transform: [{ rotate: '15deg' }],
+  headerTitle: {
+    fontFamily: theme.fonts.bodySemiBold,
+    fontSize: 17,
+    color: theme.colors.text,
   },
   scrollContent: {
     paddingHorizontal: theme.spacing.lg,
+    paddingTop: theme.spacing.xl,
     flexGrow: 1,
   },
-  backBtn: {
-    marginBottom: theme.spacing.md,
-  },
-  logoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: theme.spacing.xs,
-  },
-  logoIconImg: {
-    width: 36,
-    height: 36,
-    marginRight: 8,
-  },
-  logoText: {
-    fontFamily: theme.fonts.heading,
-    fontSize: 24,
-    color: theme.colors.secondary,
-  },
-  tagline: {
-    textAlign: 'center',
-    fontFamily: theme.fonts.heading,
-    fontSize: 20,
-    color: theme.colors.secondary,
+  sectionTitle: {
+    fontFamily: theme.fonts.bodyBold,
+    fontSize: 18,
+    color: theme.colors.text,
     marginBottom: theme.spacing.xs,
   },
   subtitle: {
-    textAlign: 'center',
     fontSize: 14,
     color: theme.colors.textSecondary,
-    lineHeight: 20,
     marginBottom: theme.spacing.xl,
   },
-  card: {
+  otpRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: theme.spacing.lg,
+  },
+  otpBox: {
+    width: 44,
+    height: 52,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
     backgroundColor: theme.colors.surface,
-    borderRadius: theme.radius.xl,
-    padding: theme.spacing.lg,
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
+    textAlign: 'center',
+    fontSize: 20,
+    fontFamily: theme.fonts.bodySemiBold,
+    color: theme.colors.text,
+  },
+  otpBoxFilled: {
+    borderColor: theme.colors.primary,
+  },
+  resendRow: {
+    marginBottom: theme.spacing.xl,
+  },
+  resendText: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
+  },
+  resendTimer: {
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.text,
+  },
+  resendLink: {
+    fontSize: 14,
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.primary,
   },
   submitBtn: {
     marginTop: theme.spacing.sm,
-  },
-  footerRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: theme.spacing.xl,
-  },
-  footerText: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-  },
-  loginText: {
-    fontSize: 14,
-    color: theme.colors.primary,
-    fontWeight: '700',
-  },
-  loginTextDisabled: {
-    color: theme.colors.textSecondary,
   },
 });

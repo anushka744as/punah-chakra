@@ -8,6 +8,7 @@ import {
   StatusBar,
   TouchableOpacity,
   Image,
+  ImageBackground,
   Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -35,15 +36,13 @@ const CATEGORIES: { label: string; icon: string }[] = [
 
 export const HomeScreen = ({ navigation }: any) => {
   const insets = useSafeAreaInsets();
-  const { authUser, donations, refreshDonations } = useAppData();
+  const { donations, refreshDonations } = useAppData();
 
   useFocusEffect(
     useCallback(() => {
       refreshDonations();
     }, [refreshDonations])
   );
-
-  const firstName = (authUser?.full_name || '').trim().split(' ')[0] || 'there';
 
   const latestPickup = donations.find(
     (d) => d.status === 'pending' || d.status === 'scheduled' || d.status === 'assigned'
@@ -76,18 +75,28 @@ export const HomeScreen = ({ navigation }: any) => {
   };
 
   return (
-    <View style={styles.container}>
+    <ImageBackground
+      source={require('../assets/home_bg.jpg')}
+      style={styles.container}
+      imageStyle={styles.bgImage}
+      resizeMode="cover"
+    >
+      <View style={styles.bgOverlay} />
       <StatusBar barStyle="dark-content" backgroundColor={theme.colors.background} />
 
       {/* Top Header */}
-      <View style={[styles.headerBar, { paddingTop: Math.max(insets.top, 20) }]}>
+      <View style={[styles.headerBar, { paddingTop: Math.max(insets.top, 10) }]}>
         <View style={styles.headerLeft}>
           <Image
             source={require('../assets/logo_transparent.png')}
             style={styles.headerLogoImg}
             resizeMode="contain"
           />
-       
+          <Image
+            source={require('../assets/logo_wordmark_transparent.png')}
+            style={styles.headerWordmarkImg}
+            resizeMode="contain"
+          />
         </View>
         <TouchableOpacity
           style={styles.userAvatarBtn}
@@ -95,9 +104,8 @@ export const HomeScreen = ({ navigation }: any) => {
           activeOpacity={0.7}
         >
           <View style={styles.userAvatarCircle}>
-            <Icon name="account-outline" size={20} color={theme.colors.textSecondary} />
+            <Icon name="account-outline" size={24} color={theme.colors.textSecondary} />
           </View>
-          <Text style={styles.welcomeText}>Welcome,{'\n'}{firstName}!</Text>
         </TouchableOpacity>
       </View>
 
@@ -249,7 +257,7 @@ export const HomeScreen = ({ navigation }: any) => {
         </View>
         <Text style={styles.footerQuote}>Every Item Deserves Another Chance.</Text>
       </ScrollView>
-    </View>
+    </ImageBackground>
   );
 };
 
@@ -258,54 +266,44 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background,
   },
+  bgImage: {
+    opacity: 0.5,
+  },
+  bgOverlay: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: 'rgba(239, 232, 216, 0.8)',
+  },
   headerBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    backgroundColor: theme.colors.background,
+    alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
     flexShrink: 1,
   },
   headerLogoImg: {
-    width: 44,
-    height: 44,
+    width: 64,
+    height: 64,
   },
-  logoText: {
-    fontFamily: theme.fonts.heading,
-    fontSize: 19,
-    color: theme.colors.primaryDark,
-  },
-  logoSubtitle: {
-    fontFamily: theme.fonts.body,
-    fontSize: 9.5,
-    color: theme.colors.textSecondary,
-    lineHeight: 12,
-    marginTop: 2,
+  headerWordmarkImg: {
+    width: 170,
+    height: 48,
+    marginLeft: -20,
   },
   userAvatarBtn: {
     alignItems: 'center',
-    gap: 4,
   },
   userAvatarCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: theme.colors.surfaceContainerLow,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  welcomeText: {
-    fontFamily: theme.fonts.bodySemiBold,
-    fontSize: 10,
-    color: theme.colors.text,
-    textAlign: 'center',
-    lineHeight: 13,
   },
   scrollContent: {
     padding: 16,

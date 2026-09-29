@@ -11,6 +11,7 @@ import {
   Alert,
   Modal,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { WebView } from 'react-native-webview';
@@ -245,6 +246,19 @@ export const DonateScreen = ({ navigation, route }: any) => {
       }
 
       const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+
+      // Android surfaces whether this fix came from a mock-location provider (a
+      // spoofing app, or a test/emulator location left set from a previous session) —
+      // when it does, the coordinates are meaningless and shouldn't be trusted.
+      if (Platform.OS === 'android' && position.mocked) {
+        Alert.alert(
+          'Mock Location Detected',
+          'Your device is returning a simulated location (a mock-location app or a test GPS setting is active), not your real position. Turn off mock locations in Developer Options, or enter your pickup address manually.'
+        );
+        setLocating(false);
+        return;
+      }
+
       const lat = position.coords.latitude;
       const lng = position.coords.longitude;
       setCoords({ latitude: lat, longitude: lng });

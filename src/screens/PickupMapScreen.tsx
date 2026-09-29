@@ -22,11 +22,12 @@ import { theme } from '../theme/theme';
 
 export const PickupMapScreen = ({ navigation, route }: any) => {
   const insets = useSafeAreaInsets();
-  const { donations, authUser, serviceablePincodes } = useAppData();
+  const { donations, authUser, profile, serviceablePincodes } = useAppData();
   const [locationGranted, setLocationGranted] = useState(false);
   const [mapType, setMapType] = useState<'street' | 'satellite'>('street');
   const [areaPincode, setAreaPincode] = useState<string>('all');
   const [areaPickerOpen, setAreaPickerOpen] = useState(false);
+  const [pincodeCenter, setPincodeCenter] = useState<{ lat: number; lng: number } | null>(null);
 
   const mode = route.params?.mode === 'admin' ? 'admin' : 'user';
   const targetDonationId = route.params?.donationId;
@@ -73,14 +74,50 @@ export const PickupMapScreen = ({ navigation, route }: any) => {
     donations.find((d) => d.id === targetDonationId) ||
     (mode === 'user' ? confirmedDonations[0] : undefined);
 
-  const initialCenter = targetDonation ? parseCoords(targetDonation.address) : { lat: 28.5833, lng: 77.3167 };
+  // The pincode we should center the map on when there's no specific pickup to zoom to —
+  // the donor's own pincode, or whichever pincode the admin has filtered to.
+  const focusPincode = mode === 'admin' ? (areaPincode !== 'all' ? areaPincode : null) : profile?.pincode || null;
+
+  // Geocodes `focusPincode` via OSM Nominatim so the map opens centered on the donor's
+  // actual serviceable area instead of the hardcoded Noida default. Only fetched when
+  // there's no explicit pickup address to derive coordinates from.
+  useEffect(() => {
+    if (!focusPincode) {
+      setPincodeCenter(null);
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?postalcode=${encodeURIComponent(focusPincode)}&country=India&format=json&limit=1`
+        );
+        const results = await res.json();
+        const first = Array.isArray(results) ? results[0] : null;
+        if (!cancelled && first?.lat && first?.lon) {
+          setPincodeCenter({ lat: parseFloat(first.lat), lng: parseFloat(first.lon) });
+        }
+      } catch {
+        // Falls back to the default center below — no network / geocoder unavailable.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [focusPincode]);
+
+  const defaultCenter = pincodeCenter || { lat: 28.5833, lng: 77.3167 };
+  const initialCenter = targetDonation ? parseCoords(targetDonation.address) : defaultCenter;
 
   const showEmptyState = mode === 'user' && confirmedDonations.length === 0;
 
   const markersJs = useMemo(() => {
     if (!confirmedDonations || confirmedDonations.length === 0) {
       if (mode === 'user') return '';
-      return `L.marker([28.5833, 77.3167]).addTo(map).bindPopup("<div class='popup-title'>Sector 15A Center</div>");`;
+      const zoneLabel = focusPincode ? `Pincode ${focusPincode}` : 'Service Area';
+      return `L.marker([${defaultCenter.lat}, ${defaultCenter.lng}]).addTo(map).bindPopup("<div class='popup-title'>${zoneLabel}</div>");`;
     }
 
     return confirmedDonations
@@ -100,7 +137,7 @@ export const PickupMapScreen = ({ navigation, route }: any) => {
         `;
       })
       .join('\n');
-  }, [confirmedDonations, targetDonationId]);
+  }, [confirmedDonations, targetDonationId, mode, focusPincode, defaultCenter.lat, defaultCenter.lng]);
 
   const requestLocationPermission = async () => {
     if (Platform.OS !== 'android') {
@@ -113,7 +150,7 @@ export const PickupMapScreen = ({ navigation, route }: any) => {
         PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
         {
           title: 'Location Permission',
-          message: 'PunahChakra needs location access to show nearby donation pickups in Noida.',
+          message: 'PunahChakra needs location access to show nearby donation pickups in your area.',
           buttonPositive: 'Allow',
           buttonNegative: 'Cancel',
         },
@@ -176,19 +213,19 @@ export const PickupMapScreen = ({ navigation, route }: any) => {
 
     var map = L.map('map', {
       center: [${initialCenter.lat}, ${initialCenter.lng}],
-      zoom: ${targetDonation ? 16 : 14},
+      zoom: ${targetDonation ? 16 : focusPincode ? 15 : 14},
       layers: [${mapType === 'satellite' ? 'esriSat' : 'osm'}]
     });
 
-    // Active Zones
-    L.circle([28.5833, 77.3167], { color: '${theme.colors.primary}', fillColor: '${theme.colors.primaryContainer}', fillOpacity: 0.2, radius: 700 }).addTo(map);
+    // Active Zone
+    L.circle([${defaultCenter.lat}, ${defaultCenter.lng}], { color: '${theme.colors.primary}', fillColor: '${theme.colors.primaryContainer}', fillOpacity: 0.2, radius: 700 }).addTo(map);
 
     // Dynamic Real Donor Markers from Supabase
     ${markersJs}
   </script>
 </body>
 </html>`,
-    [mapType, initialCenter.lat, initialCenter.lng, markersJs, targetDonation],
+    [mapType, initialCenter.lat, initialCenter.lng, defaultCenter.lat, defaultCenter.lng, markersJs, targetDonation, focusPincode],
   );
 
   return (
@@ -244,7 +281,9 @@ export const PickupMapScreen = ({ navigation, route }: any) => {
         ) : (
           <View style={styles.zoneChip}>
             <Icon name="map-marker-check" size={16} color={theme.colors.primary} />
-            <Text style={styles.zoneChipText}>Noida Sector 15A & 44</Text>
+            <Text style={styles.zoneChipText}>
+              {profile?.pincode ? `Pincode ${profile.pincode}` : 'Noida Sector 15A & 44'}
+            </Text>
           </View>
         )}
 

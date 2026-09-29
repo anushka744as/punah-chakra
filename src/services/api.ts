@@ -152,10 +152,11 @@ export async function signInUser(email: string, password: string) {
 // user on first use. `fullName` is stashed in user metadata so the handle_new_user DB
 // trigger can populate profiles.full_name as soon as the auth user row is created —
 // verifyPhoneOtp below also upserts it explicitly once we have a session.
-export async function sendPhoneOtp(phone: string, fullName?: string, pincode?: string) {
+export async function sendPhoneOtp(phone: string, fullName?: string, pincode?: string, email?: string) {
   const metadata: Record<string, string> = {};
   if (fullName) metadata.full_name = fullName;
   if (pincode) metadata.pincode = pincode;
+  if (email) metadata.email = email;
 
   const { error } = await supabase.auth.signInWithOtp({
     phone,
