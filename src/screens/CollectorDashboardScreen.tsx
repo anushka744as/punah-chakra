@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,17 +10,27 @@ import {
   Alert,
   Linking,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useAppData } from '../data/AppDataContext';
-import { markDonationCompleted, DonationItem } from '../services/api';
+import { markDonationCompleted, fetchUnreadNotificationCount, DonationItem } from '../services/api';
 import { theme } from '../theme/theme';
 
 export const CollectorDashboardScreen = ({ navigation }: any) => {
   const { donations, authUser, refreshDonations } = useAppData();
+  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     refreshDonations();
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (authUser?.id) {
+        fetchUnreadNotificationCount(authUser.id).then(setUnreadCount);
+      }
+    }, [authUser?.id])
+  );
 
   const handleMarkDone = (item: DonationItem) => {
     Alert.alert(
@@ -62,9 +72,19 @@ export const CollectorDashboardScreen = ({ navigation }: any) => {
           <Icon name="recycle" size={26} color={theme.colors.surface} />
           <Text style={styles.headerTitle}>Routes</Text>
         </View>
-        <TouchableOpacity style={styles.profileBtn} onPress={() => navigation.navigate('CollectorProfile')} activeOpacity={0.7}>
-          <Icon name="account-circle-outline" size={26} color={theme.colors.surface} />
-        </TouchableOpacity>
+        <View style={styles.headerRight}>
+          <TouchableOpacity style={styles.bellBtn} onPress={() => navigation.navigate('Notifications')} activeOpacity={0.7}>
+            <Icon name="bell-outline" size={24} color={theme.colors.surface} />
+            {unreadCount > 0 && (
+              <View style={styles.bellBadge}>
+                <Text style={styles.bellBadgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.profileBtn} onPress={() => navigation.navigate('CollectorProfile')} activeOpacity={0.7}>
+            <Icon name="account-circle-outline" size={26} color={theme.colors.surface} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -261,8 +281,33 @@ const styles = StyleSheet.create({
     fontFamily: theme.fonts.bodyBold,
     color: theme.colors.surface,
   },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
   profileBtn: {
     padding: 4,
+  },
+  bellBtn: {
+    padding: 4,
+  },
+  bellBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -4,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: theme.colors.error,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  bellBadgeText: {
+    fontSize: 9,
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.surface,
   },
   content: {
     padding: 20,

@@ -4,6 +4,7 @@ import { theme } from '../theme/theme';
 
 export interface InputFieldProps extends TextInputProps {
   label?: string;
+  required?: boolean;
   error?: string;
   rightIcon?: React.ReactNode;
   leftIcon?: React.ReactNode;
@@ -12,6 +13,7 @@ export interface InputFieldProps extends TextInputProps {
 
 export const InputField: React.FC<InputFieldProps> = ({
   label,
+  required,
   error,
   rightIcon,
   leftIcon,
@@ -22,7 +24,12 @@ export const InputField: React.FC<InputFieldProps> = ({
 
   return (
     <View style={[styles.container, containerStyle]}>
-      {label && <Text style={styles.label}>{label}</Text>}
+      {label && (
+        <Text style={styles.label}>
+          {label}
+          {required && <Text style={styles.required}> *</Text>}
+        </Text>
+      )}
       <View
         style={[
           styles.inputContainer,
@@ -55,6 +62,9 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: theme.colors.text,
     marginBottom: 6,
+  },
+  required: {
+    color: theme.colors.error,
   },
   inputContainer: {
     flexDirection: 'row',

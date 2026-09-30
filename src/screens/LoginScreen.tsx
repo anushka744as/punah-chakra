@@ -110,6 +110,8 @@ export const LoginScreen = ({ navigation, route }: any) => {
 
                 {isSignUp && (
                   <InputField
+                    label="Full Name"
+                    required
                     placeholder="Enter your full name"
                     value={fullName}
                     onChangeText={setFullName}
@@ -119,6 +121,7 @@ export const LoginScreen = ({ navigation, route }: any) => {
 
                 {isSignUp && (
                   <InputField
+                    label="Email"
                     placeholder="Email (optional)"
                     value={email}
                     onChangeText={setEmail}
@@ -128,6 +131,10 @@ export const LoginScreen = ({ navigation, route }: any) => {
                   />
                 )}
 
+                <Text style={styles.fieldLabel}>
+                  Phone Number
+                  <Text style={styles.required}> *</Text>
+                </Text>
                 <View style={styles.phoneRow}>
                   <View style={styles.countryCode}>
                     <Text style={styles.countryCodeText}>+91</Text>
@@ -254,6 +261,16 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.full,
     backgroundColor: theme.colors.primary,
     marginTop: theme.spacing.xs,
+  },
+  fieldLabel: {
+    ...theme.typography.label,
+    fontFamily: theme.fonts.bodySemiBold,
+    fontSize: 13,
+    color: theme.colors.text,
+    marginBottom: 6,
+  },
+  required: {
+    color: theme.colors.error,
   },
   phoneRow: {
     flexDirection: 'row',

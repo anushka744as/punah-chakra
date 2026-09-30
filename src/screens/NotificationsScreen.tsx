@@ -12,7 +12,7 @@ import {
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { theme } from '../theme/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { supabase, fetchUserNotifications } from '../services/api';
+import { supabase, fetchUserNotifications, markAllNotificationsRead } from '../services/api';
 
 export const NotificationsScreen = ({ navigation }: any) => {
   const insets = useSafeAreaInsets();
@@ -45,6 +45,7 @@ export const NotificationsScreen = ({ navigation }: any) => {
         } else {
           setNotifications([]);
         }
+        markAllNotificationsRead(user.id).catch(() => {});
       }
     } catch {
       setNotifications([]);

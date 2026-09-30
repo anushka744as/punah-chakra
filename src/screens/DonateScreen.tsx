@@ -297,6 +297,10 @@ export const DonateScreen = ({ navigation, route }: any) => {
       Alert.alert('Select Item Type', 'Please select at least one type of item to donate.');
       return;
     }
+    if (!address.trim()) {
+      Alert.alert('Address Required', 'Please enter your pickup address.');
+      return;
+    }
     if (isSlotDisabled(selectedSlot)) {
       Alert.alert('Slot No Longer Available', 'Please pick a different pickup time slot.');
       return;
@@ -324,7 +328,7 @@ export const DonateScreen = ({ navigation, route }: any) => {
           pickup_day: dayStr,
           time_slot: timeStr,
           instructions: notes || 'Doorstep pickup',
-          address: address.trim() || 'Address not specified',
+          address: address.trim(),
         });
         setSubmitting(false);
         Alert.alert('Pickup Updated', 'Your donation pickup request has been updated!');
@@ -339,7 +343,7 @@ export const DonateScreen = ({ navigation, route }: any) => {
           pickup_day: dayStr,
           time_slot: timeStr,
           instructions: notes || 'Doorstep pickup',
-          address: address.trim() || 'Address not specified',
+          address: address.trim(),
           pincode,
         },
         user.id
@@ -632,7 +636,9 @@ export const DonateScreen = ({ navigation, route }: any) => {
 
         {/* Pickup Address */}
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 16, marginBottom: 8 }}>
-          <Text style={[styles.sectionLabel, { marginTop: 0, marginBottom: 0 }]}>PICKUP ADDRESS</Text>
+          <Text style={[styles.sectionLabel, { marginTop: 0, marginBottom: 0 }]}>
+            PICKUP ADDRESS<Text style={{ color: theme.colors.error }}> *</Text>
+          </Text>
           <TouchableOpacity
             style={styles.locationBtn}
             onPress={handleGetLocation}

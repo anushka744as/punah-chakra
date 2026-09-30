@@ -362,8 +362,8 @@ export async function createDonationRequest(donation: Omit<DonationItem, 'id' | 
   if (error) throw error;
 
   // 3. Also insert corresponding pickup job for collectors
+  const currentProfile = await fetchUserProfile(donorId).catch(() => null);
   try {
-    const currentProfile = await fetchUserProfile(donorId);
     await supabase.from('pickups').insert([
       {
         donation_id: data.id,
@@ -390,20 +390,26 @@ export async function createDonationRequest(donation: Omit<DonationItem, 'id' | 
 
   // 5. Notify all admins that a pickup has been scheduled
   try {
-    const { data: admins } = await supabase.from('profiles').select('id').eq('role', 'admin');
+    const { data: admins, error: adminsError } = await supabase.from('profiles').select('id').eq('role', 'admin');
+    if (adminsError) throw adminsError;
     if (admins) {
+      const donorName = currentProfile?.full_name || 'A donor';
+      const donorPhone = currentProfile?.phone;
       await Promise.all(
         admins.map((admin: { id: string }) =>
           createNotification(
             admin.id,
-            'Pickup Scheduled',
-            `Pickup scheduled for ${donation.category} (${donation.weight_kg || 1} kg) on ${donation.pickup_day} at ${donation.time_slot} — ${donation.address}.`,
+            'New Pickup Request',
+            `${donorName}${donorPhone ? ` (${donorPhone})` : ''} requested a pickup for ${donation.category} ` +
+              `(${donation.weight_kg || 1} kg) on ${donation.pickup_day} at ${donation.time_slot} — ${donation.address}.`,
             'PICKUP SCHEDULED'
           )
         )
       );
     }
-  } catch {}
+  } catch (err) {
+    console.warn('Failed to notify admins of new pickup request:', err);
+  }
 
   return data;
 }
@@ -713,4 +719,25 @@ export async function fetchUserNotifications(userId: string) {
 
   if (error) return [];
   return data;
+}
+
+export async function fetchUnreadNotificationCount(userId: string) {
+  const { count, error } = await supabase
+    .from('notifications')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .eq('is_read', false);
+
+  if (error) return 0;
+  return count || 0;
+}
+
+export async function markAllNotificationsRead(userId: string) {
+  const { error } = await supabase
+    .from('notifications')
+    .update({ is_read: true })
+    .eq('user_id', userId)
+    .eq('is_read', false);
+
+  if (error) throw error;
 }
