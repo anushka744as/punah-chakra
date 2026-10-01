@@ -176,13 +176,16 @@ export async function verifyPhoneOtp(phone: string, token: string, fullName?: st
   if (error) throw error;
 
   if (data.user) {
+    // Note: `role` is intentionally omitted here. The `handle_new_user` trigger already
+    // creates the profiles row (with the correct role) when the auth.users row is created,
+    // so this upsert only needs to fill in signup details — including 'role' would silently
+    // reset any admin back to 'user' on every subsequent login.
     await supabase.from('profiles').upsert({
       id: data.user.id,
       email: email || data.user.email || '',
       full_name: fullName || data.user.user_metadata?.full_name || '',
       phone,
       pincode: pincode || data.user.user_metadata?.pincode || '',
-      role: 'user',
     });
 
     const { data: profile } = await supabase
@@ -426,12 +429,18 @@ export async function fetchUserDonations(donorId: string): Promise<DonationItem[
 }
 
 export async function fetchAllScheduledDonations(): Promise<DonationItem[]> {
+  // `donations` has multiple FKs into `profiles` (donor_id, collector_id, confirmed_by,
+  // refused_by), so the embed must name the exact relationship — an unqualified
+  // `profiles(...)` is ambiguous to PostgREST and errors (PGRST201) on every call.
   const { data, error } = await supabase
     .from('donations')
-    .select('*, profiles(full_name, phone)')
+    .select('*, profiles!donations_donor_id_fkey(full_name, phone)')
     .order('created_at', { ascending: false });
 
-  if (error) return [];
+  if (error) {
+    console.warn('fetchAllScheduledDonations failed:', error);
+    return [];
+  }
   return (data || []).map((row: any) => {
     const { profiles, ...rest } = row;
     return {

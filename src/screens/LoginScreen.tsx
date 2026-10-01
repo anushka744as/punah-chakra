@@ -18,15 +18,30 @@ import { theme } from '../theme/theme';
 import { Button } from '../components/Button';
 import { InputField } from '../components/InputField';
 import { sendPhoneOtp } from '../services/api';
+import { useAppData } from '../data/AppDataContext';
 
 export const LoginScreen = ({ navigation, route }: any) => {
   const insets = useSafeAreaInsets();
+  const { devBypassAdminLogin } = useAppData();
   const [mode, setMode] = useState<'signin' | 'signup'>(route?.params?.mode === 'signup' ? 'signup' : 'signin');
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
+  const [bypassing, setBypassing] = useState(false);
   const isSignUp = mode === 'signup';
+
+  const handleDevBypass = async () => {
+    setBypassing(true);
+    try {
+      await devBypassAdminLogin();
+      navigation.replace('CollectorDashboard');
+    } catch (err: any) {
+      Alert.alert('Bypass Failed', err?.message || 'Could not load admin test data.');
+    } finally {
+      setBypassing(false);
+    }
+  };
 
   const handleSendOtp = async () => {
     const trimmedName = fullName.trim();
@@ -52,6 +67,7 @@ export const LoginScreen = ({ navigation, route }: any) => {
         phone: fullPhone,
         fullName: trimmedName || undefined,
         email: trimmedEmail || undefined,
+        isSignUp,
       });
     } catch (err: any) {
       setLoading(false);
@@ -168,6 +184,20 @@ export const LoginScreen = ({ navigation, route }: any) => {
                   <Text style={styles.signupText}>{isSignUp ? 'Login' : 'Sign Up'}</Text>
                 </TouchableOpacity>
               </View>
+
+              {__DEV__ && (
+                <TouchableOpacity
+                  style={styles.devBypassBtn}
+                  onPress={handleDevBypass}
+                  disabled={bypassing}
+                  activeOpacity={0.8}
+                >
+                  <Icon name="bug-outline" size={16} color={theme.colors.textSecondary} />
+                  <Text style={styles.devBypassBtnText}>
+                    {bypassing ? 'Loading admin test data...' : 'Dev: Skip to Admin Panel'}
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -216,11 +246,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontFamily: theme.fonts.bodyMedium,
     fontSize: 14,
-    color: '#FFFFFF',
+    color: '#3A3A3A',
     lineHeight: 20,
-    textShadowColor: 'rgba(0, 0, 0, 0.45)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
   },
   sheet: {
     backgroundColor: 'rgba(280, 280, 229, 0.7)',
@@ -311,5 +338,22 @@ const styles = StyleSheet.create({
     color: theme.colors.primary,
     fontFamily: theme.fonts.bodyBold,
     letterSpacing: 0.5,
+  },
+  devBypassBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: theme.spacing.lg,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: theme.colors.border,
+    borderRadius: theme.radius.full,
+  },
+  devBypassBtnText: {
+    fontSize: 12,
+    fontFamily: theme.fonts.bodySemiBold,
+    color: theme.colors.textSecondary,
   },
 });

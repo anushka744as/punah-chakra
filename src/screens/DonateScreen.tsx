@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -13,9 +13,12 @@ import {
   ActivityIndicator,
   Platform,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { WebView } from 'react-native-webview';
 import * as Location from 'expo-location';
+
+const stripAddressMeta = (s: string) => (s || '').replace(/\s*\(Lat:[^)]*\)/gi, '').trim();
 
 const ITEM_TYPES = [
   { id: 'clothes', label: 'Clothes', icon: 'hanger' },
@@ -74,8 +77,9 @@ export const DonateScreen = ({ navigation, route }: any) => {
   const [selectedSlot, setSelectedSlot] = useState(
     editDonation?.time_slot && TIME_SLOTS.includes(editDonation.time_slot) ? editDonation.time_slot : TIME_SLOTS[0]
   );
-  const [address, setAddress] = useState(editDonation?.address || '');
-  const displayAddress = address.replace(/\s*\(Lat:[^)]*\)/gi, '').trim();
+  const [addressLine1, setAddressLine1] = useState(stripAddressMeta(editDonation?.address || ''));
+  const [addressLine2, setAddressLine2] = useState('');
+  const displayAddress = [addressLine1, addressLine2].filter(Boolean).join(', ');
   const [notes, setNotes] = useState(editDonation?.instructions || '');
   const [submitting, setSubmitting] = useState(false);
   const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>({ latitude: 28.5833, longitude: 77.3167 });
@@ -136,6 +140,32 @@ export const DonateScreen = ({ navigation, route }: any) => {
     };
   }, [pincode, pickupDayStr, editDonation?.id]);
 
+  // Recenters the map on the verified pincode's own area (via OSM Nominatim) rather than
+  // leaving it on the hardcoded Noida default — whenever the pincode changes (including the
+  // donor changing it), the map should only show that area. A subsequent precise pin (GPS or
+  // manual drag) still overrides this via the other setCoords calls below.
+  React.useEffect(() => {
+    if (!pincode) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?postalcode=${encodeURIComponent(pincode)}&country=India&format=json&limit=1`
+        );
+        const results = await res.json();
+        const first = Array.isArray(results) ? results[0] : null;
+        if (!cancelled && first?.lat && first?.lon) {
+          setCoords({ latitude: parseFloat(first.lat), longitude: parseFloat(first.lon) });
+        }
+      } catch {
+        // Falls back to whatever coords are already set — no network / geocoder unavailable.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [pincode]);
+
   // If the currently selected slot becomes unavailable (date changed, got booked, or fell
   // into the past), fall back to the first still-selectable slot instead of leaving a stale pick.
   React.useEffect(() => {
@@ -158,7 +188,8 @@ export const DonateScreen = ({ navigation, route }: any) => {
     setPickupDate(getToday());
     setWeekStart(getToday());
     setSelectedSlot(fresh.time_slot && TIME_SLOTS.includes(fresh.time_slot) ? fresh.time_slot : TIME_SLOTS[0]);
-    setAddress(fresh.address || '');
+    setAddressLine1(stripAddressMeta(fresh.address || ''));
+    setAddressLine2('');
     setNotes(fresh.instructions || '');
     setCoords({ latitude: 28.5833, longitude: 77.3167 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -175,7 +206,8 @@ export const DonateScreen = ({ navigation, route }: any) => {
       setSelectedItems(['clothes']);
       setQuantity(5);
       setSelectedSlot(TIME_SLOTS[0]);
-      setAddress('');
+      setAddressLine1('');
+      setAddressLine2('');
       setNotes('');
       setCoords({ latitude: 28.5833, longitude: 77.3167 });
     });
@@ -188,28 +220,35 @@ export const DonateScreen = ({ navigation, route }: any) => {
     );
   };
 
-  React.useEffect(() => {
-    (async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          const p = await fetchUserProfile(user.id);
-          if (!isEditing && p?.address) setAddress(p.address);
-          if (p?.pincode && isServiceablePincode(p.pincode, serviceablePincodes)) {
-            setPincode(p.pincode);
-            setPincodeVerified(true);
-            return;
-          }
-        }
-      } catch {}
+  // Re-confirms serviceability every time the Donate screen is opened, rather than only once —
+  // an admin can change service areas, and a saved pincode from months ago shouldn't be trusted
+  // silently forever.
+  useFocusEffect(
+    useCallback(() => {
       if (isEditing) {
-        setPincode(serviceablePincodes[0] || '');
+        setPincode(editDonation?.pincode || serviceablePincodes[0] || '');
         setPincodeVerified(true);
         return;
       }
-      setShowPincodeModal(true);
-    })();
-  }, []);
+      setPincodeVerified(false);
+      setPincode('');
+      (async () => {
+        let prefillPincode = '';
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            const p = await fetchUserProfile(user.id);
+            if (p?.address) setAddressLine1(stripAddressMeta(p.address));
+            if (p?.pincode) prefillPincode = p.pincode;
+          }
+        } catch {}
+        setPincodeInput(prefillPincode);
+        setPincodeError('');
+        setShowPincodeModal(true);
+      })();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isEditing])
+  );
 
   const handleCheckPincode = async () => {
     if (pincodeInput.length !== 6) {
@@ -217,7 +256,7 @@ export const DonateScreen = ({ navigation, route }: any) => {
       return;
     }
     if (!isServiceablePincode(pincodeInput, serviceablePincodes)) {
-      setPincodeError('PunahChakra currently operates only in Delhi and Noida. We’ll be in your area soon!');
+      setPincodeError('PunahChakra pickup is currently unavailable in your area. We’re working to expand our service and hope to reach you soon.');
       return;
     }
     setCheckingPincode(true);
@@ -263,23 +302,30 @@ export const DonateScreen = ({ navigation, route }: any) => {
       const lng = position.coords.longitude;
       setCoords({ latitude: lat, longitude: lng });
 
-      let addressLine = '';
+      // Note: the detected pincode is intentionally not used to overwrite the address's pincode —
+      // that's already been verified as serviceable via the pincode-check modal, and trusting the
+      // (sometimes imprecise) reverse-geocoded postal code here instead was showing donors and
+      // collectors a pincode that didn't match what was actually verified.
+      let line1 = '';
+      let line2 = '';
       try {
         const [place] = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
         if (place) {
-          addressLine = [place.name, place.street, place.district, place.city, place.region, place.postalCode]
-            .filter(Boolean)
-            .join(', ');
+          line1 = [place.name, place.street].filter(Boolean).join(', ');
+          line2 = [place.district, place.city, place.region].filter(Boolean).join(', ');
         }
       } catch {
         // reverse geocoding is best-effort; fall back to raw coordinates below
       }
 
-      const formattedAddr = addressLine
-        ? `${addressLine} (Lat: ${lat.toFixed(4)}, Long: ${lng.toFixed(4)})`
-        : `Lat: ${lat.toFixed(4)}, Long: ${lng.toFixed(4)}`;
-      setAddress(formattedAddr);
-      Alert.alert('Location Pin Set', `Address set to:\n${addressLine || 'Selected location on map'}`);
+      if (line1 || line2) {
+        setAddressLine1(line1);
+        setAddressLine2(line2);
+        Alert.alert('Location Pin Set', `Address set to:\n${[line1, line2].filter(Boolean).join(', ')}`);
+      } else {
+        setAddressLine1(`Lat: ${lat.toFixed(4)}, Long: ${lng.toFixed(4)}`);
+        Alert.alert('Location Pin Set', 'Could not detect a street address — coordinates saved. Please edit the address lines manually.');
+      }
     } catch {
       Alert.alert('Location Error', 'Could not retrieve coordinates. Please enter your address manually.');
     } finally {
@@ -297,7 +343,7 @@ export const DonateScreen = ({ navigation, route }: any) => {
       Alert.alert('Select Item Type', 'Please select at least one type of item to donate.');
       return;
     }
-    if (!address.trim()) {
+    if (!addressLine1.trim()) {
       Alert.alert('Address Required', 'Please enter your pickup address.');
       return;
     }
@@ -320,6 +366,10 @@ export const DonateScreen = ({ navigation, route }: any) => {
         .join(', ') || 'Household Items';
       const dayStr = pickupDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
       const timeStr = selectedSlot;
+      const addressParts = [addressLine1.trim(), addressLine2.trim(), pincode].filter(Boolean);
+      const fullAddress = coords
+        ? `${addressParts.join(', ')} (Lat: ${coords.latitude.toFixed(4)}, Long: ${coords.longitude.toFixed(4)})`
+        : addressParts.join(', ');
 
       if (isEditing && editDonation) {
         await rescheduleDonationRequest(editDonation.id, {
@@ -328,7 +378,7 @@ export const DonateScreen = ({ navigation, route }: any) => {
           pickup_day: dayStr,
           time_slot: timeStr,
           instructions: notes || 'Doorstep pickup',
-          address: address.trim(),
+          address: fullAddress,
         });
         setSubmitting(false);
         Alert.alert('Pickup Updated', 'Your donation pickup request has been updated!');
@@ -343,7 +393,7 @@ export const DonateScreen = ({ navigation, route }: any) => {
           pickup_day: dayStr,
           time_slot: timeStr,
           instructions: notes || 'Doorstep pickup',
-          address: address.trim(),
+          address: fullAddress,
           pincode,
         },
         user.id
@@ -369,22 +419,24 @@ export const DonateScreen = ({ navigation, route }: any) => {
         const lng = data.lng;
         setCoords({ latitude: lat, longitude: lng });
 
-        let addressLine = '';
+        let line1 = '';
+        let line2 = '';
         try {
           const [place] = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
           if (place) {
-            addressLine = [place.name, place.street, place.district, place.city, place.region, place.postalCode]
-              .filter(Boolean)
-              .join(', ');
+            line1 = [place.name, place.street].filter(Boolean).join(', ');
+            line2 = [place.district, place.city, place.region].filter(Boolean).join(', ');
           }
         } catch {
           // reverse geocoding is best-effort; fall back to raw coordinates below
         }
 
-        const updatedAddr = addressLine
-          ? `${addressLine} (Lat: ${lat.toFixed(4)}, Long: ${lng.toFixed(4)})`
-          : `Lat: ${lat.toFixed(4)}, Long: ${lng.toFixed(4)}`;
-        setAddress(updatedAddr);
+        if (line1 || line2) {
+          setAddressLine1(line1);
+          setAddressLine2(line2);
+        } else {
+          setAddressLine1(`Lat: ${lat.toFixed(4)}, Long: ${lng.toFixed(4)}`);
+        }
       }
     } catch {}
   };
@@ -650,14 +702,38 @@ export const DonateScreen = ({ navigation, route }: any) => {
           </TouchableOpacity>
         </View>
 
-        <View style={styles.textareaContainer}>
+        <View style={styles.addressFieldsContainer}>
           <TextInput
-            placeholder="Enter doorstep pickup address"
+            placeholder="Address line 1 (house/flat no., street)"
             placeholderTextColor={theme.colors.textSecondary}
-            value={displayAddress}
-            onChangeText={setAddress}
-            style={[styles.textarea, { height: 60 }]}
+            value={addressLine1}
+            onChangeText={setAddressLine1}
+            style={styles.addressInput}
           />
+          <View style={styles.addressFieldDivider} />
+          <TextInput
+            placeholder="Address line 2 (area, landmark) — optional"
+            placeholderTextColor={theme.colors.textSecondary}
+            value={addressLine2}
+            onChangeText={setAddressLine2}
+            style={styles.addressInput}
+          />
+          <View style={styles.addressFieldDivider} />
+          <TouchableOpacity
+            style={styles.pincodeFieldRow}
+            onPress={() => {
+              setPincodeInput(pincode);
+              setPincodeError('');
+              setShowPincodeModal(true);
+            }}
+            activeOpacity={0.7}
+          >
+            <Icon name="map-marker-check" size={16} color={theme.colors.primary} />
+            <Text style={styles.pincodeFieldText}>
+              {pincode || 'Pincode not verified'}
+            </Text>
+            <Text style={styles.pincodeFieldChangeText}>Change</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Leaflet Map Preview */}
@@ -791,9 +867,11 @@ export const DonateScreen = ({ navigation, route }: any) => {
         <View style={styles.pincodeOverlay}>
           <View style={styles.pincodeCard}>
             <Icon name="map-marker-check-outline" size={32} color={theme.colors.primary} />
-            <Text style={styles.pincodeTitle}>Check Serviceability</Text>
+            <Text style={styles.pincodeTitle}>{pincodeVerified ? 'Change Pincode' : 'Check Serviceability'}</Text>
             <Text style={styles.pincodeSubtitle}>
-              Enter your area pincode to confirm we can pick up from your location.
+              {pincodeVerified
+                ? 'Enter a different pincode — the map and slots below will update to that area.'
+                : 'Enter your area pincode to confirm we can pick up from your location.'}
             </Text>
             <TextInput
               placeholder="Enter your area pincode"
@@ -820,7 +898,13 @@ export const DonateScreen = ({ navigation, route }: any) => {
                 <Text style={styles.pincodeCheckBtnText}>Check & Continue</Text>
               )}
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.7}>
+            <TouchableOpacity
+              onPress={() => {
+                if (pincodeVerified) setShowPincodeModal(false);
+                else navigation.goBack();
+              }}
+              activeOpacity={0.7}
+            >
               <Text style={styles.pincodeCancelText}>Cancel</Text>
             </TouchableOpacity>
           </View>
@@ -1109,6 +1193,45 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
     minHeight: 100,
     textAlignVertical: 'top',
+  },
+  addressFieldsContainer: {
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1.5,
+    borderColor: theme.colors.border,
+    borderRadius: theme.radius.md,
+    marginBottom: 28,
+    overflow: 'hidden',
+  },
+  addressInput: {
+    fontFamily: theme.fonts.body,
+    fontSize: 14,
+    color: theme.colors.text,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+  },
+  addressFieldDivider: {
+    height: 1,
+    backgroundColor: theme.colors.border,
+  },
+  pincodeFieldRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    backgroundColor: theme.colors.primaryContainer,
+  },
+  pincodeFieldText: {
+    flex: 1,
+    fontFamily: theme.fonts.bodySemiBold,
+    fontSize: 14,
+    color: theme.colors.text,
+  },
+  pincodeFieldChangeText: {
+    fontFamily: theme.fonts.bodyBold,
+    fontSize: 12,
+    color: theme.colors.primary,
+    textDecorationLine: 'underline',
   },
   locationBtn: {
     flexDirection: 'row',

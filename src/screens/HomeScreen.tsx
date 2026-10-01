@@ -124,10 +124,6 @@ export const HomeScreen = ({ navigation }: any) => {
               <Icon name="arrow-right" size={16} color={theme.colors.textInverse} />
             </TouchableOpacity>
           </View>
-          <View style={styles.heroIconCol}>
-            <Icon name="tshirt-crew" size={64} color={theme.colors.primaryDark} />
-            <Text style={styles.heroTagline}>Reuse{'\n'}Redistribute{'\n'}Make a Difference</Text>
-          </View>
         </View>
 
         {/* We currently collect */}
@@ -348,20 +344,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: theme.colors.textInverse,
     letterSpacing: 0.3,
-  },
-  heroIconCol: {
-    width: 90,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  heroTagline: {
-    fontFamily: theme.fonts.headingRegular,
-    fontStyle: 'italic',
-    fontSize: 10.5,
-    color: theme.colors.primaryDark,
-    textAlign: 'center',
-    lineHeight: 14,
   },
   collectSection: {
     backgroundColor: theme.colors.surface,

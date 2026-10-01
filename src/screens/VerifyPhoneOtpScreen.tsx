@@ -24,7 +24,7 @@ const OTP_LENGTH = 6;
 
 export const VerifyPhoneOtpScreen = ({ navigation, route }: any) => {
   const insets = useSafeAreaInsets();
-  const { phone, fullName, email, pincode } = route.params || {};
+  const { phone, fullName, email, pincode, isSignUp } = route.params || {};
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
@@ -52,18 +52,20 @@ export const VerifyPhoneOtpScreen = ({ navigation, route }: any) => {
         const role = (res as any)?.profile?.role === 'admin' ? 'admin' : 'user';
         await AsyncStorage.setItem(USER_LOGGED_IN_KEY, 'true');
         await AsyncStorage.setItem(LAST_ROLE_KEY, role);
-        Alert.alert('Account Created', 'Successfully registered!', [
-          {
-            text: 'Continue',
-            onPress: () => navigation.replace(role === 'admin' ? 'CollectorDashboard' : 'MainTabs'),
-          },
-        ]);
+        const destination = role === 'admin' ? 'CollectorDashboard' : 'MainTabs';
+        if (isSignUp) {
+          Alert.alert('Account Created', 'Successfully registered!', [
+            { text: 'Continue', onPress: () => navigation.replace(destination) },
+          ]);
+        } else {
+          navigation.replace(destination);
+        }
       } catch (err: any) {
         setLoading(false);
         Alert.alert('Verification Failed', err?.message || 'That code is invalid or expired. Please try again.');
       }
     },
-    [code, phone, fullName, email, pincode, navigation]
+    [code, phone, fullName, email, pincode, isSignUp, navigation]
   );
 
   // Android SMS User Consent API: shows the system "Allow <app> to read this message?"

@@ -394,6 +394,10 @@ export const PickupMapScreen = ({ navigation, route }: any) => {
       {/* WebView Leaflet Map */}
       <View style={styles.mapFrame}>
         <WebView
+          // react-native-webview (Android) doesn't reliably reload on a changed source.html
+          // string alone while the component instance persists — keying on the values that
+          // should produce a new page forces a remount so the map actually refreshes.
+          key={`${focusPincode || 'default'}-${mapType}-${targetDonationId || targetDonation?.id || 'none'}-${defaultCenter.lat}-${defaultCenter.lng}`}
           source={{ html }}
           javaScriptEnabled
           domStorageEnabled

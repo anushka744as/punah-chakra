@@ -9,6 +9,7 @@ import {
   StatusBar,
   Alert,
   Linking,
+  Modal,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -17,8 +18,10 @@ import { markDonationCompleted, fetchUnreadNotificationCount, DonationItem } fro
 import { theme } from '../theme/theme';
 
 export const CollectorDashboardScreen = ({ navigation }: any) => {
-  const { donations, authUser, refreshDonations } = useAppData();
+  const { donations, authUser, refreshDonations, serviceablePincodes } = useAppData();
   const [unreadCount, setUnreadCount] = useState(0);
+  const [areaPincode, setAreaPincode] = useState<string>('all');
+  const [areaPickerOpen, setAreaPickerOpen] = useState(false);
 
   useEffect(() => {
     refreshDonations();
@@ -54,8 +57,9 @@ export const CollectorDashboardScreen = ({ navigation }: any) => {
   };
 
   const allDonations = useMemo(() => {
-    return (donations || []).filter(d => d.status !== 'cancelled');
-  }, [donations]);
+    const notCancelled = (donations || []).filter(d => d.status !== 'cancelled');
+    return areaPincode === 'all' ? notCancelled : notCancelled.filter(d => d.pincode === areaPincode);
+  }, [donations, areaPincode]);
 
   const pendingCount = allDonations.filter(item => !item.is_picked_up && item.status !== 'completed').length;
   const totalWeight = allDonations
@@ -122,7 +126,20 @@ export const CollectorDashboardScreen = ({ navigation }: any) => {
           <Icon name="arrow-right" size={24} color={theme.colors.surface} />
         </TouchableOpacity>
 
-        <Text style={styles.sectionTitle}>All Pickups</Text>
+        <View style={styles.pickupsHeaderRow}>
+          <Text style={styles.sectionTitle}>All Pickups</Text>
+          <TouchableOpacity
+            style={styles.areaFilterChip}
+            onPress={() => setAreaPickerOpen(true)}
+            activeOpacity={0.8}
+          >
+            <Icon name="map-marker-check" size={15} color={theme.colors.primary} />
+            <Text style={styles.areaFilterChipText}>
+              {areaPincode === 'all' ? 'All Areas' : areaPincode}
+            </Text>
+            <Icon name="chevron-down" size={15} color={theme.colors.primary} />
+          </TouchableOpacity>
+        </View>
 
         {/* Pickup List */}
         {allDonations.length === 0 ? (
@@ -185,8 +202,17 @@ export const CollectorDashboardScreen = ({ navigation }: any) => {
 
                   <View style={styles.infoItemTime}>
                     <Icon name="clock-outline" size={16} color={theme.colors.textSecondary} />
-                    <Text style={styles.infoTextTime}>{item.time_slot}</Text>
+                    <Text style={styles.infoTextTime}>
+                      {item.pickup_day ? `${item.pickup_day} • ${item.time_slot}` : item.time_slot}
+                    </Text>
                   </View>
+
+                  {!!item.pincode && (
+                    <View style={styles.infoItemTime}>
+                      <Icon name="map-marker-check-outline" size={16} color={theme.colors.textSecondary} />
+                      <Text style={styles.infoTextTime}>Pincode: {item.pincode}</Text>
+                    </View>
+                  )}
                 </View>
 
                 {/* Card Actions */}
@@ -254,6 +280,54 @@ export const CollectorDashboardScreen = ({ navigation }: any) => {
           <Text style={styles.tabLabel}>Profile</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Area (Pincode) Filter Picker */}
+      <Modal
+        visible={areaPickerOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setAreaPickerOpen(false)}
+      >
+        <View style={styles.areaModalBackdrop}>
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={() => setAreaPickerOpen(false)}
+          />
+          <View style={styles.areaModalCard}>
+            <Text style={styles.areaModalTitle}>View Area</Text>
+            <TouchableOpacity
+              style={styles.areaOption}
+              onPress={() => {
+                setAreaPincode('all');
+                setAreaPickerOpen(false);
+              }}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.areaOptionText, areaPincode === 'all' && styles.areaOptionTextActive]}>
+                All Areas
+              </Text>
+              {areaPincode === 'all' && <Icon name="check" size={18} color={theme.colors.primary} />}
+            </TouchableOpacity>
+            {serviceablePincodes.map((pc) => (
+              <TouchableOpacity
+                key={pc}
+                style={styles.areaOption}
+                onPress={() => {
+                  setAreaPincode(pc);
+                  setAreaPickerOpen(false);
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.areaOptionText, areaPincode === pc && styles.areaOptionTextActive]}>
+                  {pc}
+                </Text>
+                {areaPincode === pc && <Icon name="check" size={18} color={theme.colors.primary} />}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -377,6 +451,65 @@ const styles = StyleSheet.create({
     fontFamily: theme.fonts.bodyBold,
     color: theme.colors.text,
     marginBottom: 16,
+  },
+  pickupsHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  areaFilterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.primaryContainer,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 14,
+    gap: 5,
+    marginBottom: 16,
+  },
+  areaFilterChipText: {
+    fontSize: 12,
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.primary,
+  },
+  areaModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 32,
+  },
+  areaModalCard: {
+    width: '100%',
+    backgroundColor: theme.colors.surface,
+    borderRadius: 20,
+    padding: 16,
+  },
+  areaModalTitle: {
+    fontSize: 16,
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.text,
+    marginBottom: 8,
+    paddingHorizontal: 8,
+  },
+  areaOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 8,
+    paddingVertical: 14,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+  },
+  areaOptionText: {
+    fontSize: 15,
+    fontFamily: theme.fonts.bodyMedium,
+    color: theme.colors.text,
+  },
+  areaOptionTextActive: {
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.primary,
   },
   pickupCard: {
     backgroundColor: theme.colors.surface,

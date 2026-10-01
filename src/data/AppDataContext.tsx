@@ -63,6 +63,7 @@ type AppState = {
   refusePickup: (pickupId: string, requestId?: string) => Promise<void>;
   addServiceablePincode: (pincode: string) => Promise<void>;
   removeServiceablePincode: (pincode: string) => Promise<void>;
+  devBypassAdminLogin: () => Promise<void>;
 };
 
 const AppDataContext = createContext<AppState | undefined>(undefined);
@@ -140,33 +141,6 @@ export const AppDataProvider = ({ children }: { children: React.ReactNode }) => 
     return () => subscription.unsubscribe();
   }, []);
 
-  // Live popup for admins: no approve/reject step exists, so this is the admin's only
-  // heads-up that a pickup was just booked (in addition to the persisted notification
-  // row created alongside it, which still shows up in the Notifications screen).
-  useEffect(() => {
-    if (authUser?.role !== 'admin') return;
-
-    const channel = supabase
-      .channel('admin-new-pickups')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'donations' },
-        (payload: any) => {
-          const row = payload.new;
-          if (!row) return;
-          Alert.alert(
-            'Pickup Scheduled',
-            `Pickup scheduled for ${row.category} (${row.weight_kg || 1} kg) on ${row.pickup_day} at ${row.time_slot} — ${row.address}`
-          );
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [authUser?.role]);
-
   const loadUserData = async (userId: string, email: string) => {
     try {
       const profileData = await fetchUserProfile(userId);
@@ -213,6 +187,38 @@ export const AppDataProvider = ({ children }: { children: React.ReactNode }) => 
     setPickups(data);
   }, []);
 
+  // Live popup + auto-refresh for admins: no approve/reject step exists, so this is the
+  // admin's only heads-up that a pickup was just booked (in addition to the persisted
+  // notification row created alongside it, which still shows up in the Notifications screen).
+  // Without the refresh calls here, a newly booked pickup wouldn't appear on the dashboard
+  // list until the admin manually left and reopened the screen.
+  useEffect(() => {
+    if (authUser?.role !== 'admin') return;
+
+    const channel = supabase
+      .channel('admin-new-pickups')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'donations' },
+        (payload: any) => {
+          const row = payload.new;
+          if (!row) return;
+          Alert.alert(
+            'New Pickup Request',
+            `${row.category} (${row.weight_kg || 1} kg) on ${row.pickup_day} at ${row.time_slot}` +
+              `${row.pincode ? ` — Pincode ${row.pincode}` : ''} — ${row.address}`
+          );
+          refreshDonations();
+          refreshPickups();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [authUser?.role, refreshDonations, refreshPickups]);
+
   const refreshProfile = useCallback(async () => {
     if (!authUser) return;
     const data = await fetchUserProfile(authUser.id);
@@ -257,6 +263,20 @@ export const AppDataProvider = ({ children }: { children: React.ReactNode }) => 
     [authUser, refreshDonations, refreshPickups]
   );
 
+  // Dev-only shortcut into the admin panel without going through real phone-OTP auth. Loads
+  // an existing admin profile's data through the same path `loadUserData` already uses for a
+  // real session — this app's RLS policies are open reads/writes (`USING (true)`), so this
+  // works without a genuine Supabase Auth session. Guarded by `__DEV__` so it's inert (and the
+  // button that calls it is never rendered) in a release build.
+  const devBypassAdminLogin = useCallback(async () => {
+    if (!__DEV__) return;
+    try {
+      await AsyncStorage.setItem(USER_LOGGED_IN_KEY, 'true');
+      await AsyncStorage.setItem(LAST_ROLE_KEY, 'admin');
+    } catch {}
+    await loadUserData('55e1edad-99db-411d-85c0-74251356fead', '');
+  }, []);
+
   return (
     <AppDataContext.Provider
       value={{
@@ -278,6 +298,7 @@ export const AppDataProvider = ({ children }: { children: React.ReactNode }) => 
         refusePickup,
         addServiceablePincode,
         removeServiceablePincode,
+        devBypassAdminLogin,
       }}
     >
       {children}
