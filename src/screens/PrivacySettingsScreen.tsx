@@ -1,5 +1,4 @@
-import React, { useState } from 'react';
-import { supabase } from '../services/api';
+import React from 'react';
 import {
   View,
   Text,
@@ -8,8 +7,6 @@ import {
   SafeAreaView,
   StatusBar,
   TouchableOpacity,
-  Modal,
-  TextInput,
   Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -18,41 +15,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export const PrivacySettingsScreen = ({ navigation }: any) => {
   const insets = useSafeAreaInsets();
-  const [modalVisible, setModalVisible] = useState(false);
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [updating, setUpdating] = useState(false);
 
   const handleProfileNav = () => {
     try {
       navigation.navigate('MainTabs', { screen: 'Profile' });
     } catch {
       navigation.navigate('Profile');
-    }
-  };
-
-  const handleChangePassword = async () => {
-    if (!newPassword || newPassword !== confirmPassword) {
-      Alert.alert('Error', 'New passwords do not match.');
-      return;
-    }
-    setUpdating(true);
-    try {
-      const { error } = await supabase.auth.updateUser({ password: newPassword });
-      setUpdating(false);
-      if (error) {
-        Alert.alert('Error', 'Could not update password. Please try again.');
-      } else {
-        setModalVisible(false);
-        setCurrentPassword('');
-        setNewPassword('');
-        setConfirmPassword('');
-        Alert.alert('Success', 'Password updated successfully.');
-      }
-    } catch {
-      setUpdating(false);
-      Alert.alert('Error', 'Something went wrong. Please try again.');
     }
   };
 
@@ -97,19 +65,6 @@ export const PrivacySettingsScreen = ({ navigation }: any) => {
         </Text>
 
         <View style={styles.card}>
-          {/* Change Password */}
-          <TouchableOpacity
-            style={styles.itemRow}
-            activeOpacity={0.7}
-            onPress={() => setModalVisible(true)}
-          >
-            <Icon name="lock-outline" size={22} color={theme.colors.textSecondary} />
-            <Text style={styles.itemText}>Change password</Text>
-            <Icon name="chevron-right" size={22} color={theme.colors.textSecondary} />
-          </TouchableOpacity>
-
-          <View style={styles.divider} />
-
           {/* Delete Account */}
           <TouchableOpacity
             style={styles.itemRow}
@@ -126,62 +81,6 @@ export const PrivacySettingsScreen = ({ navigation }: any) => {
           Read our <Text style={styles.linkText}>Privacy Policy</Text> and <Text style={styles.linkText}>Terms of Service</Text>.
         </Text>
       </ScrollView>
-
-      {/* Change Password Modal */}
-      <Modal
-        visible={modalVisible}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Change Password</Text>
-              <TouchableOpacity onPress={() => setModalVisible(false)}>
-                <Icon name="close" size={24} color={theme.colors.textSecondary} />
-              </TouchableOpacity>
-            </View>
-
-            <Text style={styles.modalLabel}>CURRENT PASSWORD</Text>
-            <TextInput
-              style={styles.modalInput}
-              secureTextEntry
-              value={currentPassword}
-              onChangeText={setCurrentPassword}
-              placeholder="••••••••"
-            />
-
-            <Text style={styles.modalLabel}>NEW PASSWORD</Text>
-            <TextInput
-              style={styles.modalInput}
-              secureTextEntry
-              value={newPassword}
-              onChangeText={setNewPassword}
-              placeholder="••••••••"
-            />
-
-            <Text style={styles.modalLabel}>CONFIRM NEW PASSWORD</Text>
-            <TextInput
-              style={styles.modalInput}
-              secureTextEntry
-              value={confirmPassword}
-              onChangeText={setConfirmPassword}
-              placeholder="••••••••"
-            />
-
-            <TouchableOpacity
-              style={styles.updatePasswordBtn}
-              onPress={handleChangePassword}
-              disabled={updating}
-            >
-              <Text style={styles.updatePasswordBtnText}>
-                {updating ? 'UPDATING...' : 'UPDATE PASSWORD'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 };
@@ -263,61 +162,6 @@ const styles = StyleSheet.create({
   linkText: {
     color: theme.colors.primary,
     fontFamily: theme.fonts.bodyBold,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.6)',
-    justifyContent: 'center',
-    padding: 20,
-  },
-  modalContent: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: 24,
-    padding: 24,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontFamily: theme.fonts.bodyBold,
-    color: theme.colors.text,
-  },
-  modalLabel: {
-    fontSize: 11,
-    fontFamily: theme.fonts.bodyBold,
-    color: theme.colors.textSecondary,
-    letterSpacing: 0.8,
-    marginBottom: 6,
-  },
-  modalInput: {
-    backgroundColor: theme.colors.surfaceContainer,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    height: 48,
-    fontSize: 15,
-    fontFamily: theme.fonts.bodySemiBold,
-    color: theme.colors.text,
-    marginBottom: 16,
-  },
-  updatePasswordBtn: {
-    backgroundColor: theme.colors.primary,
-    borderRadius: 24,
-    height: 50,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 8,
-  },
-  updatePasswordBtnText: {
-    fontSize: 15,
-    fontFamily: theme.fonts.bodyBold,
-    color: theme.colors.surface,
-    letterSpacing: 0.5,
   },
 });
 
