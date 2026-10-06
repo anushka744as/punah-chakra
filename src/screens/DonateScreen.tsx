@@ -13,12 +13,10 @@ import {
   ActivityIndicator,
   Platform,
 } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { WebView } from 'react-native-webview';
 import * as Location from 'expo-location';
-
-const stripAddressMeta = (s: string) => (s || '').replace(/\s*\(Lat:[^)]*\)/gi, '').trim();
 
 const ITEM_TYPES = [
   { id: 'clothes', label: 'Clothes', icon: 'hanger' },
@@ -46,6 +44,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createDonationRequest, rescheduleDonationRequest, fetchSlotAvailability, fetchUserProfile, updateUserProfile, supabase, DonationItem } from '../services/api';
 import { TIME_SLOTS, slotToMinutes } from '../constants/timeSlots';
 import { isServiceablePincode } from '../utils/serviceability';
+import { toDayKey } from '../utils/dayKey';
+import { stripAddressMeta } from '../utils/address';
 import { useAppData } from '../data/AppDataContext';
 import { theme } from '../theme/theme';
 
@@ -99,6 +99,8 @@ export const DonateScreen = ({ navigation, route }: any) => {
   const [checkingPincode, setCheckingPincode] = useState(false);
 
   const pickupDayStr = pickupDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  const pickupDayKey = toDayKey(pickupDate);
+  const isFocused = useIsFocused();
   const pickupIsToday = isSameDay(pickupDate, getToday());
   const nowMinutes = new Date().getHours() * 60 + new Date().getMinutes();
 
@@ -110,13 +112,15 @@ export const DonateScreen = ({ navigation, route }: any) => {
   const weekDays = React.useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
 
   React.useEffect(() => {
-    if (!pincode) return;
+    if (!pincode || !isFocused) return;
     let cancelled = false;
-    (async () => {
-      setLoadingSlots(true);
+
+    const loadSlots = async (showSpinner: boolean) => {
+      if (showSpinner) setLoadingSlots(true);
       try {
         const { availableSlots, bookedSlots: booked, isClosed } = await fetchSlotAvailability(
           pincode,
+          pickupDayKey,
           pickupDayStr,
           editDonation?.id
         );
@@ -126,19 +130,26 @@ export const DonateScreen = ({ navigation, route }: any) => {
           setDayClosed(isClosed);
         }
       } catch {
-        if (!cancelled) {
+        if (!cancelled && showSpinner) {
           setAdminAvailableSlots([]);
           setBookedSlots([]);
           setDayClosed(false);
         }
       } finally {
-        if (!cancelled) setLoadingSlots(false);
+        if (!cancelled && showSpinner) setLoadingSlots(false);
       }
-    })();
+    };
+
+    loadSlots(true);
+    // Admin availability can change at any moment while a donor has this screen open — poll
+    // every 12s (no spinner, so it doesn't flicker the UI) so admin edits show up without the
+    // donor needing to leave and reopen the screen.
+    const interval = setInterval(() => loadSlots(false), 12000);
     return () => {
       cancelled = true;
+      clearInterval(interval);
     };
-  }, [pincode, pickupDayStr, editDonation?.id]);
+  }, [pincode, pickupDayKey, pickupDayStr, editDonation?.id, isFocused]);
 
   // Recenters the map on the verified pincode's own area (via OSM Nominatim) rather than
   // leaving it on the hardcoded Noida default — whenever the pincode changes (including the
@@ -583,7 +594,7 @@ export const DonateScreen = ({ navigation, route }: any) => {
 
         {/* Pickup Date & Time */}
         <Text style={styles.sectionLabel}>PICKUP DATE & TIME</Text>
-        <Text style={styles.helperText}>Pickups are available today onwards, between 11:00 AM - 6:00 PM.</Text>
+        <Text style={styles.helperText}>Pickups are available between 11:00 AM - 5:30 PM.</Text>
 
         {/* Week strip */}
         <View style={styles.weekNavRow}>

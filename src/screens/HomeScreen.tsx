@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useAppData } from '../data/AppDataContext';
 import { getStatusLabel, cancelDonationRequest, DonationItem } from '../services/api';
+import { stripAddressMeta } from '../utils/address';
 import { theme } from '../theme/theme';
 
 const categoryIcon = (category: string) => {
@@ -184,7 +185,7 @@ export const HomeScreen = ({ navigation }: any) => {
                   <Text style={styles.latestPickupMeta}>
                     {latestPickup.pickup_day} · {latestPickup.time_slot}
                   </Text>
-                  <Text style={styles.latestPickupAddress}>{latestPickup.address}</Text>
+                  <Text style={styles.latestPickupAddress}>{stripAddressMeta(latestPickup.address)}</Text>
                 </View>
                 <TouchableOpacity
                   style={styles.viewDetailsBtn}
@@ -314,6 +315,7 @@ const styles = StyleSheet.create({
   },
   heroTextCol: {
     flex: 1,
+    alignItems: 'center',
   },
   heroTitle: {
     fontFamily: theme.fonts.heading,
@@ -321,6 +323,7 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
     lineHeight: 28,
     marginBottom: 10,
+    textAlign: 'center',
   },
   heroSubtitle: {
     fontFamily: theme.fonts.body,
@@ -328,11 +331,12 @@ const styles = StyleSheet.create({
     color: theme.colors.textSecondary,
     lineHeight: 18,
     marginBottom: 16,
+    textAlign: 'center',
   },
   giveItemsBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-start',
+    alignSelf: 'center',
     backgroundColor: theme.colors.primary,
     borderRadius: theme.radius.full,
     paddingVertical: 10,

@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAppData } from '../data/AppDataContext';
 import { getStatusLabel } from '../services/api';
+import { stripAddressMeta } from '../utils/address';
 import { theme } from '../theme/theme';
 
 export const PickupMapScreen = ({ navigation, route }: any) => {
@@ -123,7 +124,7 @@ export const PickupMapScreen = ({ navigation, route }: any) => {
     return confirmedDonations
       .map((item) => {
         const { lat, lng } = parseCoords(item.address);
-        const cleanAddress = item.address.replace(/\(Lat:.*?\)/gi, '').trim();
+        const cleanAddress = stripAddressMeta(item.address);
         const isTarget = item.id === targetDonationId;
         const weight = item.weight_kg || item.estimated_quantity_kg || 10;
         const donorLabel = (item.donor_name || `${item.category} Donor`).replace(/"/g, '\\"');
@@ -385,7 +386,7 @@ export const PickupMapScreen = ({ navigation, route }: any) => {
           <View style={{ flex: 1 }}>
             <Text style={styles.targetTitle}>Doorstep Destination: {targetDonation.category}</Text>
             <Text style={styles.targetAddress}>
-              {targetDonation.address.replace(/\(Lat:.*?\)/gi, '').trim()}
+              {stripAddressMeta(targetDonation.address)}
             </Text>
           </View>
         </View>
@@ -457,7 +458,7 @@ export const PickupMapScreen = ({ navigation, route }: any) => {
                       {item.donor_name || item.category || 'Donation'} · {item.category} · {item.weight_kg || item.estimated_quantity_kg || 10} kg
                     </Text>
                     <Text style={styles.areaOrderSub} numberOfLines={1}>
-                      {item.address.replace(/\(Lat:.*?\)/gi, '').trim()}
+                      {stripAddressMeta(item.address)}
                       {item.donor_phone ? ` · ${item.donor_phone}` : ''}
                     </Text>
                   </View>

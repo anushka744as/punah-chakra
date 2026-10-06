@@ -54,7 +54,7 @@ export const ForgotPasswordScreen = ({ navigation }: any) => {
           <Icon name="arrow-left" size={22} color={theme.colors.surface} />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
-          <Image source={require('../assets/logo_icon.png')} style={styles.headerLogo} resizeMode="contain" />
+          <Image source={require('../assets/logo_transparent.png')} style={styles.headerLogo} resizeMode="contain" />
           <Text style={styles.headerTitle}>Reset Password</Text>
         </View>
         <View style={{ width: 40 }} />

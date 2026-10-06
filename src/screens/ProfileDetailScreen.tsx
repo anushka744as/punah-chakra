@@ -4,7 +4,8 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Button } from '../components/Button';
 import { useAppData } from '../data/AppDataContext';
 import { theme } from '../theme/theme';
-import type { UserProfile } from '../services/api';
+import { getStatusLabel, type UserProfile } from '../services/api';
+import { stripAddressMeta } from '../utils/address';
 
 const formatDate = (value: string) =>
   new Intl.DateTimeFormat('en-IN', {
@@ -98,10 +99,10 @@ export const ProfileDetailScreen = ({ navigation, route }: any) => {
                     <Text style={styles.historyText}>
                       {item.pickup_day} · {item.time_slot}
                     </Text>
-                    <Text style={styles.historyText}>{item.address}</Text>
+                    <Text style={styles.historyText}>{stripAddressMeta(item.address)}</Text>
                     <Text style={styles.historyMeta}>Requested {item.created_at ? formatDate(item.created_at) : 'Unknown'}</Text>
                   </View>
-                  <Text style={styles.status}>{item.status.toUpperCase()}</Text>
+                  <Text style={styles.status}>{getStatusLabel(item.status).toUpperCase()}</Text>
                 </View>
               ))
             )}

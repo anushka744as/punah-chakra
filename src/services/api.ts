@@ -148,6 +148,22 @@ export async function signInUser(email: string, password: string) {
   return data;
 }
 
+// Whether a profiles row already exists for this phone number (E.164 format, e.g.
+// +919876543210) — used to tell the Login screen apart "existing user logging in" from
+// "brand-new phone number", since Supabase's signInWithOtp silently auto-creates an auth
+// user for any phone number on first request and would otherwise let a new number "log in"
+// without ever going through Sign Up.
+export async function checkPhoneExists(phone: string): Promise<boolean> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('phone', phone)
+    .maybeSingle();
+
+  if (error) throw error;
+  return Boolean(data);
+}
+
 // Sends an SMS OTP to `phone` (E.164 format, e.g. +919876543210), creating the auth
 // user on first use. `fullName` is stashed in user metadata so the handle_new_user DB
 // trigger can populate profiles.full_name as soon as the auth user row is created —
@@ -307,13 +323,20 @@ export async function upsertDayAvailability(pincode: string, day: string, slots:
 // specific pincode/date (fail-open if unconfigured), minus slots another active
 // (non-cancelled) donation has already booked for that same day. `excludeDonationId` lets a
 // donor keep their own slot while rescheduling/editing an existing request.
+//
+// `dayKey` must be the ISO (YYYY-MM-DD) key the admin's calendar uses for `day_availability`
+// (see src/utils/dayKey.ts) — it is a different value from `pickupDay`, the human-readable
+// string stored on `donations.pickup_day` (e.g. "Mon, Oct 6"). Passing the display string here
+// instead of the ISO key is what silently breaks admin/user slot linking: the day_availability
+// lookup never matches any row, so the donor sees every slot as open.
 export async function fetchSlotAvailability(
   pincode: string,
+  dayKey: string,
   pickupDay: string,
   excludeDonationId?: string
 ): Promise<{ availableSlots: string[]; bookedSlots: string[]; isClosed: boolean }> {
   const [{ slots, isClosed }, { data: bookings }] = await Promise.all([
-    fetchDayAvailability(pincode, pickupDay),
+    fetchDayAvailability(pincode, dayKey),
     supabase.from('donations').select('id, time_slot').eq('pickup_day', pickupDay).neq('status', 'cancelled'),
   ]);
 

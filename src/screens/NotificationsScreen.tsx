@@ -13,6 +13,7 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { theme } from '../theme/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase, fetchUserNotifications, markAllNotificationsRead } from '../services/api';
+import { formatTimeAgo } from '../utils/timeAgo';
 
 export const NotificationsScreen = ({ navigation }: any) => {
   const insets = useSafeAreaInsets();
@@ -37,7 +38,7 @@ export const NotificationsScreen = ({ navigation }: any) => {
             tag: n.tag || 'UPDATE',
             title: n.title,
             body: n.body,
-            time_ago: n.time_ago || 'Just now',
+            time_ago: formatTimeAgo(n.created_at),
             icon: 'bell-outline',
             iconBg: theme.colors.primaryContainer,
             iconColor: theme.colors.primary,
@@ -62,7 +63,7 @@ export const NotificationsScreen = ({ navigation }: any) => {
       <View style={[styles.headerBar, { paddingTop: Math.max(insets.top, 14) }]}>
         <View style={styles.headerLeft}>
           <Image
-            source={require('../assets/logo_icon.png')}
+            source={require('../assets/logo_transparent.png')}
             style={styles.headerLogoImg}
             resizeMode="contain"
           />

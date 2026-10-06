@@ -15,6 +15,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useAppData } from '../data/AppDataContext';
 import { markDonationCompleted, fetchUnreadNotificationCount, DonationItem } from '../services/api';
+import { stripAddressMeta } from '../utils/address';
 import { theme } from '../theme/theme';
 
 export const CollectorDashboardScreen = ({ navigation }: any) => {
@@ -196,7 +197,7 @@ export const CollectorDashboardScreen = ({ navigation }: any) => {
                   >
                     <Icon name="map-marker-outline" size={18} color={isPickedUp ? theme.colors.textSecondary : theme.colors.primary} style={{ marginTop: 2 }} />
                     <Text style={[styles.infoTextAddress, isPickedUp && styles.textMuted]}>
-                      {item.address.replace(/\(Lat:.*?\)/gi, '').trim()}
+                      {stripAddressMeta(item.address)}
                     </Text>
                   </TouchableOpacity>
 

@@ -62,7 +62,7 @@ export const ResetPasswordScreen = ({ navigation }: any) => {
       <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
       <View style={[styles.header, { paddingTop: Math.max(insets.top, 14) }]}>
         <View style={styles.headerCenter}>
-          <Image source={require('../assets/logo_icon.png')} style={styles.headerLogo} resizeMode="contain" />
+          <Image source={require('../assets/logo_transparent.png')} style={styles.headerLogo} resizeMode="contain" />
           <Text style={styles.headerTitle}>Reset Password</Text>
         </View>
       </View>

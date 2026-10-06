@@ -18,15 +18,9 @@ import { theme } from '../theme/theme';
 import { TIME_SLOTS } from '../constants/timeSlots';
 import { fetchDayAvailability, fetchMonthAvailability, upsertDayAvailability } from '../services/api';
 import { useAppData } from '../data/AppDataContext';
+import { toDayKey } from '../utils/dayKey';
 
 const WEEKDAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-
-const toDayKey = (d: Date) => {
-  const y = d.getFullYear();
-  const m = (d.getMonth() + 1).toString().padStart(2, '0');
-  const day = d.getDate().toString().padStart(2, '0');
-  return `${y}-${m}-${day}`;
-};
 
 const startOfMonth = (d: Date) => new Date(d.getFullYear(), d.getMonth(), 1);
 const endOfMonth = (d: Date) => new Date(d.getFullYear(), d.getMonth() + 1, 0);

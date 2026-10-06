@@ -13,6 +13,7 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { theme } from '../theme/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fetchActivePickups, updatePickupStatus, type PickupJob } from '../services/api';
+import { stripAddressMeta } from '../utils/address';
 import { useAppData } from '../data/AppDataContext';
 
 export const CollectionScreen = ({ navigation }: any) => {
@@ -73,7 +74,7 @@ export const CollectionScreen = ({ navigation }: any) => {
       <View style={[styles.headerBar, { paddingTop: Math.max(insets.top, 14) }]}>
         <View style={styles.headerLeft}>
           <Image
-            source={require('../assets/logo_icon.png')}
+            source={require('../assets/logo_transparent.png')}
             style={styles.headerLogoImg}
             resizeMode="contain"
           />
@@ -145,7 +146,7 @@ export const CollectionScreen = ({ navigation }: any) => {
               <View style={styles.infoMetaRow}>
                 <View style={styles.metaItem}>
                   <Icon name="map-marker-outline" size={16} color={theme.colors.textSecondary} />
-                  <Text style={styles.metaText}>{item.address}</Text>
+                  <Text style={styles.metaText}>{stripAddressMeta(item.address)}</Text>
                 </View>
                 <View style={styles.metaItem}>
                   <Icon name="clock-outline" size={16} color={theme.colors.textSecondary} />

@@ -1,9 +1,9 @@
-// Pickup windows run 11:00 AM - 6:00 PM in 30-minute slots.
+// Pickup windows run 11:00 AM - 5:30 PM in 30-minute slots.
 // Shared between DonateScreen (donor picks a slot for a pickup) and
 // CollectorProfileScreen (collector marks which slots they're generally available for).
 export const TIME_SLOTS: string[] = (() => {
   const slots: string[] = [];
-  for (let minutes = 11 * 60; minutes < 18 * 60; minutes += 30) {
+  for (let minutes = 11 * 60; minutes < 17 * 60 + 30; minutes += 30) {
     const h24 = Math.floor(minutes / 60);
     const m = minutes % 60;
     const period = h24 >= 12 ? 'PM' : 'AM';

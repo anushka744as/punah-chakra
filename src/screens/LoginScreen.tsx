@@ -17,7 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '../theme/theme';
 import { Button } from '../components/Button';
 import { InputField } from '../components/InputField';
-import { sendPhoneOtp } from '../services/api';
+import { sendPhoneOtp, checkPhoneExists } from '../services/api';
 import { useAppData } from '../data/AppDataContext';
 
 export const LoginScreen = ({ navigation, route }: any) => {
@@ -61,6 +61,28 @@ export const LoginScreen = ({ navigation, route }: any) => {
 
     setLoading(true);
     try {
+      const exists = await checkPhoneExists(fullPhone);
+
+      if (!isSignUp && !exists) {
+        setLoading(false);
+        Alert.alert(
+          'No Account Found',
+          "We couldn't find an account for this number. Please sign up first.",
+        );
+        setMode('signup');
+        return;
+      }
+
+      if (isSignUp && exists) {
+        setLoading(false);
+        Alert.alert(
+          'Account Already Exists',
+          'An account already exists for this number. Please log in instead.',
+        );
+        setMode('signin');
+        return;
+      }
+
       await sendPhoneOtp(fullPhone, trimmedName || undefined, undefined, trimmedEmail || undefined);
       setLoading(false);
       navigation.navigate('VerifyOtp', {

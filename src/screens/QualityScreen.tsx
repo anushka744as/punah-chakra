@@ -16,6 +16,7 @@ import { useAppData } from '../data/AppDataContext';
 import { Alert, ActivityIndicator } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase, DonationItem } from '../services/api';
+import { stripAddressMeta } from '../utils/address';
 import { theme } from '../theme/theme';
 
 import { useFocusEffect } from '@react-navigation/native';
@@ -64,7 +65,7 @@ export const QualityScreen = ({ navigation, route }: any) => {
   const categoryName = currentDonation?.category || '—';
   const requestId = currentDonation?.request_id || '—';
   const weightVal = currentDonation?.weight_kg || currentDonation?.estimated_quantity_kg || 0;
-  const fullAddress = currentDonation?.address ? currentDonation.address.replace(/\(Lat:.*?\)/gi, '').trim() : '—';
+  const fullAddress = currentDonation?.address ? stripAddressMeta(currentDonation.address) : '—';
   const originVal = fullAddress.includes(',') ? fullAddress.split(',')[1].trim() : fullAddress;
 
   const handleAcceptBatch = async () => {

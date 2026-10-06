@@ -14,7 +14,8 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { USER_LOGGED_IN_KEY, LAST_ROLE_KEY } from '../navigation/AppNavigator';
-import { supabase, fetchUserProfile, fetchUserDonations, type UserProfile, type DonationItem } from '../services/api';
+import { supabase, fetchUserProfile, fetchUserDonations, getStatusLabel, type UserProfile, type DonationItem } from '../services/api';
+import { stripAddressMeta } from '../utils/address';
 import { theme } from '../theme/theme';
 
 export const ProfileScreen = ({ navigation }: any) => {
@@ -76,7 +77,7 @@ export const ProfileScreen = ({ navigation }: any) => {
       <View style={[styles.headerBar, { paddingTop: Math.max(insets.top, 14) }]}>
         <View style={styles.headerLeft}>
           <Image
-            source={require('../assets/logo_icon.png')}
+            source={require('../assets/logo_transparent.png')}
             style={styles.headerLogoImg}
             resizeMode="contain"
           />
@@ -125,8 +126,19 @@ export const ProfileScreen = ({ navigation }: any) => {
                     <Icon name="package-variant-closed" size={22} color={theme.colors.primary} />
                   </View>
                   <View style={styles.activityContent}>
-                    <Text style={styles.activityTitle}>{item.category || 'Donation Batch'}</Text>
-                    <Text style={styles.activityMeta}>{item.pickup_day} · {item.address}</Text>
+                    <View style={styles.activityTitleRow}>
+                      <Text style={styles.activityTitle}>{item.category || 'Donation Batch'}</Text>
+                      <Text
+                        style={[
+                          styles.activityStatus,
+                          item.status === 'cancelled' && styles.activityStatusCancelled,
+                          item.status === 'completed' && styles.activityStatusCompleted,
+                        ]}
+                      >
+                        {getStatusLabel(item.status)}
+                      </Text>
+                    </View>
+                    <Text style={styles.activityMeta}>{item.pickup_day} · {stripAddressMeta(item.address)}</Text>
                   </View>
                 </View>
               </React.Fragment>
@@ -222,9 +234,10 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.surface,
   },
   headerTitle: {
-    fontFamily: theme.fonts.heading,
-    fontSize: 20,
+    fontFamily: theme.fonts.bodyBold,
+    fontSize: 22,
     color: theme.colors.textInverse,
+    letterSpacing: -0.3,
   },
   userAvatarCircle: {
     width: 32,
@@ -343,10 +356,28 @@ const styles = StyleSheet.create({
   activityContent: {
     flex: 1,
   },
+  activityTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
   activityTitle: {
     fontFamily: theme.fonts.bodyBold,
     fontSize: 15,
     color: theme.colors.text,
+    flexShrink: 1,
+  },
+  activityStatus: {
+    fontFamily: theme.fonts.bodySemiBold,
+    fontSize: 11,
+    color: theme.colors.primary,
+  },
+  activityStatusCancelled: {
+    color: theme.colors.error,
+  },
+  activityStatusCompleted: {
+    color: theme.colors.success,
   },
   activityMeta: {
     fontFamily: theme.fonts.body,
