@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
@@ -14,7 +14,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useAppData } from '../data/AppDataContext';
-import { getStatusLabel, cancelDonationRequest, DonationItem } from '../services/api';
+import { getStatusLabel, cancelDonationRequest, fetchUnreadNotificationCount, DonationItem } from '../services/api';
 import { stripAddressMeta } from '../utils/address';
 import { theme } from '../theme/theme';
 
@@ -37,7 +37,21 @@ const CATEGORIES: { label: string; icon: string }[] = [
 
 export const HomeScreen = ({ navigation }: any) => {
   const insets = useSafeAreaInsets();
-  const { donations, refreshDonations } = useAppData();
+  const { donations, refreshDonations, authUser } = useAppData();
+  const [unread, setUnread] = useState(0);
+
+  // Live unread count for the bell: refreshed whenever Home is focused (so it drops to 0 after the
+  // Alerts page marks everything read) and every 10s while Home stays open.
+  useFocusEffect(
+    useCallback(() => {
+      const uid = authUser?.id;
+      if (!uid) { setUnread(0); return; }
+      const tick = () => fetchUnreadNotificationCount(uid).then(setUnread).catch(() => {});
+      tick();
+      const timer = setInterval(tick, 10000);
+      return () => clearInterval(timer);
+    }, [authUser?.id])
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -99,15 +113,32 @@ export const HomeScreen = ({ navigation }: any) => {
             resizeMode="contain"
           />
         </View>
-        <TouchableOpacity
-          style={styles.userAvatarBtn}
-          onPress={() => { try { navigation.navigate('MainTabs', { screen: 'Profile' }); } catch { navigation.navigate('Profile'); } }}
-          activeOpacity={0.7}
-        >
-          <View style={styles.userAvatarCircle}>
-            <Icon name="account-outline" size={24} color={theme.colors.textSecondary} />
-          </View>
-        </TouchableOpacity>
+        <View style={styles.headerRight}>
+          <TouchableOpacity
+            style={styles.userAvatarBtn}
+            onPress={() => navigation.navigate('Notifications')}
+            activeOpacity={0.7}
+            accessibilityLabel="Notifications"
+          >
+            <View style={styles.userAvatarCircle}>
+              <Icon name="bell-outline" size={24} color={theme.colors.textSecondary} />
+              {unread > 0 && (
+                <View style={styles.bellBadge}>
+                  <Text style={styles.bellBadgeText}>{unread > 9 ? '9+' : unread}</Text>
+                </View>
+              )}
+            </View>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.userAvatarBtn}
+            onPress={() => { try { navigation.navigate('MainTabs', { screen: 'Profile' }); } catch { navigation.navigate('Profile'); } }}
+            activeOpacity={0.7}
+          >
+            <View style={styles.userAvatarCircle}>
+              <Icon name="account-outline" size={24} color={theme.colors.textSecondary} />
+            </View>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -189,7 +220,7 @@ export const HomeScreen = ({ navigation }: any) => {
                 </View>
                 <TouchableOpacity
                   style={styles.viewDetailsBtn}
-                  onPress={() => navigation.navigate('Alerts')}
+                  onPress={() => navigation.navigate('Notifications')}
                   activeOpacity={0.7}
                 >
                   <Text style={styles.viewDetailsBtnText}>VIEW DETAILS</Text>
@@ -290,6 +321,28 @@ const styles = StyleSheet.create({
     width: 170,
     height: 48,
     marginLeft: -20,
+  },
+  bellBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 4,
+    backgroundColor: theme.colors.error,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bellBadgeText: {
+    fontSize: 10,
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.surface,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
   userAvatarBtn: {
     alignItems: 'center',

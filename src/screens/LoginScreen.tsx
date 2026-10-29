@@ -22,7 +22,7 @@ import { useAppData } from '../data/AppDataContext';
 
 export const LoginScreen = ({ navigation, route }: any) => {
   const insets = useSafeAreaInsets();
-  const { devBypassAdminLogin } = useAppData();
+  const { devBypassAdminLogin, devBypassUserLogin } = useAppData();
   const [mode, setMode] = useState<'signin' | 'signup'>(route?.params?.mode === 'signup' ? 'signup' : 'signin');
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
@@ -38,6 +38,18 @@ export const LoginScreen = ({ navigation, route }: any) => {
       navigation.replace('CollectorDashboard');
     } catch (err: any) {
       Alert.alert('Bypass Failed', err?.message || 'Could not load admin test data.');
+    } finally {
+      setBypassing(false);
+    }
+  };
+
+  const handleDevUserBypass = async () => {
+    setBypassing(true);
+    try {
+      await devBypassUserLogin();
+      navigation.replace('MainTabs');
+    } catch (err: any) {
+      Alert.alert('Bypass Failed', err?.message || 'Could not load user test data.');
     } finally {
       setBypassing(false);
     }
@@ -210,6 +222,18 @@ export const LoginScreen = ({ navigation, route }: any) => {
               {__DEV__ && (
                 <TouchableOpacity
                   style={styles.devBypassBtn}
+                  onPress={handleDevUserBypass}
+                  disabled={bypassing}
+                  activeOpacity={0.8}
+                >
+                  <Icon name="bug-outline" size={16} color={theme.colors.textSecondary} />
+                  <Text style={styles.devBypassBtnText}>Dev: Skip to User Panel</Text>
+                </TouchableOpacity>
+              )}
+
+              {__DEV__ && (
+                <TouchableOpacity
+                  style={[styles.devBypassBtn, { marginTop: theme.spacing.sm }]}
                   onPress={handleDevBypass}
                   disabled={bypassing}
                   activeOpacity={0.8}

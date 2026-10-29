@@ -17,6 +17,8 @@ import { TabNavigator } from './TabNavigator';
 import { CollectorDashboardScreen } from '../screens/CollectorDashboardScreen';
 import { CollectorProfileScreen } from '../screens/CollectorProfileScreen';
 import { AdminAvailabilityScreen } from '../screens/AdminAvailabilityScreen';
+import { AdminAreasScreen } from '../screens/AdminAreasScreen';
+import { AdminDrivesScreen } from '../screens/AdminDrivesScreen';
 
 // Modals & Action Screens
 import { ConfirmationScreen } from '../screens/ConfirmationScreen';
@@ -180,6 +182,8 @@ export const AppNavigator = () => {
         <Stack.Screen name="Collection" component={CollectorDashboardScreen} />
         <Stack.Screen name="CollectorProfile" component={CollectorProfileScreen} />
         <Stack.Screen name="AdminAvailability" component={AdminAvailabilityScreen} />
+        <Stack.Screen name="AdminAreas" component={AdminAreasScreen} />
+        <Stack.Screen name="AdminDrives" component={AdminDrivesScreen} />
 
         {/* Action & Modal Screens */}
         <Stack.Screen name="Confirmation" component={ConfirmationScreen} />

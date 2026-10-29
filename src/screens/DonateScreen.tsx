@@ -41,8 +41,9 @@ const addDays = (d: Date, n: number) => {
 };
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { createDonationRequest, rescheduleDonationRequest, fetchSlotAvailability, fetchUserProfile, updateUserProfile, supabase, DonationItem } from '../services/api';
+import { createDonationRequest, rescheduleDonationRequest, fetchSlotAvailability, fetchUserProfile, updateUserProfile, submitAreaRequest, supabase, DonationItem } from '../services/api';
 import { TIME_SLOTS, slotToMinutes } from '../constants/timeSlots';
+import { useTimeSlots } from '../hooks/useTimeSlots';
 import { isServiceablePincode } from '../utils/serviceability';
 import { toDayKey } from '../utils/dayKey';
 import { stripAddressMeta } from '../utils/address';
@@ -59,7 +60,7 @@ const deriveSelectedItems = (donation?: DonationItem) => {
 
 export const DonateScreen = ({ navigation, route }: any) => {
   const insets = useSafeAreaInsets();
-  const { serviceablePincodes } = useAppData();
+  const { serviceablePincodes, refreshProfile } = useAppData();
 
   // Bottom-tab screens stay mounted across tab switches, so deriving `editDonation` straight from
   // `route.params` doesn't reliably clear itself: a sibling tab's listener trying to clear it via
@@ -69,6 +70,7 @@ export const DonateScreen = ({ navigation, route }: any) => {
   // moment it loses focus — see the `blur` listener below.
   const [editDonation, setEditDonation] = useState<DonationItem | undefined>(route?.params?.editDonation);
   const isEditing = Boolean(editDonation);
+  const timeSlots = useTimeSlots();
 
   const [selectedItems, setSelectedItems] = useState<string[]>(() => deriveSelectedItems(editDonation));
   const [quantity, setQuantity] = useState(editDonation?.weight_kg || 5);
@@ -88,6 +90,7 @@ export const DonateScreen = ({ navigation, route }: any) => {
   const [mapType, setMapType] = useState<'street' | 'satellite'>('street');
   const [adminAvailableSlots, setAdminAvailableSlots] = useState<string[]>([]);
   const [bookedSlots, setBookedSlots] = useState<string[]>([]);
+  const [seatsLeft, setSeatsLeft] = useState<Record<string, number>>({});
   const [dayClosed, setDayClosed] = useState(false);
   const [loadingSlots, setLoadingSlots] = useState(false);
 
@@ -97,6 +100,7 @@ export const DonateScreen = ({ navigation, route }: any) => {
   const [pincodeInput, setPincodeInput] = useState('');
   const [pincodeError, setPincodeError] = useState('');
   const [checkingPincode, setCheckingPincode] = useState(false);
+  // Set when the entered pincode isn't serviceable — offers to save a waitlist request.
 
   const pickupDayStr = pickupDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
   const pickupDayKey = toDayKey(pickupDate);
@@ -118,7 +122,7 @@ export const DonateScreen = ({ navigation, route }: any) => {
     const loadSlots = async (showSpinner: boolean) => {
       if (showSpinner) setLoadingSlots(true);
       try {
-        const { availableSlots, bookedSlots: booked, isClosed } = await fetchSlotAvailability(
+        const { availableSlots, bookedSlots: booked, isClosed, seatsLeft: seats } = await fetchSlotAvailability(
           pincode,
           pickupDayKey,
           pickupDayStr,
@@ -127,12 +131,14 @@ export const DonateScreen = ({ navigation, route }: any) => {
         if (!cancelled) {
           setAdminAvailableSlots(availableSlots);
           setBookedSlots(booked);
+          setSeatsLeft(seats);
           setDayClosed(isClosed);
         }
       } catch {
         if (!cancelled && showSpinner) {
           setAdminAvailableSlots([]);
           setBookedSlots([]);
+          setSeatsLeft({});
           setDayClosed(false);
         }
       } finally {
@@ -180,11 +186,11 @@ export const DonateScreen = ({ navigation, route }: any) => {
   // If the currently selected slot becomes unavailable (date changed, got booked, or fell
   // into the past), fall back to the first still-selectable slot instead of leaving a stale pick.
   React.useEffect(() => {
-    if (!isSlotDisabled(selectedSlot)) return;
-    const nextAvailable = TIME_SLOTS.find((slot) => !isSlotDisabled(slot));
+    if (timeSlots.includes(selectedSlot) && !isSlotDisabled(selectedSlot)) return;
+    const nextAvailable = timeSlots.find((slot) => !isSlotDisabled(slot));
     if (nextAvailable) setSelectedSlot(nextAvailable);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pickupDayStr, adminAvailableSlots, bookedSlots, dayClosed, pickupIsToday]);
+  }, [pickupDayStr, adminAvailableSlots, bookedSlots, dayClosed, pickupIsToday, timeSlots]);
 
   // Picks up a fresh `editDonation` the moment ProfileScreen navigates here with one (this runs
   // whenever `route.params` actually changes, which does happen reliably for that case — it's
@@ -268,6 +274,10 @@ export const DonateScreen = ({ navigation, route }: any) => {
     }
     if (!isServiceablePincode(pincodeInput, serviceablePincodes)) {
       setPincodeError('PunahChakra pickup is currently unavailable in your area. We’re working to expand our service and hope to reach you soon.');
+      // Log the attempt so the admin sees which pincodes people are asking for (Areas → requests).
+      supabase.auth.getUser().then(({ data: { user } }) => {
+        if (user) submitAreaRequest(user.id, { pincode: pincodeInput }).catch(() => {});
+      }).catch(() => {});
       return;
     }
     setCheckingPincode(true);
@@ -275,6 +285,7 @@ export const DonateScreen = ({ navigation, route }: any) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         await updateUserProfile(user.id, { pincode: pincodeInput });
+        refreshProfile().catch(() => {});
       }
     } catch {
       // Best-effort save — serviceability has already been confirmed locally, so proceed regardless.
@@ -361,6 +372,21 @@ export const DonateScreen = ({ navigation, route }: any) => {
     if (isSlotDisabled(selectedSlot)) {
       Alert.alert('Slot No Longer Available', 'Please pick a different pickup time slot.');
       return;
+    }
+    // Last-moment re-check: another donor may have taken the final seat since the slots last
+    // refreshed. (Best-effort — there is no database-level seat limit, so two taps in the same
+    // instant can still both succeed.)
+    try {
+      const fresh = await fetchSlotAvailability(pincode, pickupDayKey, pickupDayStr, editDonation?.id);
+      setBookedSlots(fresh.bookedSlots);
+      setSeatsLeft(fresh.seatsLeft);
+      setDayClosed(fresh.isClosed);
+      if (fresh.isClosed || fresh.bookedSlots.includes(selectedSlot)) {
+        Alert.alert('Slot No Longer Available', 'That time slot just filled up. Please pick a different one.');
+        return;
+      }
+    } catch {
+      // Couldn't re-check — fall through and let the booking proceed on the last known state.
     }
     setSubmitting(true);
     try {
@@ -655,16 +681,18 @@ export const DonateScreen = ({ navigation, route }: any) => {
             </View>
           ) : (
             <View style={styles.slotGrid}>
-              {TIME_SLOTS.map((slot) => {
+              {timeSlots.map((slot) => {
                 const isSelected = slot === selectedSlot;
                 const disabled = isSlotDisabled(slot);
+                const seats = seatsLeft[slot];
                 const statusLabel = isSlotPast(slot)
                   ? null
                   : isSlotBooked(slot)
-                    ? 'Booked'
+                    ? (seats === 0 ? 'Full' : 'Booked')
                     : isSlotAdminUnavailable(slot)
                       ? 'Unavailable'
                       : null;
+                const seatsLabel = !disabled && seats !== undefined ? `${seats} left` : null;
                 return (
                   <TouchableOpacity
                     key={slot}
@@ -690,6 +718,7 @@ export const DonateScreen = ({ navigation, route }: any) => {
                       {slot}
                     </Text>
                     {statusLabel && <Text style={styles.slotChipStatus}>{statusLabel}</Text>}
+                    {seatsLabel && <Text style={styles.slotChipSeats}>{seatsLabel}</Text>}
                   </TouchableOpacity>
                 );
               })}
@@ -1163,6 +1192,12 @@ const styles = StyleSheet.create({
   },
   slotChipTextDisabled: {
     color: theme.colors.textSecondary,
+  },
+  slotChipSeats: {
+    fontFamily: theme.fonts.bodySemiBold,
+    fontSize: 10,
+    color: theme.colors.primaryDark,
+    marginTop: 2,
   },
   slotChipStatus: {
     fontFamily: theme.fonts.body,

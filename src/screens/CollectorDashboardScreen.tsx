@@ -10,19 +10,92 @@ import {
   Alert,
   Linking,
   Modal,
+  TextInput,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useAppData } from '../data/AppDataContext';
-import { markDonationCompleted, fetchUnreadNotificationCount, DonationItem } from '../services/api';
+import { markDonationCompleted, fetchUnreadNotificationCount, fetchNewAreaRequestPincodes, adminUpdateDonation, adminCancelDonation, DonationItem } from '../services/api';
 import { stripAddressMeta } from '../utils/address';
 import { theme } from '../theme/theme';
+import { useTimeSlots } from '../hooks/useTimeSlots';
 
 export const CollectorDashboardScreen = ({ navigation }: any) => {
   const { donations, authUser, refreshDonations, serviceablePincodes } = useAppData();
   const [unreadCount, setUnreadCount] = useState(0);
   const [areaPincode, setAreaPincode] = useState<string>('all');
   const [areaPickerOpen, setAreaPickerOpen] = useState(false);
+  const [newAreaRequests, setNewAreaRequests] = useState(0);
+
+  // Admin editing of any donor's pickup (date / time / address / weight, or cancel it).
+  const timeSlots = useTimeSlots();
+  const [editing, setEditing] = useState<DonationItem | null>(null);
+  const [editDate, setEditDate] = useState(new Date());
+  const [editSlot, setEditSlot] = useState('');
+  const [editAddress, setEditAddress] = useState('');
+  const [editWeight, setEditWeight] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
+  const dayLabel = (d: Date) => d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  const nextDays = Array.from({ length: 14 }, (_, i) => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() + i);
+    return d;
+  });
+
+  const openEdit = (item: DonationItem) => {
+    const match = nextDays.find(d => dayLabel(d) === item.pickup_day);
+    setEditing(item);
+    setEditDate(match || nextDays[0]);
+    setEditSlot(item.time_slot || timeSlots[0] || '');
+    setEditAddress(stripAddressMeta(item.address));
+    setEditWeight(String(item.weight_kg || item.estimated_quantity_kg || 1));
+  };
+
+  const saveEdit = async () => {
+    if (!editing) return;
+    if (editAddress.trim().length < 10) {
+      Alert.alert('Address too short', 'Enter the full pickup address.');
+      return;
+    }
+    setSavingEdit(true);
+    try {
+      // Untouched addresses keep their "(Lat: x, Long: y)" suffix so the map pin stays put.
+      const addressChanged = editAddress.trim() !== stripAddressMeta(editing.address).trim();
+      await adminUpdateDonation(editing, {
+        pickup_day: dayLabel(editDate),
+        time_slot: editSlot,
+        address: addressChanged ? editAddress.trim() : editing.address,
+        weight_kg: parseFloat(editWeight) || 1,
+      });
+      setEditing(null);
+      await refreshDonations();
+    } catch (err: any) {
+      Alert.alert('Could not save', err?.message || 'Try again.');
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const cancelEdited = () => {
+    if (!editing) return;
+    Alert.alert('Cancel this pickup?', 'The donor will be notified.', [
+      { text: 'Keep', style: 'cancel' },
+      {
+        text: 'Cancel pickup',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await adminCancelDonation(editing);
+            setEditing(null);
+            await refreshDonations();
+          } catch (err: any) {
+            Alert.alert('Could not cancel', err?.message || 'Try again.');
+          }
+        },
+      },
+    ]);
+  };
 
   useEffect(() => {
     refreshDonations();
@@ -34,6 +107,16 @@ export const CollectorDashboardScreen = ({ navigation }: any) => {
         fetchUnreadNotificationCount(authUser.id).then(setUnreadCount);
       }
     }, [authUser?.id])
+  );
+
+  // Badge on the Areas tab: pincodes people asked for that the admin hasn't looked at yet.
+  useFocusEffect(
+    useCallback(() => {
+      const tick = () => fetchNewAreaRequestPincodes(serviceablePincodes).then(p => setNewAreaRequests(p.length)).catch(() => {});
+      tick();
+      const timer = setInterval(tick, 15000);
+      return () => clearInterval(timer);
+    }, [serviceablePincodes])
   );
 
   const handleMarkDone = (item: DonationItem) => {
@@ -250,6 +333,14 @@ export const CollectorDashboardScreen = ({ navigation }: any) => {
                       >
                         <Icon name="check-bold" size={18} color={theme.colors.success} />
                       </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={styles.editBtn}
+                        activeOpacity={0.8}
+                        onPress={() => openEdit(item)}
+                      >
+                        <Icon name="pencil-outline" size={18} color={theme.colors.primary} />
+                      </TouchableOpacity>
                     </>
                   )}
                 </View>
@@ -259,6 +350,49 @@ export const CollectorDashboardScreen = ({ navigation }: any) => {
           })
         )}
       </ScrollView>
+
+      <Modal visible={!!editing} transparent animationType="fade" onRequestClose={() => setEditing(null)}>
+        <View style={styles.editBackdrop}>
+          <View style={styles.editCard}>
+            <Text style={styles.editTitle}>Edit pickup</Text>
+            <Text style={styles.editSub}>{editing?.donor_name || editing?.category} · the donor is notified of changes</Text>
+            <ScrollView keyboardShouldPersistTaps="handled">
+              <Text style={styles.editLabel}>DATE</Text>
+              <View style={styles.editChipsRow}>
+                {nextDays.map(d => {
+                  const on = dayLabel(d) === dayLabel(editDate);
+                  return (
+                    <TouchableOpacity key={d.toDateString()} style={[styles.editChip, on && styles.editChipOn]} onPress={() => setEditDate(d)} activeOpacity={0.8}>
+                      <Text style={[styles.editChipText, on && styles.editChipTextOn]}>{dayLabel(d)}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              <Text style={styles.editLabel}>TIME</Text>
+              <View style={styles.editChipsRow}>
+                {timeSlots.map(slot => (
+                  <TouchableOpacity key={slot} style={[styles.editChip, editSlot === slot && styles.editChipOn]} onPress={() => setEditSlot(slot)} activeOpacity={0.8}>
+                    <Text style={[styles.editChipText, editSlot === slot && styles.editChipTextOn]}>{slot}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <Text style={styles.editLabel}>WEIGHT (KG)</Text>
+              <TextInput style={styles.editInput} value={editWeight} onChangeText={setEditWeight} keyboardType="decimal-pad" />
+              <Text style={styles.editLabel}>ADDRESS</Text>
+              <TextInput style={[styles.editInput, { minHeight: 70, textAlignVertical: 'top' }]} value={editAddress} onChangeText={setEditAddress} multiline />
+            </ScrollView>
+            <TouchableOpacity style={styles.editSaveBtn} onPress={saveEdit} disabled={savingEdit} activeOpacity={0.85}>
+              <Text style={styles.editSaveText}>{savingEdit ? 'Saving…' : 'Save changes'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.editLinkBtn} onPress={cancelEdited} activeOpacity={0.7}>
+              <Text style={styles.editDangerText}>Cancel this pickup</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.editLinkBtn} onPress={() => setEditing(null)} activeOpacity={0.7}>
+              <Text style={styles.editLinkText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* Bottom Navigation Tab Bar */}
       <View style={styles.bottomTabBar}>
@@ -275,6 +409,21 @@ export const CollectorDashboardScreen = ({ navigation }: any) => {
         <TouchableOpacity style={styles.tabItem} activeOpacity={0.7} onPress={() => navigation.navigate('AdminAvailability')}>
           <Icon name="calendar-month-outline" size={24} color={theme.colors.textSecondary} />
           <Text style={styles.tabLabel}>Calendar</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.tabItem} activeOpacity={0.7} onPress={() => navigation.navigate('AdminAreas')}>
+          <View>
+            <Icon name="map-marker-radius-outline" size={24} color={theme.colors.textSecondary} />
+            {newAreaRequests > 0 && (
+              <View style={styles.areaBadge}>
+                <Text style={styles.areaBadgeText}>{newAreaRequests > 9 ? '9+' : newAreaRequests}</Text>
+              </View>
+            )}
+          </View>
+          <Text style={styles.tabLabel}>Areas</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.tabItem} activeOpacity={0.7} onPress={() => navigation.navigate('AdminDrives')}>
+          <Icon name="calendar-star" size={24} color={theme.colors.textSecondary} />
+          <Text style={styles.tabLabel}>Drives</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.tabItem} activeOpacity={0.7} onPress={() => navigation.navigate('CollectorProfile')}>
           <Icon name="account-outline" size={24} color={theme.colors.textSecondary} />
@@ -636,6 +785,30 @@ const styles = StyleSheet.create({
     fontFamily: theme.fonts.bodyBold,
     color: theme.colors.surface,
   },
+  editBtn: {
+    width: 46,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: theme.colors.primary,
+    borderRadius: 24,
+  },
+  editBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', padding: 20 },
+  editCard: { backgroundColor: theme.colors.surface, borderRadius: 20, padding: 18, maxHeight: '90%' },
+  editTitle: { fontSize: 18, fontFamily: theme.fonts.bodyBold, color: theme.colors.text, marginBottom: 2 },
+  editSub: { fontSize: 12, fontFamily: theme.fonts.body, color: theme.colors.textSecondary, marginBottom: 12 },
+  editLabel: { fontSize: 11, fontFamily: theme.fonts.bodyBold, color: theme.colors.textSecondary, letterSpacing: 0.8, marginTop: 10, marginBottom: 6 },
+  editChipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  editChip: { borderWidth: 1, borderColor: theme.colors.border, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: theme.colors.surface },
+  editChipOn: { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
+  editChipText: { fontSize: 12, fontFamily: theme.fonts.bodySemiBold, color: theme.colors.textSecondary },
+  editChipTextOn: { color: theme.colors.surface },
+  editInput: { borderWidth: 1, borderColor: theme.colors.border, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, fontFamily: theme.fonts.body, color: theme.colors.text },
+  editSaveBtn: { marginTop: 16, backgroundColor: theme.colors.primary, borderRadius: 999, paddingVertical: 12, alignItems: 'center' },
+  editSaveText: { fontSize: 14, fontFamily: theme.fonts.bodySemiBold, color: theme.colors.surface },
+  editLinkBtn: { alignItems: 'center', paddingVertical: 10 },
+  editLinkText: { fontSize: 13, fontFamily: theme.fonts.bodySemiBold, color: theme.colors.primary },
+  editDangerText: { fontSize: 13, fontFamily: theme.fonts.bodySemiBold, color: theme.colors.error },
   markDoneBtn: {
     width: 46,
     alignItems: 'center',
@@ -693,6 +866,23 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     borderTopWidth: 1,
     borderTopColor: theme.colors.border,
+  },
+  areaBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -8,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    paddingHorizontal: 3,
+    backgroundColor: theme.colors.error,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  areaBadgeText: {
+    fontSize: 10,
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.surface,
   },
   tabItem: {
     alignItems: 'center',

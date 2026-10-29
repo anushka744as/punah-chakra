@@ -62,6 +62,11 @@ export const NotificationsScreen = ({ navigation }: any) => {
       {/* Top Header */}
       <View style={[styles.headerBar, { paddingTop: Math.max(insets.top, 14) }]}>
         <View style={styles.headerLeft}>
+          {navigation.canGoBack() && (
+            <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginRight: 8 }} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Icon name="arrow-left" size={24} color={theme.colors.surface} />
+            </TouchableOpacity>
+          )}
           <Image
             source={require('../assets/logo_transparent.png')}
             style={styles.headerLogoImg}

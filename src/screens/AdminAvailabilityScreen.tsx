@@ -15,8 +15,9 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { theme } from '../theme/theme';
-import { TIME_SLOTS } from '../constants/timeSlots';
-import { fetchDayAvailability, fetchMonthAvailability, upsertDayAvailability } from '../services/api';
+import { DEFAULT_SLOT_CAPACITY, SLOT_CHOICES } from '../constants/timeSlots';
+import { useTimeSlots } from '../hooks/useTimeSlots';
+import { fetchDayAvailability, fetchMonthAvailability, upsertDayAvailability, saveTimeSlots } from '../services/api';
 import { useAppData } from '../data/AppDataContext';
 import { toDayKey } from '../utils/dayKey';
 
@@ -99,6 +100,11 @@ export const AdminAvailabilityScreen = ({ navigation }: any) => {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedSlots, setSelectedSlots] = useState<string[]>([]);
   const [dayClosed, setDayClosed] = useState(false);
+  const [capacity, setCapacity] = useState(DEFAULT_SLOT_CAPACITY);
+  const timeSlots = useTimeSlots();
+  const [slotEditorOpen, setSlotEditorOpen] = useState(false);
+  const [slotDraft, setSlotDraft] = useState<string[]>([]);
+  const [savingSlots, setSavingSlots] = useState(false);
   const [loadingDay, setLoadingDay] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -131,12 +137,14 @@ export const AdminAvailabilityScreen = ({ navigation }: any) => {
     setSelectedDate(date);
     setLoadingDay(true);
     try {
-      const { slots, isClosed } = await fetchDayAvailability(pincode, toDayKey(date));
+      const { slots, isClosed, capacity: cap } = await fetchDayAvailability(pincode, toDayKey(date));
       setSelectedSlots(slots);
       setDayClosed(isClosed);
+      setCapacity(cap);
     } catch {
       setSelectedSlots([]);
       setDayClosed(false);
+      setCapacity(DEFAULT_SLOT_CAPACITY);
     } finally {
       setLoadingDay(false);
     }
@@ -150,7 +158,7 @@ export const AdminAvailabilityScreen = ({ navigation }: any) => {
     if (!selectedDate || saving) return;
     setSaving(true);
     try {
-      await upsertDayAvailability(pincode, toDayKey(selectedDate), selectedSlots, dayClosed);
+      await upsertDayAvailability(pincode, toDayKey(selectedDate), selectedSlots, dayClosed, capacity);
       const map = await fetchMonthAvailability(pincode, toDayKey(startOfMonth(viewMonth)), toDayKey(endOfMonth(viewMonth)));
       setMonthMap(map);
       Alert.alert('Saved', `Availability updated for ${selectedDate.toDateString()} (${pincode}).`);
@@ -398,7 +406,7 @@ export const AdminAvailabilityScreen = ({ navigation }: any) => {
                   {dayClosed ? 'Slots (disabled while this day is closed)' : 'Open slots for this day'}
                 </Text>
                 <View style={styles.slotGrid}>
-                  {TIME_SLOTS.map((slot) => {
+                  {timeSlots.map((slot) => {
                     const isSelected = selectedSlots.includes(slot);
                     return (
                       <TouchableOpacity
@@ -417,6 +425,35 @@ export const AdminAvailabilityScreen = ({ navigation }: any) => {
                     );
                   })}
                 </View>
+                <TouchableOpacity
+                  onPress={() => { setSlotDraft(timeSlots); setSlotEditorOpen(true); }}
+                  activeOpacity={0.7}
+                  style={styles.editSlotsLink}
+                >
+                  <Icon name="clock-edit-outline" size={16} color={theme.colors.primary} />
+                  <Text style={styles.editSlotsLinkText}>Edit time slots (add / remove)</Text>
+                </TouchableOpacity>
+                <Text style={styles.slotsLabel}>Seats per time slot</Text>
+                <View style={styles.capacityRow}>
+                  <TouchableOpacity
+                    style={[styles.capacityBtn, (dayClosed || capacity <= 1) && styles.slotChipDisabled]}
+                    onPress={() => setCapacity((c) => Math.max(1, c - 1))}
+                    disabled={dayClosed || capacity <= 1}
+                    activeOpacity={0.7}
+                  >
+                    <Icon name="minus" size={20} color={theme.colors.primary} />
+                  </TouchableOpacity>
+                  <Text style={styles.capacityValue}>{capacity}</Text>
+                  <TouchableOpacity
+                    style={[styles.capacityBtn, (dayClosed || capacity >= 100) && styles.slotChipDisabled]}
+                    onPress={() => setCapacity((c) => Math.min(100, c + 1))}
+                    disabled={dayClosed || capacity >= 100}
+                    activeOpacity={0.7}
+                  >
+                    <Icon name="plus" size={20} color={theme.colors.primary} />
+                  </TouchableOpacity>
+                  <Text style={styles.capacityHint}>donors can book each time slot</Text>
+                </View>
                 <Text style={styles.helperText}>
                   Leave every slot unchecked to keep this day open with all slots bookable (default).
                 </Text>
@@ -434,6 +471,52 @@ export const AdminAvailabilityScreen = ({ navigation }: any) => {
           </View>
         )}
       </ScrollView>
+      <Modal visible={slotEditorOpen} transparent animationType="fade" onRequestClose={() => setSlotEditorOpen(false)}>
+        <View style={styles.pincodeModalBackdrop}>
+          <View style={styles.pincodeModalCard}>
+            <Text style={styles.pincodeModalTitle}>Pickup time slots</Text>
+            <Text style={styles.slotEditorHint}>Tap to add or remove. Donors can only book the highlighted times, for every pincode and day.</Text>
+            <ScrollView style={{ maxHeight: 360 }}>
+              <View style={styles.slotGrid}>
+                {SLOT_CHOICES.map((slot) => {
+                  const on = slotDraft.includes(slot);
+                  return (
+                    <TouchableOpacity
+                      key={slot}
+                      style={[styles.slotChip, on && styles.slotChipSelected]}
+                      onPress={() => setSlotDraft(on ? slotDraft.filter((x) => x !== slot) : [...slotDraft, slot])}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.slotChipText, on && styles.slotChipTextSelected]}>{slot}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </ScrollView>
+            <TouchableOpacity
+              style={styles.pincodeModalCloseBtn}
+              disabled={savingSlots}
+              activeOpacity={0.85}
+              onPress={async () => {
+                try {
+                  setSavingSlots(true);
+                  await saveTimeSlots(slotDraft);
+                  setSlotEditorOpen(false);
+                } catch (err: any) {
+                  Alert.alert('Could not save', err?.message || 'Try again.');
+                } finally {
+                  setSavingSlots(false);
+                }
+              }}
+            >
+              <Text style={styles.pincodeModalCloseBtnText}>{savingSlots ? 'Saving…' : 'Save time slots'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setSlotEditorOpen(false)} style={styles.editSlotsLink} activeOpacity={0.7}>
+              <Text style={styles.editSlotsLinkText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -484,6 +567,24 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: theme.fonts.bodyBold,
     color: theme.colors.text,
+  },
+  editSlotsLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+  },
+  editSlotsLinkText: {
+    fontSize: 13,
+    fontFamily: theme.fonts.bodySemiBold,
+    color: theme.colors.primary,
+  },
+  slotEditorHint: {
+    fontSize: 12,
+    fontFamily: theme.fonts.body,
+    color: theme.colors.textSecondary,
+    marginBottom: 12,
   },
   pincodeModalBackdrop: {
     flex: 1,
@@ -744,6 +845,35 @@ const styles = StyleSheet.create({
   },
   slotChipTextSelected: {
     color: theme.colors.primary,
+  },
+  capacityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    marginBottom: 12,
+  },
+  capacityBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: theme.colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  capacityValue: {
+    minWidth: 48,
+    textAlign: 'center',
+    fontSize: 20,
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.text,
+  },
+  capacityHint: {
+    flex: 1,
+    marginLeft: 12,
+    fontSize: 12,
+    fontFamily: theme.fonts.body,
+    color: theme.colors.textSecondary,
   },
   helperText: {
     fontSize: 12,

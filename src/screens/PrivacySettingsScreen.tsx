@@ -12,9 +12,12 @@ import {
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { theme } from '../theme/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { deleteMyAccount } from '../services/api';
+import { useAppData } from '../data/AppDataContext';
 
 export const PrivacySettingsScreen = ({ navigation }: any) => {
   const insets = useSafeAreaInsets();
+  const { signOut } = useAppData();
 
   const handleProfileNav = () => {
     try {
@@ -33,9 +36,15 @@ export const PrivacySettingsScreen = ({ navigation }: any) => {
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: () => {
-            Alert.alert('Account Deleted', 'Your account has been deleted.');
-            navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+          onPress: async () => {
+            try {
+              await deleteMyAccount();
+              await signOut();
+              Alert.alert('Account Deleted', 'Your account and data have been deleted.');
+              navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+            } catch (e: any) {
+              Alert.alert('Could not delete account', e?.message || 'Please try again, or email info.punahchakra@gmail.com.');
+            }
           },
         },
       ]

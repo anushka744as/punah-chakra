@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { TIME_SLOTS, DEFAULT_SLOT_CAPACITY, applyTimeSlots } from '../constants/timeSlots';
 
 declare const process: any;
 
@@ -260,19 +261,25 @@ export async function updateUserProfile(userId: string, updates: Partial<UserPro
     .update(updates)
     .eq('id', userId)
     .select()
-    .single();
+    .maybeSingle();
 
   if (error) throw error;
+  // RLS only lets a signed-in user update their own profile; without a real session (e.g. the
+  // dev "Skip to User Panel" button) the update matches 0 rows instead of erroring.
+  if (!data) throw new Error('Could not save — please log in with your phone number and try again.');
   return data;
 }
 
 // Admin-configured availability for one specific calendar day, scoped to a serviceable
 // pincode (day_availability table). No row for a pincode+date means it's fully open
 // (fail-open) — same default as the old flat per-admin slot list this replaces.
-export async function fetchDayAvailability(pincode: string, day: string): Promise<{ slots: string[]; isClosed: boolean }> {
+export async function fetchDayAvailability(
+  pincode: string,
+  day: string
+): Promise<{ slots: string[]; isClosed: boolean; capacity: number }> {
   const { data } = await supabase
     .from('day_availability')
-    .select('available_slots, is_closed')
+    .select('available_slots, is_closed, slot_capacity')
     .eq('pincode', pincode)
     .eq('day', day)
     .maybeSingle();
@@ -280,6 +287,7 @@ export async function fetchDayAvailability(pincode: string, day: string): Promis
   return {
     slots: (data as any)?.available_slots || [],
     isClosed: Boolean((data as any)?.is_closed),
+    capacity: (data as any)?.slot_capacity ?? DEFAULT_SLOT_CAPACITY,
   };
 }
 
@@ -305,11 +313,17 @@ export async function fetchMonthAvailability(
 }
 
 // Admin saves which slots are open (and/or closes the whole day) for one pincode + calendar date.
-export async function upsertDayAvailability(pincode: string, day: string, slots: string[], isClosed: boolean) {
+export async function upsertDayAvailability(
+  pincode: string,
+  day: string,
+  slots: string[],
+  isClosed: boolean,
+  capacity: number = DEFAULT_SLOT_CAPACITY
+) {
   const { data, error } = await supabase
     .from('day_availability')
     .upsert(
-      { pincode, day, available_slots: slots, is_closed: isClosed, updated_at: new Date().toISOString() },
+      { pincode, day, available_slots: slots, is_closed: isClosed, slot_capacity: capacity, updated_at: new Date().toISOString() },
       { onConflict: 'pincode,day' }
     )
     .select()
@@ -334,18 +348,106 @@ export async function fetchSlotAvailability(
   dayKey: string,
   pickupDay: string,
   excludeDonationId?: string
-): Promise<{ availableSlots: string[]; bookedSlots: string[]; isClosed: boolean }> {
-  const [{ slots, isClosed }, { data: bookings }] = await Promise.all([
+): Promise<{
+  availableSlots: string[];
+  bookedSlots: string[];
+  isClosed: boolean;
+  capacity: number;
+  seatsLeft: Record<string, number>;
+}> {
+  const [{ slots, isClosed, capacity }, { data: bookings }] = await Promise.all([
     fetchDayAvailability(pincode, dayKey),
-    supabase.from('donations').select('id, time_slot').eq('pickup_day', pickupDay).neq('status', 'cancelled'),
+    supabase.from('donations').select('id, time_slot, pincode').eq('pickup_day', pickupDay).neq('status', 'cancelled'),
   ]);
 
-  const bookedSlots = ((bookings || []) as any[])
-    .filter((b) => b.id !== excludeDonationId)
-    .map((b) => b.time_slot)
-    .filter(Boolean);
+  // A slot has `capacity` seats for donors in the same pincode. A booking from any *other*
+  // pincode (or an older one with no pincode) takes the whole slot — one collector can't be in
+  // two areas at once. `bookedSlots` is every slot a donor can't pick (taken or full);
+  // `seatsLeft` drives the "N left" label.
+  const takenByOtherArea = new Set<string>();
+  const usedHere: Record<string, number> = {};
+  ((bookings || []) as any[])
+    .filter((b) => b.id !== excludeDonationId && b.time_slot)
+    .forEach((b) => {
+      if (b.pincode === pincode) usedHere[b.time_slot] = (usedHere[b.time_slot] || 0) + 1;
+      else takenByOtherArea.add(b.time_slot);
+    });
 
-  return { availableSlots: slots, bookedSlots, isClosed };
+  await refreshTimeSlots();
+  const seatsLeft: Record<string, number> = {};
+  const bookedSlots: string[] = [];
+  TIME_SLOTS.forEach((slot) => {
+    const left = takenByOtherArea.has(slot) ? 0 : Math.max(0, capacity - (usedHere[slot] || 0));
+    seatsLeft[slot] = left;
+    if (left === 0) bookedSlots.push(slot);
+  });
+
+  return { availableSlots: slots, bookedSlots, isClosed, capacity, seatsLeft };
+}
+
+// Next open pickup days for a pincode. A day with no day_availability row is fully open (same
+// fail-open rule DonateScreen applies), so this walks the next two weeks and drops only days the
+// admin closed; `slots` is the admin's chosen list for that day, or empty for "all slots open".
+// Today is skipped once the last slot (5:00 PM) has started.
+export interface UpcomingPickupDay {
+  day: string; // ISO YYYY-MM-DD
+  slots: string[];
+}
+
+export async function fetchUpcomingAvailability(pincode: string, limit = 5): Promise<UpcomingPickupDay[]> {
+  const iso = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const end = new Date(start);
+  end.setDate(end.getDate() + 13);
+
+  const { data, error } = await supabase
+    .from('day_availability')
+    .select('day, available_slots, is_closed')
+    .eq('pincode', pincode)
+    .gte('day', iso(start))
+    .lte('day', iso(end));
+  if (error) return [];
+
+  const configured: Record<string, { slots: string[]; closed: boolean }> = {};
+  ((data || []) as any[]).forEach((row) => {
+    configured[row.day] = { slots: row.available_slots || [], closed: Boolean(row.is_closed) };
+  });
+
+  const days: UpcomingPickupDay[] = [];
+  for (let i = 0; i < 14 && days.length < limit; i++) {
+    const d = new Date(start);
+    d.setDate(d.getDate() + i);
+    if (i === 0 && now.getHours() * 60 + now.getMinutes() >= 17 * 60) continue;
+    const row = configured[iso(d)];
+    if (row?.closed) continue;
+    days.push({ day: iso(d), slots: row?.slots || [] });
+  }
+  return days;
+}
+
+// Waitlist entry for a pincode we don't serve yet (area_requests table, migration 020). One row
+// per user + pincode, so asking again just refreshes the saved location.
+export async function submitAreaRequest(
+  userId: string,
+  request: { pincode: string; address?: string; latitude?: number; longitude?: number }
+) {
+  const profile = await fetchUserProfile(userId).catch(() => null);
+  const { error } = await supabase.from('area_requests').upsert(
+    {
+      user_id: userId,
+      full_name: profile?.full_name || '',
+      phone: profile?.phone || '',
+      pincode: request.pincode,
+      // Only overwrite location when this call has one, so a later silent log keeps it.
+      ...(request.address ? { address: request.address } : {}),
+      ...(request.latitude != null ? { latitude: request.latitude, longitude: request.longitude ?? null } : {}),
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'user_id,pincode' }
+  );
+  if (error) throw error;
 }
 
 export async function updateUserPassword(newPassword: string) {
@@ -772,4 +874,182 @@ export async function markAllNotificationsRead(userId: string) {
     .eq('is_read', false);
 
   if (error) throw error;
+}
+
+
+// ─── Waitlist, drop-off points & collection drives (migrations 020 / 022) ──────────────────────
+export interface AreaRequest {
+  id: string;
+  full_name?: string;
+  phone?: string;
+  pincode: string;
+  address?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  created_at: string;
+}
+
+export interface CollectionDrive {
+  id: string;
+  title: string;
+  drive_date: string; // YYYY-MM-DD
+  time_window?: string | null;
+  location: string;
+  pincode?: string | null;
+  description?: string | null;
+}
+
+// Admin only in practice: RLS lets an admin session read every row, a donor only their own.
+export async function fetchAreaRequests(): Promise<AreaRequest[]> {
+  const { data, error } = await supabase
+    .from('area_requests')
+    .select('id, full_name, phone, pincode, address, latitude, longitude, created_at')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data || []) as AreaRequest[];
+}
+
+// Drives dated today or later, soonest first.
+export async function fetchUpcomingDrives(): Promise<CollectionDrive[]> {
+  const t = new Date();
+  const today = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+  const { data, error } = await supabase
+    .from('collection_drives')
+    .select('id, title, drive_date, time_window, location, pincode, description')
+    .eq('is_active', true)
+    .gte('drive_date', today)
+    .order('drive_date', { ascending: true });
+  if (error) throw error;
+  return (data || []) as CollectionDrive[];
+}
+
+export async function addCollectionDrive(drive: Omit<CollectionDrive, 'id'>) {
+  const { error } = await supabase.from('collection_drives').insert([drive]);
+  if (error) throw error;
+}
+
+export async function updateCollectionDrive(id: string, drive: Omit<CollectionDrive, 'id'>) {
+  const { error } = await supabase.from('collection_drives').update(drive).eq('id', id);
+  if (error) throw error;
+}
+
+export async function removeCollectionDrive(id: string) {
+  const { error } = await supabase.from('collection_drives').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// Every active drive (past ones too) for the admin list, soonest first.
+export async function fetchAllDrives(): Promise<CollectionDrive[]> {
+  const { data, error } = await supabase
+    .from('collection_drives')
+    .select('id, title, drive_date, time_window, location, pincode, description')
+    .eq('is_active', true)
+    .order('drive_date', { ascending: true });
+  if (error) throw error;
+  return (data || []) as CollectionDrive[];
+}
+
+// Admin "new area requests" badge: distinct unserviceable pincodes people asked for that the
+// admin hasn't opened the Areas page for yet. "Seen" is kept per device.
+const SEEN_AREA_PINCODES_KEY = '@punahchakra_seen_area_pincodes';
+
+const readSeenAreaPincodes = async (): Promise<string[]> => {
+  try {
+    return JSON.parse((await AsyncStorage.getItem(SEEN_AREA_PINCODES_KEY)) || '[]');
+  } catch {
+    return [];
+  }
+};
+
+export async function fetchNewAreaRequestPincodes(serviceable: string[]): Promise<string[]> {
+  const [requests, seen] = await Promise.all([fetchAreaRequests().catch(() => [] as AreaRequest[]), readSeenAreaPincodes()]);
+  const pins = Array.from(new Set(requests.map(r => r.pincode))).filter(p => !serviceable.includes(p));
+  return pins.filter(p => !seen.includes(p));
+}
+
+export async function markAreaRequestPincodesSeen(pincodes: string[]) {
+  const seen = await readSeenAreaPincodes();
+  try {
+    await AsyncStorage.setItem(SEEN_AREA_PINCODES_KEY, JSON.stringify(Array.from(new Set([...seen, ...pincodes]))));
+  } catch {}
+}
+
+// Permanently deletes the signed-in user's account and all their data (delete-account edge
+// function). Callers should sign out locally afterwards.
+export async function deleteMyAccount() {
+  const { data, error } = await supabase.functions.invoke('delete-account', { method: 'POST' });
+  if (error) throw error;
+  if (!data?.deleted) throw new Error('Could not delete your account. Please try again.');
+}
+
+// ─── Admin-editable pickup time slots (app_settings, migration 023) ────────────────────────────
+export async function refreshTimeSlots() {
+  const { data, error } = await supabase.from('app_settings').select('value').eq('key', 'time_slots').maybeSingle();
+  if (error || !data || !Array.isArray(data.value)) return;
+  const slots = (data.value as unknown[]).filter((x): x is string => typeof x === 'string');
+  if (slots.length > 0) applyTimeSlots(slots);
+}
+
+export async function saveTimeSlots(slots: string[]) {
+  if (slots.length === 0) throw new Error('Keep at least one time slot.');
+  const { error } = await supabase
+    .from('app_settings')
+    .upsert({ key: 'time_slots', value: slots, updated_at: new Date().toISOString() });
+  if (error) throw error;
+  applyTimeSlots(slots);
+}
+
+// ─── Admin edits to any donor's pickup ─────────────────────────────────────────────────────────
+// Unlike the donor's own reschedule these skip the seat check (admin override) and tell the donor.
+export async function adminUpdateDonation(
+  donation: DonationItem,
+  updates: { pickup_day: string; time_slot: string; address: string; weight_kg: number }
+) {
+  const { error } = await supabase
+    .from('donations')
+    .update({
+      pickup_day: updates.pickup_day,
+      time_slot: updates.time_slot,
+      address: updates.address,
+      weight_kg: updates.weight_kg || 1,
+      estimated_quantity_kg: updates.weight_kg || 1,
+    })
+    .eq('id', donation.id);
+  if (error) throw error;
+
+  try {
+    await supabase
+      .from('pickups')
+      .update({ address: updates.address, weight_summary: `${updates.weight_kg || 1} kg`, time_window: updates.time_slot })
+      .eq('donation_id', donation.id);
+  } catch {}
+
+  if (donation.donor_id) {
+    try {
+      await createNotification(
+        donation.donor_id,
+        'Pickup Updated',
+        `Your ${donation.category} pickup is now scheduled for ${updates.pickup_day} (${updates.time_slot}).`,
+        'UPDATE'
+      );
+    } catch {}
+  }
+}
+
+export async function adminCancelDonation(donation: DonationItem) {
+  const { error } = await supabase.from('donations').update({ status: 'cancelled' }).eq('id', donation.id);
+  if (error) throw error;
+  try {
+    await supabase.from('pickups').update({ status: 'cancelled' }).eq('donation_id', donation.id);
+  } catch {}
+  if (donation.donor_id) {
+    try {
+      await createNotification(
+        donation.donor_id,
+        'Pickup Cancelled',
+        `Your ${donation.category} pickup for ${donation.pickup_day}, ${donation.time_slot} was cancelled by PunahChakra. Please book a new slot.`,
+        'CANCELLED'
+      );
+    } catch {}
+  }
 }

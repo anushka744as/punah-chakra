@@ -64,6 +64,7 @@ type AppState = {
   addServiceablePincode: (pincode: string) => Promise<void>;
   removeServiceablePincode: (pincode: string) => Promise<void>;
   devBypassAdminLogin: () => Promise<void>;
+  devBypassUserLogin: () => Promise<void>;
 };
 
 const AppDataContext = createContext<AppState | undefined>(undefined);
@@ -277,6 +278,18 @@ export const AppDataProvider = ({ children }: { children: React.ReactNode }) => 
     await loadUserData('55e1edad-99db-411d-85c0-74251356fead', '');
   }, []);
 
+  // Dev-only counterpart for the donor side: loads an existing user profile (pincode 201301) the
+  // same way, so Home / Donate / seat counts can be tried without phone OTP. Bookings made through
+  // it are saved against that profile. Inert outside `__DEV__`.
+  const devBypassUserLogin = useCallback(async () => {
+    if (!__DEV__) return;
+    try {
+      await AsyncStorage.setItem(USER_LOGGED_IN_KEY, 'true');
+      await AsyncStorage.setItem(LAST_ROLE_KEY, 'user');
+    } catch {}
+    await loadUserData('cbeeeb3a-8f7f-490e-8c11-38bb20ab5e04', '');
+  }, []);
+
   return (
     <AppDataContext.Provider
       value={{
@@ -299,6 +312,7 @@ export const AppDataProvider = ({ children }: { children: React.ReactNode }) => 
         addServiceablePincode,
         removeServiceablePincode,
         devBypassAdminLogin,
+        devBypassUserLogin,
       }}
     >
       {children}

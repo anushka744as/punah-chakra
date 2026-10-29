@@ -6,7 +6,7 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { HomeScreen } from '../screens/HomeScreen';
 import { DonateScreen } from '../screens/DonateScreen';
 import { PickupMapScreen } from '../screens/PickupMapScreen';
-import { NotificationsScreen } from '../screens/NotificationsScreen';
+import { CollectionDrivesScreen } from '../screens/CollectionDrivesScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { theme } from '../theme/theme';
 
@@ -79,14 +79,14 @@ export const TabNavigator = () => {
         }}
       />
       <Tab.Screen
-        name="Alerts"
-        component={NotificationsScreen}
+        name="Drives"
+        component={CollectionDrivesScreen}
         options={{
-          tabBarLabel: 'Alerts',
+          tabBarLabel: 'Drives',
           tabBarIcon: ({ focused }) => (
             <View style={[styles.iconBox, focused && styles.activeIconBox]}>
               <Icon
-                name={focused ? 'bell' : 'bell-outline'}
+                name={focused ? 'calendar-star' : 'calendar-star'}
                 color={focused ? theme.colors.primary : theme.colors.textSecondary}
                 size={22}
               />
