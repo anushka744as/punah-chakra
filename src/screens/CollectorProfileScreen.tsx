@@ -13,6 +13,7 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useAppData } from '../data/AppDataContext';
 import { supabase } from '../services/api';
 import { theme } from '../theme/theme';
+import { AdminTabBar } from '../components/AdminTabBar';
 
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback } from 'react';
@@ -243,27 +244,7 @@ export const CollectorProfileScreen = ({ navigation }: any) => {
         </TouchableOpacity>
       </ScrollView>
 
-      {/* Bottom Tab Bar */}
-      <View style={styles.bottomTabBar}>
-        <TouchableOpacity style={styles.tabItem} activeOpacity={0.7} onPress={() => navigation.navigate('CollectorDashboard')}>
-          <Icon name="truck" size={24} color={theme.colors.textSecondary} />
-          <Text style={styles.tabLabel}>Routes</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.tabItem} activeOpacity={0.7} onPress={() => navigation.navigate('PickupMap', { mode: 'admin' })}>
-          <Icon name="map-outline" size={24} color={theme.colors.textSecondary} />
-          <Text style={styles.tabLabel}>Map</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.tabItem} activeOpacity={0.7} onPress={() => navigation.navigate('AdminAvailability')}>
-          <Icon name="calendar-month-outline" size={24} color={theme.colors.textSecondary} />
-          <Text style={styles.tabLabel}>Calendar</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.tabItem} activeOpacity={0.7}>
-          <View style={styles.tabIconActiveBg}>
-            <Icon name="account" size={24} color={theme.colors.primary} />
-          </View>
-          <Text style={styles.tabLabelActive}>Profile</Text>
-        </TouchableOpacity>
-      </View>
+      <AdminTabBar />
     </SafeAreaView>
   );
 };
@@ -282,7 +263,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
   },
   headerTitle: {
-    fontSize: 22,
+    fontSize: 20,
     fontFamily: theme.fonts.bodyBold,
     color: theme.colors.surface,
   },
@@ -529,35 +510,5 @@ const styles = StyleSheet.create({
     fontFamily: theme.fonts.bodyBold,
     color: theme.colors.surface,
     letterSpacing: 0.8,
-  },
-  bottomTabBar: {
-    flexDirection: 'row',
-    backgroundColor: theme.colors.surface,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    justifyContent: 'space-between',
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
-  },
-  tabItem: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-  },
-  tabIconActiveBg: {
-    backgroundColor: theme.colors.primaryContainer,
-    paddingHorizontal: 16,
-    paddingVertical: 4,
-    borderRadius: 20,
-  },
-  tabLabelActive: {
-    fontSize: 12,
-    fontFamily: theme.fonts.bodyBold,
-    color: theme.colors.text,
-  },
-  tabLabel: {
-    fontSize: 12,
-    fontFamily: theme.fonts.bodySemiBold,
-    color: theme.colors.textSecondary,
   },
 });

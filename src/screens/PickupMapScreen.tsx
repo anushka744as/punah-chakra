@@ -20,6 +20,7 @@ import { useAppData } from '../data/AppDataContext';
 import { getStatusLabel } from '../services/api';
 import { stripAddressMeta } from '../utils/address';
 import { theme } from '../theme/theme';
+import { AdminTabBar } from '../components/AdminTabBar';
 
 export const PickupMapScreen = ({ navigation, route }: any) => {
   const insets = useSafeAreaInsets();
@@ -482,29 +483,7 @@ export const PickupMapScreen = ({ navigation, route }: any) => {
         </View>
       )}
 
-      {/* Bottom Navigation Tab Bar for Collector */}
-      {mode === 'admin' && (
-        <View style={styles.bottomTabBar}>
-          <TouchableOpacity style={styles.tabItem} activeOpacity={0.7} onPress={() => navigation.navigate('CollectorDashboard')}>
-            <Icon name="truck" size={24} color={theme.colors.textSecondary} />
-            <Text style={styles.tabLabel}>Routes</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.tabItem} activeOpacity={0.7}>
-            <View style={styles.tabIconActiveBg}>
-              <Icon name="map" size={24} color={theme.colors.primary} />
-            </View>
-            <Text style={styles.tabLabelActive}>Map</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.tabItem} activeOpacity={0.7} onPress={() => navigation.navigate('AdminAvailability')}>
-            <Icon name="calendar-month-outline" size={24} color={theme.colors.textSecondary} />
-            <Text style={styles.tabLabel}>Calendar</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.tabItem} activeOpacity={0.7} onPress={() => navigation.navigate('CollectorProfile')}>
-            <Icon name="account-outline" size={24} color={theme.colors.textSecondary} />
-            <Text style={styles.tabLabel}>Profile</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+      {mode === 'admin' && <AdminTabBar active="map" />}
     </SafeAreaView>
   );
 };
@@ -811,36 +790,6 @@ const styles = StyleSheet.create({
     color: theme.colors.success,
     marginTop: 2,
     flexWrap: 'wrap',
-  },
-  bottomTabBar: {
-    flexDirection: 'row',
-    backgroundColor: theme.colors.surface,
-    paddingVertical: 10,
-    paddingHorizontal: 24,
-    justifyContent: 'space-between',
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
-  },
-  tabItem: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-  },
-  tabIconActiveBg: {
-    backgroundColor: theme.colors.primaryContainer,
-    paddingHorizontal: 16,
-    paddingVertical: 4,
-    borderRadius: 20,
-  },
-  tabLabelActive: {
-    fontSize: 12,
-    fontFamily: theme.fonts.bodyBold,
-    color: theme.colors.text,
-  },
-  tabLabel: {
-    fontSize: 12,
-    fontFamily: theme.fonts.bodySemiBold,
-    color: theme.colors.textSecondary,
   },
 });
 

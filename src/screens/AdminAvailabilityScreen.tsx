@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { theme } from '../theme/theme';
+import { AdminTabBar } from '../components/AdminTabBar';
 import { DEFAULT_SLOT_CAPACITY, SLOT_CHOICES } from '../constants/timeSlots';
 import { useTimeSlots } from '../hooks/useTimeSlots';
 import { fetchDayAvailability, fetchMonthAvailability, upsertDayAvailability, saveTimeSlots } from '../services/api';
@@ -517,6 +518,7 @@ export const AdminAvailabilityScreen = ({ navigation }: any) => {
           </View>
         </View>
       </Modal>
+      <AdminTabBar active="calendar" />
     </SafeAreaView>
   );
 };

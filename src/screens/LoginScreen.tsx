@@ -18,42 +18,15 @@ import { theme } from '../theme/theme';
 import { Button } from '../components/Button';
 import { InputField } from '../components/InputField';
 import { sendPhoneOtp, checkPhoneExists } from '../services/api';
-import { useAppData } from '../data/AppDataContext';
 
 export const LoginScreen = ({ navigation, route }: any) => {
   const insets = useSafeAreaInsets();
-  const { devBypassAdminLogin, devBypassUserLogin } = useAppData();
   const [mode, setMode] = useState<'signin' | 'signup'>(route?.params?.mode === 'signup' ? 'signup' : 'signin');
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
-  const [bypassing, setBypassing] = useState(false);
   const isSignUp = mode === 'signup';
-
-  const handleDevBypass = async () => {
-    setBypassing(true);
-    try {
-      await devBypassAdminLogin();
-      navigation.replace('CollectorDashboard');
-    } catch (err: any) {
-      Alert.alert('Bypass Failed', err?.message || 'Could not load admin test data.');
-    } finally {
-      setBypassing(false);
-    }
-  };
-
-  const handleDevUserBypass = async () => {
-    setBypassing(true);
-    try {
-      await devBypassUserLogin();
-      navigation.replace('MainTabs');
-    } catch (err: any) {
-      Alert.alert('Bypass Failed', err?.message || 'Could not load user test data.');
-    } finally {
-      setBypassing(false);
-    }
-  };
 
   const handleSendOtp = async () => {
     const trimmedName = fullName.trim();
@@ -218,32 +191,6 @@ export const LoginScreen = ({ navigation, route }: any) => {
                   <Text style={styles.signupText}>{isSignUp ? 'Login' : 'Sign Up'}</Text>
                 </TouchableOpacity>
               </View>
-
-              {__DEV__ && (
-                <TouchableOpacity
-                  style={styles.devBypassBtn}
-                  onPress={handleDevUserBypass}
-                  disabled={bypassing}
-                  activeOpacity={0.8}
-                >
-                  <Icon name="bug-outline" size={16} color={theme.colors.textSecondary} />
-                  <Text style={styles.devBypassBtnText}>Dev: Skip to User Panel</Text>
-                </TouchableOpacity>
-              )}
-
-              {__DEV__ && (
-                <TouchableOpacity
-                  style={[styles.devBypassBtn, { marginTop: theme.spacing.sm }]}
-                  onPress={handleDevBypass}
-                  disabled={bypassing}
-                  activeOpacity={0.8}
-                >
-                  <Icon name="bug-outline" size={16} color={theme.colors.textSecondary} />
-                  <Text style={styles.devBypassBtnText}>
-                    {bypassing ? 'Loading admin test data...' : 'Dev: Skip to Admin Panel'}
-                  </Text>
-                </TouchableOpacity>
-              )}
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -384,22 +331,5 @@ const styles = StyleSheet.create({
     color: theme.colors.primary,
     fontFamily: theme.fonts.bodyBold,
     letterSpacing: 0.5,
-  },
-  devBypassBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    marginTop: theme.spacing.lg,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: theme.colors.border,
-    borderRadius: theme.radius.full,
-  },
-  devBypassBtnText: {
-    fontSize: 12,
-    fontFamily: theme.fonts.bodySemiBold,
-    color: theme.colors.textSecondary,
   },
 });

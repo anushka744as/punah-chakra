@@ -14,6 +14,7 @@ import {
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useFocusEffect } from '@react-navigation/native';
 import { theme } from '../theme/theme';
+import { AdminTabBar } from '../components/AdminTabBar';
 import { useAppData } from '../data/AppDataContext';
 import {
   AreaRequest,
@@ -75,10 +76,10 @@ export const AdminAreasScreen = ({ navigation }: any) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={theme.colors.background} />
+      <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <Icon name="arrow-left" size={24} color={theme.colors.text} />
+          <Icon name="arrow-left" size={24} color={theme.colors.surface} />
         </TouchableOpacity>
         <Text style={styles.title}>Pincode requests</Text>
         <View style={{ width: 24 }} />
@@ -125,6 +126,7 @@ export const AdminAreasScreen = ({ navigation }: any) => {
 
         </ScrollView>
       )}
+      <AdminTabBar active="areas" />
     </SafeAreaView>
   );
 };
@@ -132,13 +134,14 @@ export const AdminAreasScreen = ({ navigation }: any) => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },
   header: {
+    backgroundColor: theme.colors.primary,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.md,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
   },
-  title: { fontSize: 20, fontFamily: theme.fonts.heading, color: theme.colors.text },
+  title: { fontSize: 20, fontFamily: theme.fonts.bodyBold, color: theme.colors.surface },
   tabs: { flexDirection: 'row', marginHorizontal: theme.spacing.md, gap: theme.spacing.sm },
   tab: {
     flex: 1,
@@ -153,7 +156,7 @@ const styles = StyleSheet.create({
   tabText: { fontSize: 13, fontFamily: theme.fonts.bodySemiBold, color: theme.colors.textSecondary },
   tabTextActive: { color: theme.colors.surface },
   content: { padding: theme.spacing.md, gap: theme.spacing.sm, paddingBottom: theme.spacing.xxl },
-  section: { fontSize: 15, fontFamily: theme.fonts.heading, color: theme.colors.text },
+  section: { fontSize: 16, fontFamily: theme.fonts.bodyBold, color: theme.colors.text },
   hint: { fontSize: 13, fontFamily: theme.fonts.body, color: theme.colors.textSecondary },
   empty: { textAlign: 'center', marginTop: theme.spacing.lg, color: theme.colors.textSecondary, fontFamily: theme.fonts.body },
   chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },

@@ -15,17 +15,17 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useAppData } from '../data/AppDataContext';
-import { markDonationCompleted, fetchUnreadNotificationCount, fetchNewAreaRequestPincodes, adminUpdateDonation, adminCancelDonation, DonationItem } from '../services/api';
+import { markDonationCompleted, fetchUnreadNotificationCount, adminUpdateDonation, adminCancelDonation, DonationItem } from '../services/api';
 import { stripAddressMeta } from '../utils/address';
 import { theme } from '../theme/theme';
 import { useTimeSlots } from '../hooks/useTimeSlots';
+import { AdminTabBar } from '../components/AdminTabBar';
 
 export const CollectorDashboardScreen = ({ navigation }: any) => {
   const { donations, authUser, refreshDonations, serviceablePincodes } = useAppData();
   const [unreadCount, setUnreadCount] = useState(0);
   const [areaPincode, setAreaPincode] = useState<string>('all');
   const [areaPickerOpen, setAreaPickerOpen] = useState(false);
-  const [newAreaRequests, setNewAreaRequests] = useState(0);
 
   // Admin editing of any donor's pickup (date / time / address / weight, or cancel it).
   const timeSlots = useTimeSlots();
@@ -107,16 +107,6 @@ export const CollectorDashboardScreen = ({ navigation }: any) => {
         fetchUnreadNotificationCount(authUser.id).then(setUnreadCount);
       }
     }, [authUser?.id])
-  );
-
-  // Badge on the Areas tab: pincodes people asked for that the admin hasn't looked at yet.
-  useFocusEffect(
-    useCallback(() => {
-      const tick = () => fetchNewAreaRequestPincodes(serviceablePincodes).then(p => setNewAreaRequests(p.length)).catch(() => {});
-      tick();
-      const timer = setInterval(tick, 15000);
-      return () => clearInterval(timer);
-    }, [serviceablePincodes])
   );
 
   const handleMarkDone = (item: DonationItem) => {
@@ -394,42 +384,7 @@ export const CollectorDashboardScreen = ({ navigation }: any) => {
         </View>
       </Modal>
 
-      {/* Bottom Navigation Tab Bar */}
-      <View style={styles.bottomTabBar}>
-        <TouchableOpacity style={styles.tabItem} activeOpacity={0.7}>
-          <View style={styles.tabIconActiveBg}>
-            <Icon name="truck" size={24} color={theme.colors.primary} />
-          </View>
-          <Text style={styles.tabLabelActive}>Routes</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.tabItem} activeOpacity={0.7} onPress={() => navigation.navigate('PickupMap', { mode: 'admin' })}>
-          <Icon name="map-outline" size={24} color={theme.colors.textSecondary} />
-          <Text style={styles.tabLabel}>Map</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.tabItem} activeOpacity={0.7} onPress={() => navigation.navigate('AdminAvailability')}>
-          <Icon name="calendar-month-outline" size={24} color={theme.colors.textSecondary} />
-          <Text style={styles.tabLabel}>Calendar</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.tabItem} activeOpacity={0.7} onPress={() => navigation.navigate('AdminAreas')}>
-          <View>
-            <Icon name="map-marker-radius-outline" size={24} color={theme.colors.textSecondary} />
-            {newAreaRequests > 0 && (
-              <View style={styles.areaBadge}>
-                <Text style={styles.areaBadgeText}>{newAreaRequests > 9 ? '9+' : newAreaRequests}</Text>
-              </View>
-            )}
-          </View>
-          <Text style={styles.tabLabel}>Areas</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.tabItem} activeOpacity={0.7} onPress={() => navigation.navigate('AdminDrives')}>
-          <Icon name="calendar-star" size={24} color={theme.colors.textSecondary} />
-          <Text style={styles.tabLabel}>Drives</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.tabItem} activeOpacity={0.7} onPress={() => navigation.navigate('CollectorProfile')}>
-          <Icon name="account-outline" size={24} color={theme.colors.textSecondary} />
-          <Text style={styles.tabLabel}>Profile</Text>
-        </TouchableOpacity>
-      </View>
+      <AdminTabBar active="routes" />
 
       {/* Area (Pincode) Filter Picker */}
       <Modal
@@ -501,7 +456,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   headerTitle: {
-    fontSize: 22,
+    fontSize: 20,
     fontFamily: theme.fonts.bodyBold,
     color: theme.colors.surface,
   },
@@ -857,52 +812,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: theme.fonts.bodyBold,
     color: theme.colors.success,
-  },
-  bottomTabBar: {
-    flexDirection: 'row',
-    backgroundColor: theme.colors.surface,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    justifyContent: 'space-between',
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
-  },
-  areaBadge: {
-    position: 'absolute',
-    top: -4,
-    right: -8,
-    minWidth: 16,
-    height: 16,
-    borderRadius: 8,
-    paddingHorizontal: 3,
-    backgroundColor: theme.colors.error,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  areaBadgeText: {
-    fontSize: 10,
-    fontFamily: theme.fonts.bodyBold,
-    color: theme.colors.surface,
-  },
-  tabItem: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-  },
-  tabIconActiveBg: {
-    backgroundColor: theme.colors.primaryContainer,
-    paddingHorizontal: 16,
-    paddingVertical: 4,
-    borderRadius: 20,
-  },
-  tabLabelActive: {
-    fontSize: 12,
-    fontFamily: theme.fonts.bodyBold,
-    color: theme.colors.text,
-  },
-  tabLabel: {
-    fontSize: 12,
-    fontFamily: theme.fonts.bodySemiBold,
-    color: theme.colors.textSecondary,
   },
 });

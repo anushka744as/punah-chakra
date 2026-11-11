@@ -16,6 +16,8 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useFocusEffect } from '@react-navigation/native';
 import { theme } from '../theme/theme';
+import { AdminTabBar } from '../components/AdminTabBar';
+import { AdminDropOffPoints } from '../components/AdminDropOffPoints';
 import { useAppData } from '../data/AppDataContext';
 import { CollectionDrive, fetchAllDrives, addCollectionDrive, updateCollectionDrive, removeCollectionDrive } from '../services/api';
 import { toDayKey } from '../utils/dayKey';
@@ -27,6 +29,7 @@ export const AdminDrivesScreen = ({ navigation }: any) => {
   const { serviceablePincodes } = useAppData();
   const [drives, setDrives] = useState<CollectionDrive[] | null>(null);
   const [showPast, setShowPast] = useState(false);
+  const [view, setView] = useState<'drives' | 'dropoff'>('drives');
 
   const [title, setTitle] = useState('');
   const [date, setDate] = useState<Date | null>(null);
@@ -143,16 +146,27 @@ export const AdminDrivesScreen = ({ navigation }: any) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={theme.colors.background} />
+      <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <Icon name="arrow-left" size={24} color={theme.colors.text} />
+          <Icon name="arrow-left" size={24} color={theme.colors.surface} />
         </TouchableOpacity>
         <Text style={styles.title}>Collection Drives</Text>
         <View style={{ width: 24 }} />
       </View>
 
       <ScrollView ref={scrollRef} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <View style={styles.segment}>
+          {(['drives', 'dropoff'] as const).map(v => (
+            <TouchableOpacity key={v} style={[styles.segmentBtn, view === v && styles.segmentBtnActive]} onPress={() => setView(v)} activeOpacity={0.8}>
+              <Text style={[styles.segmentText, view === v && styles.segmentTextActive]}>{v === 'drives' ? 'Drives' : 'Drop-off points'}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        {view === 'dropoff' ? (
+          <AdminDropOffPoints scrollToTop={() => scrollRef.current?.scrollTo({ y: 0, animated: true })} />
+        ) : (
+          <>
         <Text style={styles.section}>{editingId ? 'Edit drive' : 'Add a drive'}</Text>
         <Text style={styles.hint}>Every donor sees it on their Collection Drives page.</Text>
         <TextInput style={styles.input} placeholder="Title (e.g. Diwali clothes drive)" placeholderTextColor={theme.colors.textSecondary} value={title} onChangeText={setTitle} />
@@ -214,17 +228,27 @@ export const AdminDrivesScreen = ({ navigation }: any) => {
             {showPast && past.map(d => renderDrive(d, true))}
           </>
         )}
+          </>
+        )}
       </ScrollView>
+      <AdminTabBar active="drives" />
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: theme.spacing.md },
-  title: { fontSize: 20, fontFamily: theme.fonts.heading, color: theme.colors.text },
+  header: {
+    backgroundColor: theme.colors.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  title: { fontSize: 20, fontFamily: theme.fonts.bodyBold, color: theme.colors.surface },
   content: { padding: theme.spacing.md, gap: theme.spacing.sm, paddingBottom: theme.spacing.xxl },
-  section: { fontSize: 16, fontFamily: theme.fonts.heading, color: theme.colors.text },
+  section: { fontSize: 16, fontFamily: theme.fonts.bodyBold, color: theme.colors.text },
   hint: { fontSize: 13, fontFamily: theme.fonts.body, color: theme.colors.textSecondary },
   empty: { color: theme.colors.textSecondary, fontFamily: theme.fonts.body },
   input: {
@@ -268,6 +292,18 @@ const styles = StyleSheet.create({
   cardTitle: { fontSize: 14, fontFamily: theme.fonts.bodySemiBold, color: theme.colors.text },
   cardSub: { fontSize: 13, fontFamily: theme.fonts.body, color: theme.colors.textSecondary, marginTop: 2 },
   cardMeta: { fontSize: 12, fontFamily: theme.fonts.body, color: theme.colors.textSecondary, marginTop: 4 },
+  segment: {
+    flexDirection: 'row',
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: theme.radius.full,
+    padding: 4,
+  },
+  segmentBtn: { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: theme.radius.full },
+  segmentBtnActive: { backgroundColor: theme.colors.primary },
+  segmentText: { fontSize: 13, fontFamily: theme.fonts.bodySemiBold, color: theme.colors.textSecondary },
+  segmentTextActive: { color: theme.colors.surface },
   pastToggle: { alignItems: 'center', paddingVertical: theme.spacing.sm },
   pastToggleText: { fontSize: 13, fontFamily: theme.fonts.bodySemiBold, color: theme.colors.primary },
 });

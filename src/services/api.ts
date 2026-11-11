@@ -949,6 +949,61 @@ export async function fetchAllDrives(): Promise<CollectionDrive[]> {
   return (data || []) as CollectionDrive[];
 }
 
+export interface DropOffPoint {
+  id: string;
+  name: string;
+  address: string;
+  pincode?: string | null;
+  start_date: string; // YYYY-MM-DD, first day it is open
+  end_date: string; // YYYY-MM-DD, last day it is open
+  open_time?: string | null; // "10:00 AM"
+  close_time?: string | null;
+  contact?: string | null;
+  description?: string | null;
+  is_active: boolean;
+}
+
+const DROP_OFF_COLUMNS = 'id, name, address, pincode, start_date, end_date, open_time, close_time, contact, description, is_active';
+
+// Donor view: active points that haven't ended yet (still open, or opening soon), soonest end first.
+export async function fetchActiveDropOffPoints(): Promise<DropOffPoint[]> {
+  const t = new Date();
+  const today = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+  const { data, error } = await supabase
+    .from('drop_off_points')
+    .select(DROP_OFF_COLUMNS)
+    .eq('is_active', true)
+    .gte('end_date', today)
+    .order('start_date', { ascending: true });
+  if (error) throw error;
+  return (data || []) as DropOffPoint[];
+}
+
+// Admin view: every point including paused and ended ones.
+export async function fetchAllDropOffPoints(): Promise<DropOffPoint[]> {
+  const { data, error } = await supabase
+    .from('drop_off_points')
+    .select(DROP_OFF_COLUMNS)
+    .order('end_date', { ascending: false });
+  if (error) throw error;
+  return (data || []) as DropOffPoint[];
+}
+
+export async function addDropOffPoint(point: Omit<DropOffPoint, 'id'>) {
+  const { error } = await supabase.from('drop_off_points').insert([point]);
+  if (error) throw error;
+}
+
+export async function updateDropOffPoint(id: string, point: Partial<Omit<DropOffPoint, 'id'>>) {
+  const { error } = await supabase.from('drop_off_points').update(point).eq('id', id);
+  if (error) throw error;
+}
+
+export async function removeDropOffPoint(id: string) {
+  const { error } = await supabase.from('drop_off_points').delete().eq('id', id);
+  if (error) throw error;
+}
+
 // Admin "new area requests" badge: distinct unserviceable pincodes people asked for that the
 // admin hasn't opened the Areas page for yet. "Seen" is kept per device.
 const SEEN_AREA_PINCODES_KEY = '@punahchakra_seen_area_pincodes';

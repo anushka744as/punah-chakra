@@ -5,7 +5,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '../theme/theme';
 import { useAppData } from '../data/AppDataContext';
-import { CollectionDrive, UpcomingPickupDay, fetchUpcomingDrives, fetchUpcomingAvailability } from '../services/api';
+import { CollectionDrive, DropOffPoint, UpcomingPickupDay, fetchUpcomingDrives, fetchActiveDropOffPoints, fetchUpcomingAvailability } from '../services/api';
 import { toDayKey } from '../utils/dayKey';
 
 // Shown only while the admin hasn't added any real drives yet, so the page isn't blank.
@@ -22,6 +22,9 @@ const sampleDrives = (): CollectionDrive[] => {
   ];
 };
 
+const shortDate = (iso: string) =>
+  new Date(`${iso}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+
 const parts = (iso: string) => {
   const d = new Date(`${iso}T00:00:00`);
   return {
@@ -36,12 +39,14 @@ export const CollectionDrivesScreen = ({ navigation }: any) => {
   const { profile } = useAppData();
   const [drives, setDrives] = useState<CollectionDrive[] | null>(null);
   const [pickupDays, setPickupDays] = useState<UpcomingPickupDay[] | null>(null);
+  const [dropOffs, setDropOffs] = useState<DropOffPoint[] | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const areaPincode = profile?.pincode || '';
 
   const load = useCallback(async () => {
     if (areaPincode) fetchUpcomingAvailability(areaPincode).then(setPickupDays).catch(() => setPickupDays([]));
     else setPickupDays(null);
+    fetchActiveDropOffPoints().then(setDropOffs).catch(() => setDropOffs([]));
     try {
       setDrives(await fetchUpcomingDrives());
     } catch {
@@ -170,6 +175,59 @@ export const CollectionDrivesScreen = ({ navigation }: any) => {
                       <Text style={styles.metaText}>{d.location}</Text>
                     </View>
                     {!!d.description && <Text style={styles.cardBody}>{d.description}</Text>}
+                  </View>
+                </View>
+              </View>
+            );
+          })
+        )}
+
+        <Text style={[styles.sectionTitle, { marginTop: 8 }]}>Drop-off points</Text>
+        {dropOffs === null ? (
+          <ActivityIndicator style={{ marginVertical: 16 }} color={theme.colors.primary} />
+        ) : dropOffs.length === 0 ? (
+          <View style={styles.pickupCard}>
+            <Text style={styles.pickupEmptyText}>No drop-off points are open right now. Check back soon.</Text>
+          </View>
+        ) : (
+          dropOffs.map(p => {
+            const today = toDayKey(new Date());
+            const upcoming = p.start_date > today;
+            const nearby = !!mine && p.pincode === mine;
+            const hours = p.open_time && p.close_time ? `${p.open_time} – ${p.close_time}` : p.open_time || p.close_time || null;
+            return (
+              <View key={p.id} style={styles.driveCard}>
+                <View style={styles.driveHeaderRow}>
+                  <View style={styles.dateBox}>
+                    <Icon name="package-variant-closed" size={26} color={theme.colors.primary} />
+                  </View>
+                  <View style={styles.driveContent}>
+                    <View style={styles.topMetaRow}>
+                      <Text style={styles.tagLabel}>{nearby ? 'IN YOUR AREA' : p.pincode ? `PINCODE ${p.pincode}` : 'ALL AREAS'}</Text>
+                      <Text style={[styles.sampleTag, !upcoming && { color: theme.colors.primary }]}>{upcoming ? `OPENS ${shortDate(p.start_date).toUpperCase()}` : 'OPEN NOW'}</Text>
+                    </View>
+                    <Text style={styles.cardTitle}>{p.name}</Text>
+                    <View style={styles.metaRow}>
+                      <Icon name="map-marker-outline" size={14} color={theme.colors.textSecondary} />
+                      <Text style={styles.metaText}>{p.address}</Text>
+                    </View>
+                    <View style={styles.metaRow}>
+                      <Icon name="calendar-range" size={14} color={theme.colors.textSecondary} />
+                      <Text style={styles.metaText}>{shortDate(p.start_date)} – {shortDate(p.end_date)}</Text>
+                    </View>
+                    {!!hours && (
+                      <View style={styles.metaRow}>
+                        <Icon name="clock-outline" size={14} color={theme.colors.textSecondary} />
+                        <Text style={styles.metaText}>Daily {hours}</Text>
+                      </View>
+                    )}
+                    {!!p.contact && (
+                      <View style={styles.metaRow}>
+                        <Icon name="phone-outline" size={14} color={theme.colors.textSecondary} />
+                        <Text style={styles.metaText}>{p.contact}</Text>
+                      </View>
+                    )}
+                    {!!p.description && <Text style={styles.cardBody}>{p.description}</Text>}
                   </View>
                 </View>
               </View>
