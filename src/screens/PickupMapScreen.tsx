@@ -284,7 +284,7 @@ export const PickupMapScreen = ({ navigation, route }: any) => {
           <View style={styles.zoneChip}>
             <Icon name="map-marker-check" size={16} color={theme.colors.primary} />
             <Text style={styles.zoneChipText}>
-              {profile?.pincode ? `Pincode ${profile.pincode}` : 'Noida Sector 15A & 44'}
+              {profile?.pincode ? `Pincode ${profile.pincode}` : 'Your area'}
             </Text>
           </View>
         )}

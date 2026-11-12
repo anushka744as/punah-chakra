@@ -63,8 +63,6 @@ type AppState = {
   refusePickup: (pickupId: string, requestId?: string) => Promise<void>;
   addServiceablePincode: (pincode: string) => Promise<void>;
   removeServiceablePincode: (pincode: string) => Promise<void>;
-  devBypassAdminLogin: () => Promise<void>;
-  devBypassUserLogin: () => Promise<void>;
 };
 
 const AppDataContext = createContext<AppState | undefined>(undefined);
@@ -264,32 +262,6 @@ export const AppDataProvider = ({ children }: { children: React.ReactNode }) => 
     [authUser, refreshDonations, refreshPickups]
   );
 
-  // Dev-only shortcut into the admin panel without going through real phone-OTP auth. Loads
-  // an existing admin profile's data through the same path `loadUserData` already uses for a
-  // real session — this app's RLS policies are open reads/writes (`USING (true)`), so this
-  // works without a genuine Supabase Auth session. Guarded by `__DEV__` so it's inert (and the
-  // button that calls it is never rendered) in a release build.
-  const devBypassAdminLogin = useCallback(async () => {
-    if (!__DEV__) return;
-    try {
-      await AsyncStorage.setItem(USER_LOGGED_IN_KEY, 'true');
-      await AsyncStorage.setItem(LAST_ROLE_KEY, 'admin');
-    } catch {}
-    await loadUserData('55e1edad-99db-411d-85c0-74251356fead', '');
-  }, []);
-
-  // Dev-only counterpart for the donor side: loads an existing user profile (pincode 201301) the
-  // same way, so Home / Donate / seat counts can be tried without phone OTP. Bookings made through
-  // it are saved against that profile. Inert outside `__DEV__`.
-  const devBypassUserLogin = useCallback(async () => {
-    if (!__DEV__) return;
-    try {
-      await AsyncStorage.setItem(USER_LOGGED_IN_KEY, 'true');
-      await AsyncStorage.setItem(LAST_ROLE_KEY, 'user');
-    } catch {}
-    await loadUserData('cbeeeb3a-8f7f-490e-8c11-38bb20ab5e04', '');
-  }, []);
-
   return (
     <AppDataContext.Provider
       value={{
@@ -311,8 +283,6 @@ export const AppDataProvider = ({ children }: { children: React.ReactNode }) => 
         refusePickup,
         addServiceablePincode,
         removeServiceablePincode,
-        devBypassAdminLogin,
-        devBypassUserLogin,
       }}
     >
       {children}

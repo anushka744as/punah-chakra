@@ -5,22 +5,8 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '../theme/theme';
 import { useAppData } from '../data/AppDataContext';
-import { CollectionDrive, DropOffPoint, UpcomingPickupDay, fetchUpcomingDrives, fetchActiveDropOffPoints, fetchUpcomingAvailability } from '../services/api';
+import { CollectionDrive, DropOffPoint, fetchUpcomingDrives, fetchActiveDropOffPoints } from '../services/api';
 import { toDayKey } from '../utils/dayKey';
-
-// Shown only while the admin hasn't added any real drives yet, so the page isn't blank.
-const sampleDrives = (): CollectionDrive[] => {
-  const inDays = (n: number) => {
-    const d = new Date();
-    d.setDate(d.getDate() + n);
-    return toDayKey(d);
-  };
-  return [
-    { id: 'sample-1', title: 'Diwali Clothes Drive', drive_date: inDays(5), time_window: '10:00 AM – 2:00 PM', location: 'Community Hall, Sector 15A, Noida', pincode: '201301', description: 'Bring clean, reusable clothes and blankets. Our team will sort and pass them on to local shelters.' },
-    { id: 'sample-2', title: 'E-Waste Collection Day', drive_date: inDays(12), time_window: '11:00 AM – 4:00 PM', location: 'Sector 44 Market Parking, Noida', pincode: '201303', description: 'Old phones, chargers and small appliances accepted. Items are recycled responsibly.' },
-    { id: 'sample-3', title: 'Books & Stationery Drive', drive_date: inDays(20), time_window: '9:00 AM – 1:00 PM', location: 'Public Library, Sector 62', pincode: null, description: 'Donate school books and stationery for children in need.' },
-  ];
-};
 
 const shortDate = (iso: string) =>
   new Date(`${iso}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
@@ -38,21 +24,17 @@ export const CollectionDrivesScreen = ({ navigation }: any) => {
   const insets = useSafeAreaInsets();
   const { profile } = useAppData();
   const [drives, setDrives] = useState<CollectionDrive[] | null>(null);
-  const [pickupDays, setPickupDays] = useState<UpcomingPickupDay[] | null>(null);
   const [dropOffs, setDropOffs] = useState<DropOffPoint[] | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const areaPincode = profile?.pincode || '';
 
   const load = useCallback(async () => {
-    if (areaPincode) fetchUpcomingAvailability(areaPincode).then(setPickupDays).catch(() => setPickupDays([]));
-    else setPickupDays(null);
     fetchActiveDropOffPoints().then(setDropOffs).catch(() => setDropOffs([]));
     try {
       setDrives(await fetchUpcomingDrives());
     } catch {
       setDrives([]);
     }
-  }, [areaPincode]);
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -60,8 +42,7 @@ export const CollectionDrivesScreen = ({ navigation }: any) => {
     }, [load])
   );
 
-  const isSample = drives !== null && drives.length === 0;
-  const list = drives === null ? [] : isSample ? sampleDrives() : drives;
+  const list = drives ?? [];
   const mine = profile?.pincode;
 
   return (
@@ -95,60 +76,18 @@ export const CollectionDrivesScreen = ({ navigation }: any) => {
           />
         }
       >
-        <Text style={styles.pageTitle}>Drives & Pickups</Text>
-        <Text style={styles.pageSubtitle}>See when pickups are open in your area and upcoming collection drives.</Text>
-
-        {/* Open pickup days the admin set for the donor's pincode */}
-        <Text style={styles.sectionTitle}>Upcoming pickups in your area</Text>
-        <View style={styles.pickupCard}>
-          {!areaPincode ? (
-            <TouchableOpacity onPress={() => navigation.navigate('Donate')} activeOpacity={0.7}>
-              <Text style={styles.pickupEmptyText}>
-                Check your pincode to see pickup days in your area. <Text style={styles.pickupLink}>Check now</Text>
-              </Text>
-            </TouchableOpacity>
-          ) : pickupDays === null ? (
-            <Text style={styles.pickupEmptyText}>Loading…</Text>
-          ) : pickupDays.length === 0 ? (
-            <Text style={styles.pickupEmptyText}>No open pickup days in the next two weeks for {areaPincode}. Check back soon.</Text>
-          ) : (
-            pickupDays.map((u, i) => {
-              const [y, m, d] = u.day.split('-').map(Number);
-              const label = new Date(y, m - 1, d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-              return (
-                <TouchableOpacity
-                  key={u.day}
-                  style={[styles.pickupRow, i > 0 && styles.pickupRowBorder]}
-                  onPress={() => navigation.navigate('Donate')}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.pickupIconBg}>
-                    <Icon name="calendar-clock-outline" size={20} color={theme.colors.primaryDark} />
-                  </View>
-                  <View style={styles.pickupTextCol}>
-                    <Text style={styles.pickupDay}>{label}</Text>
-                    <Text style={styles.pickupMeta}>
-                      {u.slots.length === 0 ? 'All time slots open' : `${u.slots.length} time slot${u.slots.length === 1 ? '' : 's'} open`} · {areaPincode}
-                    </Text>
-                  </View>
-                  <Text style={styles.pickupLink}>BOOK</Text>
-                </TouchableOpacity>
-              );
-            })
-          )}
-        </View>
+        <Text style={styles.pageTitle}>Collection Drives</Text>
+        <Text style={styles.pageSubtitle}>Upcoming collection drives and drop-off points near you.</Text>
 
         <Text style={styles.sectionTitle}>Collection drives</Text>
 
-        {isSample && (
-          <View style={styles.sampleNote}>
-            <Icon name="information-outline" size={16} color={theme.colors.primaryDark} />
-            <Text style={styles.sampleNoteText}>These are sample drives. Real ones will appear here once announced.</Text>
-          </View>
-        )}
 
         {drives === null ? (
           <ActivityIndicator style={{ marginTop: 32 }} color={theme.colors.primary} />
+        ) : list.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <Text style={styles.emptyText}>No collection drives are scheduled right now. Check back soon.</Text>
+          </View>
         ) : (
           list.map(d => {
             const p = parts(d.drive_date);
@@ -163,7 +102,6 @@ export const CollectionDrivesScreen = ({ navigation }: any) => {
                   <View style={styles.driveContent}>
                     <View style={styles.topMetaRow}>
                       <Text style={styles.tagLabel}>{nearby ? 'IN YOUR AREA' : d.pincode ? `PINCODE ${d.pincode}` : 'ALL AREAS'}</Text>
-                      {isSample && <Text style={styles.sampleTag}>SAMPLE</Text>}
                     </View>
                     <Text style={styles.cardTitle}>{d.title}</Text>
                     <View style={styles.metaRow}>
@@ -186,8 +124,8 @@ export const CollectionDrivesScreen = ({ navigation }: any) => {
         {dropOffs === null ? (
           <ActivityIndicator style={{ marginVertical: 16 }} color={theme.colors.primary} />
         ) : dropOffs.length === 0 ? (
-          <View style={styles.pickupCard}>
-            <Text style={styles.pickupEmptyText}>No drop-off points are open right now. Check back soon.</Text>
+          <View style={styles.emptyCard}>
+            <Text style={styles.emptyText}>No drop-off points are open right now. Check back soon.</Text>
           </View>
         ) : (
           dropOffs.map(p => {
@@ -204,7 +142,7 @@ export const CollectionDrivesScreen = ({ navigation }: any) => {
                   <View style={styles.driveContent}>
                     <View style={styles.topMetaRow}>
                       <Text style={styles.tagLabel}>{nearby ? 'IN YOUR AREA' : p.pincode ? `PINCODE ${p.pincode}` : 'ALL AREAS'}</Text>
-                      <Text style={[styles.sampleTag, !upcoming && { color: theme.colors.primary }]}>{upcoming ? `OPENS ${shortDate(p.start_date).toUpperCase()}` : 'OPEN NOW'}</Text>
+                      <Text style={[styles.statusTag, !upcoming && { color: theme.colors.primary }]}>{upcoming ? `OPENS ${shortDate(p.start_date).toUpperCase()}` : 'OPEN NOW'}</Text>
                     </View>
                     <Text style={styles.cardTitle}>{p.name}</Text>
                     <View style={styles.metaRow}>
@@ -265,7 +203,7 @@ const styles = StyleSheet.create({
   pageTitle: { fontSize: 28, fontFamily: theme.fonts.bodyBold, color: theme.colors.text, marginBottom: 4 },
   pageSubtitle: { fontSize: 14, color: theme.colors.textSecondary, marginBottom: 20 },
   sectionTitle: { fontSize: 18, fontFamily: theme.fonts.bodyBold, color: theme.colors.text, marginBottom: 10 },
-  pickupCard: {
+  emptyCard: {
     backgroundColor: theme.colors.surface,
     borderRadius: 20,
     borderWidth: 1,
@@ -274,31 +212,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     marginBottom: 22,
   },
-  pickupRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12 },
-  pickupRowBorder: { borderTopWidth: 1, borderTopColor: theme.colors.border },
-  pickupIconBg: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.colors.primaryContainer,
-  },
-  pickupTextCol: { flex: 1, marginLeft: 12 },
-  pickupDay: { fontFamily: theme.fonts.bodySemiBold, fontSize: 15, color: theme.colors.text },
-  pickupMeta: { fontFamily: theme.fonts.body, fontSize: 12, color: theme.colors.textSecondary, marginTop: 2 },
-  pickupLink: { fontFamily: theme.fonts.bodyBold, fontSize: 12, color: theme.colors.primary, letterSpacing: 0.5 },
-  pickupEmptyText: { fontFamily: theme.fonts.body, fontSize: 13, color: theme.colors.textSecondary, paddingVertical: 12 },
-  sampleNote: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: theme.colors.primaryContainer,
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 14,
-  },
-  sampleNoteText: { flex: 1, fontSize: 12, fontFamily: theme.fonts.body, color: theme.colors.primaryDark },
+  emptyText: { fontFamily: theme.fonts.body, fontSize: 13, color: theme.colors.textSecondary, paddingVertical: 12 },
   driveCard: {
     padding: 16,
     borderRadius: 20,
@@ -321,7 +235,7 @@ const styles = StyleSheet.create({
   driveContent: { flex: 1 },
   topMetaRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
   tagLabel: { fontSize: 10, fontFamily: theme.fonts.bodyBold, color: theme.colors.primary, letterSpacing: 0.8 },
-  sampleTag: { fontSize: 10, fontFamily: theme.fonts.bodyBold, color: theme.colors.textSecondary, letterSpacing: 0.8 },
+  statusTag: { fontSize: 10, fontFamily: theme.fonts.bodyBold, color: theme.colors.textSecondary, letterSpacing: 0.8 },
   cardTitle: { fontSize: 16, fontFamily: theme.fonts.bodyBold, color: theme.colors.text, marginBottom: 6 },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 3 },
   metaText: { flex: 1, fontSize: 13, fontFamily: theme.fonts.body, color: theme.colors.textSecondary },

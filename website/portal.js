@@ -321,7 +321,7 @@
         donor_name: state.profile?.full_name || 'PunahChakra Donor',
         donor_phone: state.profile?.phone || '',
         address,
-        zone: 'Noida Sector 15A & 44',
+        zone: state.pincode ? `Pincode ${state.pincode}` : 'Unassigned',
         weight_summary: `${state.qty} kg`,
         time_window: state.slot,
         status: 'pending',

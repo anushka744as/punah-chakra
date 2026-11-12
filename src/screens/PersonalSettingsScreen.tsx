@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,7 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { theme } from '../theme/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { supabase, fetchUserProfile, updateUserProfile } from '../services/api';
+import { supabase } from '../services/api';
 import { useAppData } from '../data/AppDataContext';
 
 export const PersonalSettingsScreen = ({ navigation }: any) => {
@@ -73,42 +73,49 @@ export const PersonalSettingsScreen = ({ navigation }: any) => {
   };
 
   const handleSave = async () => {
+    const name = fullName.trim();
+    const mail = email.trim().toLowerCase();
+    if (!name) {
+      Alert.alert('Name required', 'Please enter your full name.');
+      return;
+    }
+    if (mail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) {
+      Alert.alert('Invalid email', 'Please enter a valid email address, or leave it empty.');
+      return;
+    }
+
     setSaving(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       const userId = user?.id || authUser?.id || profile?.id;
       if (!userId) {
-        Alert.alert('Session Expired', 'Please sign in again.');
-        setSaving(false);
+        Alert.alert('Session expired', 'Please sign in again.');
         return;
       }
 
-      await supabase
+      // Phone is deliberately not written here: it is the login number, so it can only change
+      // through a verified flow. Role is protected by a database trigger.
+      const { error } = await supabase
         .from('profiles')
-        .upsert({
-          id: userId,
-          full_name: fullName.trim(),
-          email: email.trim(),
-          phone: phone.trim(),
+        .update({
+          full_name: name,
+          email: mail,
           address: address.trim(),
           updated_at: new Date().toISOString(),
-        });
+        })
+        .eq('id', userId);
+      if (error) { throw error; }
 
       if (updateProfile) {
-        await updateProfile({
-          full_name: fullName.trim(),
-          email: email.trim(),
-          phone: phone.trim(),
-          address: address.trim(),
-        });
+        await updateProfile({ full_name: name, email: mail, address: address.trim() });
       }
       await refreshProfile();
-      setSaving(false);
-      Alert.alert('Success 🎉', 'Personal information saved successfully in Supabase!');
+      Alert.alert('Saved', 'Your details have been updated.');
       navigation.goBack();
     } catch (err: any) {
+      Alert.alert('Could not save', err?.message || 'Please check your connection and try again.');
+    } finally {
       setSaving(false);
-      Alert.alert('Save Error', err?.message || 'Could not save profile details to Supabase.');
     }
   };
 
@@ -152,24 +159,27 @@ export const PersonalSettingsScreen = ({ navigation }: any) => {
             value={email}
             onChangeText={setEmail}
             keyboardType="email-address"
+            autoCapitalize="none"
+            autoCorrect={false}
             placeholder="name@company.com"
             placeholderTextColor={theme.colors.textSecondary}
           />
         </View>
 
-        {/* Phone */}
+        {/* Phone: this is the login number, so it is shown but cannot be edited here */}
         <Text style={styles.fieldLabel}>PHONE</Text>
-        <View style={styles.inputContainer}>
+        <View style={[styles.inputContainer, styles.inputLocked]}>
           <Icon name="phone-outline" size={22} color={theme.colors.textSecondary} style={styles.inputIcon} />
           <TextInput
-            style={styles.textInput}
+            style={[styles.textInput, { color: theme.colors.textSecondary }]}
             value={phone}
-            onChangeText={setPhone}
-            keyboardType="phone-pad"
-            placeholder="+91 98765 43210"
+            editable={false}
+            placeholder="Not set"
             placeholderTextColor={theme.colors.textSecondary}
           />
+          <Icon name="lock-outline" size={18} color={theme.colors.textSecondary} />
         </View>
+        <Text style={styles.lockedHint}>This is the number you log in with, so it can't be changed here. Contact support if you need to change it.</Text>
 
         {/* Address */}
         <Text style={styles.fieldLabel}>ADDRESS</Text>
@@ -260,6 +270,17 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: theme.fonts.bodySemiBold,
     color: theme.colors.text,
+  },
+  inputLocked: {
+    opacity: 0.75,
+    marginBottom: 6,
+  },
+  lockedHint: {
+    fontSize: 12,
+    fontFamily: theme.fonts.body,
+    color: theme.colors.textSecondary,
+    marginBottom: 20,
+    lineHeight: 17,
   },
   saveBtn: {
     flexDirection: 'row',

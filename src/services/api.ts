@@ -498,7 +498,7 @@ export async function createDonationRequest(donation: Omit<DonationItem, 'id' | 
         donor_name: currentProfile?.full_name || 'PunahChakra Donor',
         donor_phone: currentProfile?.phone || '',
         address: donation.address,
-        zone: 'Noida Sector 15A & 44',
+        zone: currentProfile?.pincode ? `Pincode ${currentProfile.pincode}` : 'Unassigned',
         weight_summary: `${donation.weight_kg || 1} kg`,
         time_window: donation.time_slot,
         status: 'pending',
