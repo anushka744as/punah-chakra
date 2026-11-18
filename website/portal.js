@@ -10,7 +10,8 @@
     { id: 'blankets', label: 'Blankets/Bedsheets' },
     { id: 'bags', label: 'Bags' },
   ];
-  const TIME_SLOTS = (() => {
+  const DEFAULT_CAPACITY = 5; // seats per slot per pincode, same as the app
+  let TIME_SLOTS = (() => {
     const out = [];
     for (let m = 11 * 60; m < 17 * 60 + 30; m += 30) {
       const h24 = Math.floor(m / 60);
@@ -46,13 +47,13 @@
     weekStart: today(),
     date: today(),
     slot: '',
-    avail: { slots: [], booked: [], closed: false },
+    avail: { slots: [], booked: [], seats: {}, closed: false },
     map: null,
     coords: null,
     pickMap: null,
   };
 
-  const TITLES = { home: '', map: 'Donation Map', donate: 'Schedule', alerts: 'Alerts', profile: 'Profile' };
+  const TITLES = { home: '', map: 'Donation Map', donate: 'Schedule', drives: 'Drives', alerts: 'Alerts', profile: 'Profile' };
 
   function toast(msg) {
     const t = $('toast');
@@ -74,6 +75,7 @@
     window.scrollTo(0, 0);
     if (tab === 'map') renderMap();
     if (tab === 'alerts') loadAlerts();
+    if (tab === 'drives') loadDrives();
     if (tab === 'donate') openDonate();
     if (tab === 'profile') renderProfile();
   }
@@ -191,6 +193,11 @@
     if (!state.serviceable.includes(pin)) {
       err.textContent = 'PunahChakra pickup is currently unavailable in your area. We’re working to expand our service and hope to reach you soon.';
       err.hidden = false;
+      // Log the request so the admin sees which areas people are asking for.
+      sb.from('area_requests').upsert({
+        user_id: state.user.id, full_name: state.profile?.full_name || '', phone: state.profile?.phone || '',
+        pincode: pin, updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_id,pincode' }).then(() => {}, () => {});
       return;
     }
     state.pincode = pin;
@@ -204,17 +211,42 @@
   $('pin-cancel').addEventListener('click', () => { $('pin-modal').hidden = true; setTab('home'); });
   $('change-pin').addEventListener('click', () => { $('pin-input').value = state.pincode; $('pin-error').hidden = true; $('pin-modal').hidden = false; });
 
-  async function loadSlots() {
+  async function refreshTimeSlots() {
+    const { data } = await sb.from('app_settings').select('value').eq('key', 'time_slots').maybeSingle();
+    if (data && Array.isArray(data.value)) {
+      const list = data.value.filter((x) => typeof x === 'string');
+      if (list.length) TIME_SLOTS = [...list].sort((x, y) => slotToMinutes(x) - slotToMinutes(y));
+    }
+  }
+
+  // Same seat rules as the app's fetchSlotAvailability: a slot has `capacity` seats for donors in
+  // one pincode; a booking from any other pincode takes the whole slot.
+  async function fetchAvailability() {
     const [{ data: day }, { data: bookings }] = await Promise.all([
-      sb.from('day_availability').select('available_slots, is_closed').eq('pincode', state.pincode).eq('day', dayKey(state.date)).maybeSingle(),
-      sb.from('donations').select('id, time_slot').eq('pickup_day', dayStr(state.date)).neq('status', 'cancelled'),
+      sb.from('day_availability').select('available_slots, is_closed, slot_capacity').eq('pincode', state.pincode).eq('day', dayKey(state.date)).maybeSingle(),
+      sb.from('donations').select('id, time_slot, pincode').eq('pickup_day', dayStr(state.date)).neq('status', 'cancelled'),
+      refreshTimeSlots(),
     ]);
-    state.avail = {
-      slots: day?.available_slots || [],
-      closed: Boolean(day?.is_closed),
-      booked: (bookings || []).map((b) => b.time_slot).filter(Boolean),
-    };
-    if (!state.slot || slotDisabled(state.slot)) state.slot = TIME_SLOTS.find((s) => !slotDisabled(s)) || '';
+    const capacity = day?.slot_capacity ?? DEFAULT_CAPACITY;
+    const otherArea = new Set();
+    const used = {};
+    (bookings || []).filter((b) => b.time_slot).forEach((b) => {
+      if (b.pincode === state.pincode) used[b.time_slot] = (used[b.time_slot] || 0) + 1;
+      else otherArea.add(b.time_slot);
+    });
+    const seats = {};
+    const booked = [];
+    TIME_SLOTS.forEach((sl) => {
+      const left = otherArea.has(sl) ? 0 : Math.max(0, capacity - (used[sl] || 0));
+      seats[sl] = left;
+      if (!left) booked.push(sl);
+    });
+    return { slots: day?.available_slots || [], closed: Boolean(day?.is_closed), booked, seats };
+  }
+
+  async function loadSlots() {
+    state.avail = await fetchAvailability();
+    if (!state.slot || !TIME_SLOTS.includes(state.slot) || slotDisabled(state.slot)) state.slot = TIME_SLOTS.find((s) => !slotDisabled(s)) || '';
     renderDonate();
   }
 
@@ -250,7 +282,7 @@
       : TIME_SLOTS.map((s) => {
           const booked = state.avail.booked.includes(s) && !slotPast(s);
           const unavail = !booked && !slotPast(s) && state.avail.slots.length > 0 && !state.avail.slots.includes(s);
-          return `<button type="button" class="slot ${s === state.slot ? 'sel' : ''}" data-slot="${s}" ${slotDisabled(s) ? 'disabled' : ''}>${s}${booked ? '<small>Booked</small>' : unavail ? '<small>Unavailable</small>' : ''}</button>`;
+          return `<button type="button" class="slot ${s === state.slot ? 'sel' : ''}" data-slot="${s}" ${slotDisabled(s) ? 'disabled' : ''}>${s}${booked ? '<small>Full</small>' : unavail ? '<small>Unavailable</small>' : !slotPast(s) && !state.avail.closed && state.avail.seats[s] != null ? `<small class="left">${state.avail.seats[s]} left</small>` : ''}</button>`;
         }).join('');
   }
 
@@ -290,6 +322,12 @@
     const btn = $('schedule-btn');
     btn.disabled = true;
     try {
+      // Last-moment re-check: another donor may have taken the final seat.
+      state.avail = await fetchAvailability();
+      if (state.avail.closed || state.avail.booked.includes(state.slot)) {
+        renderDonate();
+        return fail('That time slot just filled up. Please pick a different one.');
+      }
       const category = ITEM_TYPES.filter((i) => state.items.has(i.id)).map((i) => i.label).join(', ');
       const base = [line1, $('addr2').value.trim(), state.pincode].filter(Boolean).join(', ');
       const address = state.coords ? `${base} (Lat: ${state.coords.lat.toFixed(4)}, Long: ${state.coords.lng.toFixed(4)})` : base;
@@ -332,6 +370,18 @@
         body: `Your ${category} pickup is scheduled for ${pickup_day} (${state.slot}).`,
         tag: 'PICKUP REMINDER',
       }]).then(() => {}, () => {});
+      // Tell every admin, as the app does.
+      try {
+        const { data: admins } = await sb.from('profiles').select('id').eq('role', 'admin');
+        const who = state.profile?.full_name || 'A donor';
+        const ph = state.profile?.phone;
+        if (admins?.length) await sb.from('notifications').insert(admins.map((a) => ({
+          user_id: a.id,
+          title: 'New Pickup Request',
+          body: `${who}${ph ? ` (${ph})` : ''} requested a pickup for ${category} (${state.qty} kg) on ${pickup_day} at ${state.slot} — ${address}.`,
+          tag: 'PICKUP SCHEDULED',
+        })));
+      } catch (_) { /* donor booking already succeeded */ }
 
       toast('Pickup scheduled!');
       $('addr1').value = $('addr2').value = $('notes').value = '';
@@ -398,13 +448,75 @@
     );
   });
 
+  // ---------- drives & drop-off points ----------
+  const isoToday = () => dayKey(new Date());
+  const shortDate = (iso) => new Date(`${iso}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  const areaTag = (pin) => (pin && pin === state.profile?.pincode ? 'IN YOUR AREA' : pin ? `PINCODE ${pin}` : 'ALL AREAS');
+
+  async function loadDrives() {
+    const t = isoToday();
+    const [{ data: drives }, { data: drops }] = await Promise.all([
+      sb.from('collection_drives').select('id, title, drive_date, time_window, location, pincode, description').eq('is_active', true).gte('drive_date', t).order('drive_date', { ascending: true }),
+      sb.from('drop_off_points').select('id, name, address, pincode, start_date, end_date, open_time, close_time, contact, description').eq('is_active', true).gte('end_date', t).order('start_date', { ascending: true }),
+    ]);
+    $('drives-list').innerHTML = (drives || []).length
+      ? drives.map((d) => {
+          const dt = new Date(`${d.drive_date}T00:00:00`);
+          return `<div class="white-card drive"><div class="drive-date"><b>${dt.getDate()}</b><small>${dt.toLocaleDateString('en-IN', { month: 'short' }).toUpperCase()}</small></div>
+            <div class="drive-body"><div class="drive-tag"><span>${esc(areaTag(d.pincode))}</span></div><h4>${esc(d.title)}</h4>
+            <p>${esc(dt.toLocaleDateString('en-IN', { weekday: 'long' }))}${d.time_window ? ` · ${esc(d.time_window)}` : ''}</p><p>${esc(d.location)}</p>${d.description ? `<p>${esc(d.description)}</p>` : ''}</div></div>`;
+        }).join('')
+      : '<div class="white-card"><p class="muted">No collection drives are scheduled right now. Check back soon.</p></div>';
+    $('dropoff-list').innerHTML = (drops || []).length
+      ? drops.map((p) => {
+          const upcoming = p.start_date > t;
+          const hours = p.open_time && p.close_time ? `${p.open_time} – ${p.close_time}` : p.open_time || p.close_time || '';
+          return `<div class="white-card drive"><div class="drive-date"><b>📦</b></div>
+            <div class="drive-body"><div class="drive-tag"><span>${esc(areaTag(p.pincode))}</span><span class="${upcoming ? '' : 'open'}">${upcoming ? `OPENS ${shortDate(p.start_date).toUpperCase()}` : 'OPEN NOW'}</span></div><h4>${esc(p.name)}</h4>
+            <p>${esc(p.address)}</p><p>${shortDate(p.start_date)} – ${shortDate(p.end_date)}</p>${hours ? `<p>Daily ${esc(hours)}</p>` : ''}${p.contact ? `<p>${esc(p.contact)}</p>` : ''}${p.description ? `<p>${esc(p.description)}</p>` : ''}</div></div>`;
+        }).join('')
+      : '<div class="white-card"><p class="muted">No drop-off points are open right now. Check back soon.</p></div>';
+  }
+
   // ---------- alerts ----------
+  const alertType = (tag) => {
+    const t = String(tag || '').toUpperCase();
+    if (t.includes('CANCEL')) return { ic: '✕', label: 'Cancelled', cls: 't-cancel', go: 'home' };
+    if (t.includes('DROP')) return { ic: '📦', label: 'Drop-off point', cls: 't-drive', go: 'drives' };
+    if (t.includes('DRIVE')) return { ic: '📅', label: 'Collection drive', cls: 't-drive', go: 'drives' };
+    if (t.includes('SCHEDULED') || t.includes('REMINDER')) return { ic: '✓', label: 'Pickup', cls: '', go: 'home' };
+    if (t.includes('LOGISTICS')) return { ic: '🚚', label: 'On the way', cls: '', go: 'home' };
+    if (t.includes('UPDATE')) return { ic: '↻', label: 'Update', cls: '', go: 'home' };
+    return { ic: '🔔', label: 'Alert', cls: '', go: null };
+  };
+  const timeAgo = (iso) => {
+    const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+    if (m < 1) return 'Just now';
+    if (m < 60) return `${m}m ago`;
+    if (m < 1440) return `${Math.floor(m / 60)}h ago`;
+    return `${Math.floor(m / 1440)}d ago`;
+  };
+  const groupOf = (iso) => {
+    const d = new Date(iso), n = new Date(), y = new Date();
+    y.setDate(n.getDate() - 1);
+    return sameDay(d, n) ? 'Today' : sameDay(d, y) ? 'Yesterday' : 'Earlier';
+  };
+
   async function loadAlerts() {
     const { data } = await sb.from('notifications').select('*').eq('user_id', state.user.id).order('created_at', { ascending: false });
-    $('alerts-list').innerHTML = (data || []).length
-      ? data.map((n) => `<div class="white-card note ${n.is_read ? '' : 'unread'}"><small>${esc(n.tag)}</small><b>${esc(n.title)}</b><p>${esc(n.body)}</p></div>`).join('')
-      : '<div class="white-card"><p class="muted">No alerts yet.</p></div>';
-    if ((data || []).some((n) => !n.is_read)) {
+    const rows = data || [];
+    let html = '';
+    let last = '';
+    rows.forEach((n) => {
+      const g = groupOf(n.created_at);
+      if (g !== last) { html += `<h4 class="grp">${g.toUpperCase()}</h4>`; last = g; }
+      const t = alertType(n.tag);
+      html += `<div class="white-card note ${t.cls} ${n.is_read ? '' : 'unread'}" ${t.go ? `data-tab="${t.go}" role="button"` : ''}>
+        <span class="n-ic">${t.ic}</span>
+        <div><div class="n-meta"><small>${t.label.toUpperCase()}</small><em>${timeAgo(n.created_at)}</em></div><b>${esc(n.title)}</b><p>${esc(n.body)}</p></div></div>`;
+    });
+    $('alerts-list').innerHTML = html || '<div class="white-card"><p class="muted">You\'re all caught up. Updates about your pickups, drives and drop-off points will show up here.</p></div>';
+    if (rows.some((n) => !n.is_read)) {
       await sb.from('notifications').update({ is_read: true }).eq('user_id', state.user.id).eq('is_read', false);
       $('bell-dot').hidden = true;
     }
@@ -429,13 +541,23 @@
     const { data, error } = await sb.from('donations').update({ status: 'cancelled' }).eq('id', id).eq('status', 'pending').select();
     if (error || !data?.length) return toast('This pickup can no longer be cancelled.');
     await sb.from('pickups').update({ status: 'cancelled' }).eq('donation_id', id).then(() => {}, () => {});
+    try {
+      const c = data[0];
+      const { data: admins } = await sb.from('profiles').select('id').eq('role', 'admin');
+      if (admins?.length) await sb.from('notifications').insert(admins.map((a) => ({
+        user_id: a.id,
+        title: 'Pickup Cancelled',
+        body: `The ${c.category} pickup (${c.weight_kg} kg) scheduled for ${c.pickup_day}, ${c.time_slot} was cancelled by the donor.`,
+        tag: 'CANCELLED',
+      })));
+    } catch (_) { /* cancellation already saved */ }
     await loadAll();
     renderProfile();
   });
 
   // ---------- wiring ----------
   document.addEventListener('click', (e) => {
-    const t = e.target.closest('button[data-tab]');
+    const t = e.target.closest('[data-tab]');
     if (t) setTab(t.dataset.tab);
   });
   $('p-back').addEventListener('click', () => setTab('home'));
@@ -446,6 +568,8 @@
     window.resetAuth();
     window.showView('landing');
   });
+
+  setInterval(() => { if (state.user && !document.hidden) pollBell(); }, 30000);
 
   window.enterPortal = async (user) => {
     state.user = user;

@@ -312,3 +312,25 @@ img { display: block; max-width: 100%; }
 
 /* .modal-card p (grey) outranks .error, so the pincode message needs its own rule */
 .modal-card .error { color: var(--error); font-size: 14px; line-height: 1.5; margin: -4px 0 14px; }
+
+/* header bell + drives + alerts */
+.p-bell { position: relative; }
+.p-bell i { position: absolute; top: 6px; right: 7px; width: 10px; height: 10px; border-radius: 50%; background: var(--error); border: 2px solid var(--background); }
+.p-top.green .p-bell i { border-color: var(--primary); }
+.tabbar i { display: none; }
+.page-h { font-family: var(--heading); font-size: 30px; margin: 12px 0 4px; }
+.drive { display: flex; gap: 14px; }
+.drive-date { flex: none; width: 64px; height: 64px; border-radius: 16px; background: var(--primary-container); color: var(--primary-dark); display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: 700; }
+.drive-date b { font-size: 24px; line-height: 1; } .drive-date small { font-size: 11px; letter-spacing: 1px; }
+.drive-body { min-width: 0; }
+.drive-tag { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; font-weight: 700; letter-spacing: 1px; color: var(--secondary); }
+.drive-tag .open { color: var(--primary); }
+.drive-body h4 { font-size: 17px; margin: 4px 0; }
+.drive-body p { color: var(--text-secondary); font-size: 14px; line-height: 1.5; }
+.grp { font-size: 12px; font-weight: 700; letter-spacing: 1px; color: var(--text-secondary); margin: 18px 0 8px; }
+.note { display: flex; gap: 12px; }
+.note .n-ic { flex: none; width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; font-size: 18px; background: var(--primary-container); }
+.note .n-meta { display: flex; justify-content: space-between; gap: 8px; }
+.note .n-meta em { font-style: normal; font-size: 12px; color: var(--text-secondary); }
+.note.t-cancel .n-ic { background: #ffdad6; } .note.t-drive .n-ic { background: #dcebf8; }
+.slot .left { color: var(--primary-dark); }

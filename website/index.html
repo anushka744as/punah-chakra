@@ -147,6 +147,9 @@
         <img src="assets/logo_transparent.png" alt="" /><img class="wm" src="assets/logo_wordmark_transparent.png" alt="PunahChakra" />
       </div>
       <h2 class="p-title" id="p-title"></h2>
+      <button class="p-avatar p-bell" data-tab="alerts" aria-label="Alerts">
+        <svg viewBox="0 0 24 24"><path d="M12 22a2 2 0 0 0 2-2h-4a2 2 0 0 0 2 2m6-6v-5a6 6 0 0 0-5-5.9V4a1 1 0 0 0-2 0v1.1A6 6 0 0 0 6 11v5l-2 2v1h16v-1zm-2 1H8v-6a4 4 0 0 1 8 0z"/></svg><i id="bell-dot" hidden></i>
+      </button>
       <button class="p-avatar" data-tab="profile" aria-label="Profile">
         <svg viewBox="0 0 24 24"><path d="M12 4a4 4 0 1 1 0 8 4 4 0 0 1 0-8m0 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4m0 7c2.67 0 8 1.34 8 4v3H4v-3c0-2.66 5.33-4 8-4m0 1.9c-2.97 0-6.1 1.46-6.1 2.1v1.1h12.2V17c0-.64-3.13-2.1-6.1-2.1"/></svg>
       </button>
@@ -240,8 +243,19 @@
         <button id="schedule-btn" class="btn btn-primary btn-lg full">Schedule Pickup</button>
       </section>
 
+      <!-- DRIVES -->
+      <section class="tab-pane" id="pane-drives">
+        <h2 class="page-h">Collection Drives</h2>
+        <p class="muted">Upcoming collection drives and drop-off points near you.</p>
+        <h3 class="sec-h">Collection drives</h3>
+        <div id="drives-list"></div>
+        <h3 class="sec-h">Drop-off points</h3>
+        <div id="dropoff-list"></div>
+      </section>
+
       <!-- ALERTS -->
       <section class="tab-pane" id="pane-alerts">
+        <p class="muted">Pickups, drives and drop-off points, all in one place.</p>
         <div id="alerts-list"></div>
       </section>
 
@@ -258,7 +272,7 @@
       <button data-tab="home" class="on"><span><svg viewBox="0 0 24 24"><path d="M12 3 2 12h3v8h5v-6h4v6h5v-8h3z" fill="currentColor"/></svg></span>Home</button>
       <button data-tab="map"><span><svg viewBox="0 0 24 24"><path d="M15 5 9 3 3 5v16l6-2 6 2 6-2V3zm-1 14-4-1.3V5l4 1.3zM5 6.4l3-1v12.2l-3 1zm14 11.2-3 1V6.4l3-1z" fill="currentColor"/></svg></span>Map</button>
       <button data-tab="donate" class="fab"><span>+</span>Donate</button>
-      <button data-tab="alerts"><span><svg viewBox="0 0 24 24"><path d="M12 22a2 2 0 0 0 2-2h-4a2 2 0 0 0 2 2m6-6v-5a6 6 0 0 0-5-5.9V4a1 1 0 0 0-2 0v1.1A6 6 0 0 0 6 11v5l-2 2v1h16v-1zm-2 1H8v-6a4 4 0 0 1 8 0z" fill="currentColor"/></svg></span>Alerts<i id="bell-dot" hidden></i></button>
+      <button data-tab="drives"><span><svg viewBox="0 0 24 24"><path d="M17 12h-5v5h5zM16 1v2H8V1H6v2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-1V1zm3 18H5V8h14z" fill="currentColor"/></svg></span>Drives</button>
       <button data-tab="profile"><span><svg viewBox="0 0 24 24"><path d="M12 4a4 4 0 1 1 0 8 4 4 0 0 1 0-8m0 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4m0 7c2.67 0 8 1.34 8 4v3H4v-3c0-2.66 5.33-4 8-4m0 1.9c-2.97 0-6.1 1.46-6.1 2.1v1.1h12.2V17c0-.64-3.13-2.1-6.1-2.1" fill="currentColor"/></svg></span>Profile</button>
     </nav>
 
