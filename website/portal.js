@@ -51,6 +51,7 @@
     map: null,
     coords: null,
     pickMap: null,
+    editing: null, // donation being edited (pending pickups only)
   };
 
   const TITLES = { home: '', map: 'Donation Map', donate: 'Schedule', drives: 'Drives', alerts: 'Alerts', profile: 'Profile' };
@@ -64,6 +65,7 @@
   }
 
   function setTab(tab) {
+    if (tab !== 'donate' && state.editing) endEdit();
     state.tab = tab;
     document.querySelectorAll('.tab-pane').forEach((p) => p.classList.toggle('on', p.id === `pane-${tab}`));
     document.querySelectorAll('#tabbar button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
@@ -178,9 +180,12 @@
   // ---------- donate / schedule ----------
   function openDonate() {
     // Like the app, ask the donor to confirm their pincode every time they open Schedule.
-    $('pin-input').value = state.pincode || '';
-    $('pin-error').hidden = true;
-    $('pin-modal').hidden = false;
+    $('schedule-btn').textContent = state.editing ? 'Update Pickup' : 'Schedule Pickup';
+    if (!state.editing) {
+      $('pin-input').value = state.pincode || '';
+      $('pin-error').hidden = true;
+      $('pin-modal').hidden = false;
+    }
     renderDonate();
     if (state.pincode) loadSlots();
     initPickMap();
@@ -230,7 +235,7 @@
     const capacity = day?.slot_capacity ?? DEFAULT_CAPACITY;
     const otherArea = new Set();
     const used = {};
-    (bookings || []).filter((b) => b.time_slot).forEach((b) => {
+    (bookings || []).filter((b) => b.time_slot && b.id !== state.editing?.id).forEach((b) => {
       if (b.pincode === state.pincode) used[b.time_slot] = (used[b.time_slot] || 0) + 1;
       else otherArea.add(b.time_slot);
     });
@@ -333,6 +338,20 @@
       const address = state.coords ? `${base} (Lat: ${state.coords.lat.toFixed(4)}, Long: ${state.coords.lng.toFixed(4)})` : base;
       const instructions = $('notes').value.trim() || 'Doorstep pickup';
       const pickup_day = dayStr(state.date);
+      if (state.editing) {
+        const id = state.editing.id;
+        const { data: upd, error: uerr } = await sb.from('donations').update({
+          category, weight_kg: state.qty, estimated_quantity_kg: state.qty,
+          pickup_day, time_slot: state.slot, instructions, address,
+        }).eq('id', id).eq('status', 'pending').select();
+        if (uerr) throw uerr;
+        if (!upd?.length) throw new Error('This pickup can no longer be edited.');
+        await sb.from('pickups').update({ address, weight_summary: `${state.qty} kg`, time_window: state.slot }).eq('donation_id', id).then(() => {}, () => {});
+        toast('Pickup updated!');
+        endEdit();
+        await loadAll();
+        return setTab('profile');
+      }
       const { data, error } = await sb
         .from('donations')
         .insert([{
@@ -393,6 +412,35 @@
       btn.disabled = false;
     }
   });
+
+  // ---------- edit a pending pickup (mirrors the app's reschedule) ----------
+  const cleanAddr = (a) => String(a || '').replace(/\s*\(Lat:.*\)$/, '');
+  function endEdit() {
+    state.editing = null;
+    state.items = new Set(['clothes']);
+    state.qty = 5;
+    state.slot = '';
+    state.coords = null;
+    $('addr1').value = $('addr2').value = $('notes').value = '';
+    $('schedule-btn').textContent = 'Schedule Pickup';
+  }
+  function startEdit(d) {
+    state.editing = d;
+    const labels = String(d.category || '').split(',').map((x) => x.trim());
+    state.items = new Set(ITEM_TYPES.filter((i) => labels.includes(i.label)).map((i) => i.id));
+    state.qty = Math.round(d.weight_kg) || 5;
+    state.pincode = d.pincode || state.pincode;
+    state.date = today();
+    state.weekStart = today();
+    state.slot = TIME_SLOTS.includes(d.time_slot) ? d.time_slot : '';
+    const m = String(d.address || '').match(/Lat:\s*([0-9.-]+),\s*Long:\s*([0-9.-]+)/i);
+    state.coords = m ? { lat: parseFloat(m[1]), lng: parseFloat(m[2]) } : null;
+    setTab('donate');
+    $('addr1').value = cleanAddr(d.address).replace(new RegExp(`,?\\s*${state.pincode}$`), '');
+    $('addr2').value = '';
+    $('notes').value = d.instructions === 'Doorstep pickup' ? '' : d.instructions || '';
+    if (state.coords && state.pickMap) { state.pickMap.setView([state.coords.lat, state.coords.lng], 16); state.pickMarker.setLatLng([state.coords.lat, state.coords.lng]); }
+  }
 
   // Draggable pickup pin, as in the app's Leaflet preview.
   async function initPickMap() {
@@ -530,11 +578,16 @@
       ${p.email ? `<p class="muted">${esc(p.email)}</p>` : ''}`;
     $('profile-pickups').innerHTML = state.donations.length
       ? state.donations.map((d) => `<div class="white-card">${pickupRow(d, true)}
-          ${d.status === 'pending' ? `<button class="link cancel-pickup" data-cancel="${d.id}">Cancel pickup</button>` : ''}</div>`).join('')
+          ${d.status === 'pending' ? `<button class="link strong" data-edit="${d.id}">Edit pickup</button> <button class="link cancel-pickup" data-cancel="${d.id}">Cancel pickup</button>` : ''}</div>`).join('')
       : '<div class="white-card"><p class="muted">No pickups yet.</p></div>';
   }
 
   $('profile-pickups').addEventListener('click', async (e) => {
+    if (e.target.dataset.edit) {
+      const d = state.donations.find((x) => x.id === e.target.dataset.edit);
+      if (d && d.status === 'pending') startEdit(d);
+      return;
+    }
     const id = e.target.dataset.cancel;
     if (!id || !confirm('Cancel this pickup request?')) return;
     // eq('status','pending') keeps this atomic: it fails if a collector already confirmed it.
