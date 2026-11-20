@@ -55,6 +55,7 @@
   };
 
   const TITLES = { home: '', map: 'Donation Map', donate: 'Schedule', drives: 'Drives', alerts: 'Alerts', profile: 'Profile' };
+  const TITLES_EDIT = 'Edit Pickup';
 
   function toast(msg) {
     const t = $('toast');
@@ -71,7 +72,7 @@
     document.querySelectorAll('#tabbar button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
     $('p-top').className = `p-top ${tab === 'home' ? 'plain' : 'green'}`;
     $('p-brand').hidden = tab !== 'home';
-    $('p-title').textContent = TITLES[tab];
+    $('p-title').textContent = tab === 'donate' && state.editing ? TITLES_EDIT : TITLES[tab];
     $('p-back').hidden = tab === 'home';
     document.getElementById('portal').dataset.current = tab;
     window.scrollTo(0, 0);
@@ -121,12 +122,16 @@
       ? `<div class="latest">
           <span class="ic big"><svg viewBox="0 0 24 24"><path d="M19 4h-1V2h-2v2H8V2H6v2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2m0 16H5V10h14zm-9-3-3-3 1.4-1.4L10 14.2l5.6-5.6L17 10z" fill="currentColor"/></svg></span>
           <div class="latest-txt"><b>${statusLabel(latest.status)}</b><p>${esc(latest.pickup_day)} · ${esc(latest.time_slot)}</p><small>${esc(latest.address.replace(/\s*\(Lat:.*\)$/, ''))}</small></div>
-          <button class="btn btn-outline small" data-tab="profile">VIEW DETAILS</button>
+          <button class="btn btn-outline small" data-tab="alerts">VIEW DETAILS</button>
         </div>`
-      : `<p class="muted">No pickups yet. Schedule your first one!</p>`;
+      : `<p class="muted"><b>Nothing scheduled yet</b><br>Schedule your first pickup and it will show up here.</p>`;
     $('recent-list').innerHTML = state.donations.length
-      ? state.donations.slice(0, 5).map((d) => `<div class="white-card">${pickupRow(d, true)}</div>`).join('')
-      : `<div class="white-card"><p class="muted">Your contributions will show up here.</p></div>`;
+      ? state.donations.map((d) => `<div class="white-card"><div class="contrib">
+          <div><b>${esc(d.category || 'Donation')}</b><span>${esc(d.pickup_day)}${d.weight_kg ? ` · ${esc(d.weight_kg)} kg` : ''}</span></div>
+          <em class="badge ${d.status === 'cancelled' ? 'bad' : ''}">${statusLabel(d.status)}</em></div>
+          ${d.status === 'pending' ? `<div class="c-actions"><button data-edit="${d.id}">✎ Edit</button><button class="del" data-cancel="${d.id}">🗑 Delete</button></div>` : ''}</div>`).join('')
+      : '';
+    $('recent-list').previousElementSibling.hidden = !state.donations.length;
   }
 
   // ---------- map ----------
@@ -144,12 +149,13 @@
 
   async function renderMap() {
     const latest = state.donations.find((d) => d.status !== 'cancelled');
-    $('map-pin-chip').textContent = state.pincode ? `Pincode ${state.pincode}` : 'Pincode —';
+    $('map-pin-chip').textContent = state.profile?.pincode ? `Pincode ${state.profile.pincode}` : 'Your area';
     const dest = $('map-dest');
     dest.hidden = !latest;
     if (latest) dest.innerHTML = `<span class="nav-ic">▲</span><div><b>Doorstep Destination: ${esc(latest.category)}</b><p>${esc(latest.address.replace(/\s*\(Lat:.*\)$/, ''))}</p></div>`;
-    const active = state.donations.filter((d) => d.status !== 'cancelled').length;
+    const active = state.donations.length;
     $('map-activity').textContent = `You have ${active} pickup${active === 1 ? '' : 's'} shown on the map above.`;
+    $('map-empty').hidden = active > 0;
 
     if (!state.map) {
       state.map = L.map('map', { zoomControl: true }).setView([28.4595, 77.0266], 14);
@@ -158,14 +164,19 @@
         satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Esri' }),
       };
       state.layers.street.addTo(state.map);
-      state.marker = L.marker([28.4595, 77.0266]).addTo(state.map);
+      state.markers = L.layerGroup().addTo(state.map);
     }
+    // Like the app: plot every one of the donor's own pickups at its saved coordinates.
+    state.markers.clearLayers();
+    const pts = state.donations.map((d) => {
+      const m = String(d.address || '').match(/Lat:\s*([0-9.-]+),\s*Long:\s*([0-9.-]+)/i);
+      return m ? { d, pos: [parseFloat(m[1]), parseFloat(m[2])] } : null;
+    }).filter(Boolean);
+    pts.forEach(({ d, pos }) => L.marker(pos).addTo(state.markers).bindPopup(`<b>${esc(d.category)}</b><br>${esc(d.pickup_day)} · ${esc(d.time_slot)}<br>${esc(cleanAddr(d.address))}`));
     setTimeout(() => state.map.invalidateSize(), 50);
-    const pos = await geocode(state.pincode);
-    if (pos) {
-      state.map.setView(pos, 15);
-      state.marker.setLatLng(pos);
-    }
+    if (pts.length) { state.map.setView(pts[0].pos, 16); return; }
+    const pos = await geocode(state.profile?.pincode || state.pincode);
+    if (pos) state.map.setView(pos, 15);
   }
 
   document.querySelectorAll('#map-seg button').forEach((b) =>
@@ -181,6 +192,8 @@
   function openDonate() {
     // Like the app, ask the donor to confirm their pincode every time they open Schedule.
     $('schedule-btn').textContent = state.editing ? 'Update Pickup' : 'Schedule Pickup';
+    $('give-h').textContent = state.editing ? 'Update your pickup.' : 'Give back.';
+    $('give-p').textContent = state.editing ? 'Change items, quantity, schedule, or address.' : 'Schedule your doorstep pickup.';
     if (!state.editing) {
       $('pin-input').value = state.pincode || '';
       $('pin-error').hidden = true;
@@ -564,6 +577,7 @@
         <div><div class="n-meta"><small>${t.label.toUpperCase()}</small><em>${timeAgo(n.created_at)}</em></div><b>${esc(n.title)}</b><p>${esc(n.body)}</p></div></div>`;
     });
     $('alerts-list').innerHTML = html || '<div class="white-card"><p class="muted">You\'re all caught up. Updates about your pickups, drives and drop-off points will show up here.</p></div>';
+    const pill = $('new-pill'); const nNew = rows.filter((n) => !n.is_read).length; pill.hidden = !nNew; pill.textContent = `${nNew} new`;
     if (rows.some((n) => !n.is_read)) {
       await sb.from('notifications').update({ is_read: true }).eq('user_id', state.user.id).eq('is_read', false);
       $('bell-dot').hidden = true;
@@ -572,17 +586,16 @@
 
   // ---------- profile ----------
   function renderProfile() {
-    const p = state.profile || {};
-    $('profile-card').innerHTML = `<h3 class="card-h">${esc(p.full_name || 'Your profile')}</h3>
-      <p class="muted">${esc(p.phone || state.user.phone || '')}</p>
-      ${p.email ? `<p class="muted">${esc(p.email)}</p>` : ''}`;
+    const pr0 = state.profile || {};
+    window.mountSettings($('profile-settings'), () => ({ user: state.user, profile: state.profile }), (np) => { state.profile = np; renderProfile(); }, true);
+    $('profile-card').innerHTML = `<h3 class="card-h">${esc(pr0.full_name || 'Your profile')}</h3>
+      <p class="muted">${esc(pr0.email || pr0.phone || state.user.phone || '')}</p>`;
     $('profile-pickups').innerHTML = state.donations.length
-      ? state.donations.map((d) => `<div class="white-card">${pickupRow(d, true)}
-          ${d.status === 'pending' ? `<button class="link strong" data-edit="${d.id}">Edit pickup</button> <button class="link cancel-pickup" data-cancel="${d.id}">Cancel pickup</button>` : ''}</div>`).join('')
-      : '<div class="white-card"><p class="muted">No pickups yet.</p></div>';
+      ? state.donations.map((d) => `<div class="act"><div><b>${esc(d.category || 'Donation Batch')}</b><span>${esc(d.pickup_day)} · ${esc(cleanAddr(d.address))}</span></div><em class="${d.status === 'cancelled' ? 'bad' : d.status === 'completed' ? 'ok' : ''}">${statusLabel(d.status)}</em></div>`).join('')
+      : '<p class="muted center">No recent activity — it appears here after your first pickup.</p>';
   }
 
-  $('profile-pickups').addEventListener('click', async (e) => {
+  $('recent-list').addEventListener('click', async (e) => {
     if (e.target.dataset.edit) {
       const d = state.donations.find((x) => x.id === e.target.dataset.edit);
       if (d && d.status === 'pending') startEdit(d);
@@ -605,7 +618,6 @@
       })));
     } catch (_) { /* cancellation already saved */ }
     await loadAll();
-    renderProfile();
   });
 
   // ---------- wiring ----------
@@ -626,6 +638,9 @@
 
   window.enterPortal = async (user) => {
     state.user = user;
+    // Admins get the same Routes / Map / Calendar / Areas / Drives workspace as the app.
+    const { data: who } = await sb.from('profiles').select('role').eq('id', user.id).maybeSingle();
+    if (who?.role === 'admin' && window.enterAdmin) return window.enterAdmin(user);
     window.showView('portal');
     setTab('home');
     await loadAll();
