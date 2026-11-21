@@ -631,7 +631,7 @@
     await sb.auth.signOut();
     state.user = null;
     window.resetAuth();
-    window.showView('landing');
+    window.showView('auth');
   });
 
   setInterval(() => { if (state.user && !document.hidden) pollBell(); }, 30000);
