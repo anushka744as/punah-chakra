@@ -1,12 +1,12 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Modal, ScrollView, Share, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Modal, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { theme } from '../theme/theme';
 import { Confetti } from './SuccessOverlay';
-import { ProceduralTree } from './ProceduralTree';
+import { Tree3D } from './Tree3D';
 import { MilestoneBar } from './ImpactTree';
 import { useReducedMotion } from '../hooks/useTreeProgress';
 import type { Reveal } from '../hooks/useTreeProgress';
-import { TREE_STAGES, journeyFraction, leavesOf, stageIndexOf } from '../utils/treeGrowth';
+import { TREE_STAGES, journeyFraction, stageIndexOf } from '../utils/treeGrowth';
 
 const fmt = (n: number) => (n % 1 === 0 ? `${n}` : n.toFixed(1));
 
@@ -24,29 +24,15 @@ type GrowthProps = {
 // After a pickup is completed: the tree before, and now, with the new leaves growing in one by one.
 export const GrowthModal = ({ visible, reveal, seed, onSeeDonated, onClose }: GrowthProps) => {
   const reduced = useReducedMotion();
-  const beforeLeaves = reveal ? leavesOf(reveal.before) : [];
-  const nowLeaves = reveal ? leavesOf(reveal.now) : [];
-  const [shown, setShown] = useState(beforeLeaves.length);
+  const [holdBefore, setHoldBefore] = useState(false);
+  const [playKey, setPlayKey] = useState(0);
 
   useEffect(() => {
-    if (!visible || !reveal) return;
-    const start = beforeLeaves.length;
-    const end = nowLeaves.length;
-    if (reduced || end <= start) {
-      setShown(end);
-      return;
+    if (visible) {
+      setHoldBefore(false);
+      setPlayKey(k => k + 1);
     }
-    setShown(start);
-    const step = Math.min(120, 2400 / (end - start));
-    let n = start;
-    const t = setInterval(() => {
-      n += 1;
-      setShown(n);
-      if (n >= end) clearInterval(t);
-    }, step);
-    return () => clearInterval(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible, reveal, reduced]);
+  }, [visible]);
 
   if (!reveal) return null;
   const newIds = reveal.added.map(p => p.id);
@@ -63,19 +49,33 @@ export const GrowthModal = ({ visible, reveal, seed, onSeeDonated, onClose }: Gr
           <Text style={g.title}>Pickup #{reveal.now.length} completed</Text>
           <Text style={g.sub}>Your tree just grew</Text>
 
-          <View style={g.row}>
-            <View style={[g.card, { opacity: 0.6 }]}>
-              <Text style={g.cardLabel}>BEFORE</Text>
-              <ProceduralTree seed={seed} kg={reveal.kgBefore} leaves={beforeLeaves} width={140} />
-            </View>
-            <View style={[g.card, g.cardNow]}>
-              <Text style={[g.cardLabel, { color: theme.colors.primaryDark }]}>NOW</Text>
-              <ProceduralTree seed={seed} kg={reveal.kgNow} leaves={nowLeaves} visibleCount={shown} highlightIds={newIds} width={140} />
+          <View style={g.treeCard}>
+            <Tree3D
+              seed={seed}
+              pickups={reveal.now}
+              fromPickups={reveal.before}
+              newIds={newIds}
+              playKey={playKey}
+              showBefore={holdBefore}
+              height={300}
+              reduced={reduced}
+            />
+            <View style={g.holdRow}>
+              <Pressable
+                onPressIn={() => setHoldBefore(true)}
+                onPressOut={() => setHoldBefore(false)}
+                style={[g.holdBtn, holdBefore && g.holdBtnOn]}
+                accessibilityLabel="Hold to see your tree before this pickup"
+              >
+                <Text style={[g.holdText, holdBefore && { color: theme.colors.surface }]}>
+                  {holdBefore ? 'Before' : 'Hold to see before'}
+                </Text>
+              </Pressable>
             </View>
           </View>
 
           <Text style={g.leafLine}>
-            +{reveal.itemsAdded} new leaf{reveal.itemsAdded === 1 ? '' : 'ves'}, one per item you gave
+            +{reveal.itemsAdded} new leaf cluster{reveal.itemsAdded === 1 ? '' : 's'}, one per item you gave
           </Text>
 
           <View style={g.tiles}>
@@ -86,6 +86,10 @@ export const GrowthModal = ({ visible, reveal, seed, onSeeDonated, onClose }: Gr
             <View style={g.tile}>
               <Text style={g.tileNum}>+{reveal.itemsAdded}</Text>
               <Text style={g.tileLabel}>items rehomed</Text>
+            </View>
+            <View style={g.tile}>
+              <Text style={g.tileNum}>+{reveal.added.length}</Text>
+              <Text style={g.tileLabel}>pickup{reveal.added.length === 1 ? '' : 's'}</Text>
             </View>
           </View>
 
@@ -124,18 +128,17 @@ type LevelProps = {
 // Full-screen moment when a pickup pushes the tree into a new stage.
 export const LevelUpModal = ({ visible, reveal, seed, name, onSaveName, onClose }: LevelProps) => {
   const reduced = useReducedMotion();
-  const grow = useRef(new Animated.Value(0)).current;
   const [naming, setNaming] = useState(false);
   const [draft, setDraft] = useState(name);
+  const [playKey, setPlayKey] = useState(0);
 
   useEffect(() => {
     if (!visible) return;
     setNaming(false);
     setDraft(name);
-    grow.setValue(reduced ? 1 : 0);
-    if (!reduced) Animated.timing(grow, { toValue: 1, duration: 600, delay: 300, useNativeDriver: true }).start();
+    setPlayKey(k => k + 1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible, reduced]);
+  }, [visible]);
 
   if (!reveal) return null;
   const from = TREE_STAGES[reveal.stageBefore];
@@ -150,14 +153,7 @@ export const LevelUpModal = ({ visible, reveal, seed, name, onSaveName, onClose 
         {visible && !reduced && <Confetti count={40} />}
         <Text style={l.level}>LEVEL {to.level} UNLOCKED</Text>
         <View style={l.art}>
-          <Animated.View style={[StyleSheet.absoluteFill, l.center, { opacity: grow.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }]}>
-            <ProceduralTree seed={seed} kg={reveal.kgBefore} leaves={leavesOf(reveal.before)} width={260} />
-          </Animated.View>
-          <Animated.View
-            style={[StyleSheet.absoluteFill, l.center, { opacity: grow, transform: [{ scale: grow.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] }) }] }]}
-          >
-            <ProceduralTree seed={seed} kg={reveal.kgNow} leaves={leavesOf(reveal.now)} width={260} />
-          </Animated.View>
+          <Tree3D seed={seed} pickups={reveal.now} fromPickups={reveal.before} newIds={reveal.added.map(p => p.id)} playKey={playKey} height={260} reduced={reduced} />
         </View>
         <Text style={l.title}>{title}</Text>
         <Text style={l.sub}>{fmt(reveal.kgNow)} kg of donated items got a second life.</Text>
@@ -208,6 +204,11 @@ const g = StyleSheet.create({
   content: { padding: 20, paddingTop: 56, paddingBottom: 32 },
   title: { fontSize: 24, fontFamily: theme.fonts.bodyBold, color: theme.colors.text, textAlign: 'center' },
   sub: { fontSize: 15, fontFamily: theme.fonts.body, color: theme.colors.textSecondary, textAlign: 'center', marginTop: 2, marginBottom: 16 },
+  treeCard: { backgroundColor: theme.colors.surface, borderRadius: 22, borderWidth: 1, borderColor: theme.colors.border, padding: 8 },
+  holdRow: { alignItems: 'center', marginTop: 8, marginBottom: 2 },
+  holdBtn: { borderRadius: 999, borderWidth: 1.5, borderColor: theme.colors.primary, paddingHorizontal: 18, paddingVertical: 8 },
+  holdBtnOn: { backgroundColor: theme.colors.primary },
+  holdText: { fontSize: 13, fontFamily: theme.fonts.bodyBold, color: theme.colors.primary },
   row: { flexDirection: 'row', gap: 10 },
   card: { flex: 1, backgroundColor: theme.colors.surface, borderRadius: 20, borderWidth: 1, borderColor: theme.colors.border, padding: 10, alignItems: 'center' },
   cardNow: { borderColor: '#FFC83D', borderWidth: 2 },
@@ -230,7 +231,7 @@ const g = StyleSheet.create({
 const l = StyleSheet.create({
   screen: { flex: 1, backgroundColor: theme.colors.primaryContainer, alignItems: 'center', justifyContent: 'center', padding: 24 },
   level: { fontSize: 12, letterSpacing: 1.2, fontFamily: theme.fonts.bodyBold, color: theme.colors.primaryDark },
-  art: { width: 260, height: 220, marginVertical: 8 },
+  art: { width: '100%', marginVertical: 8 },
   center: { alignItems: 'center', justifyContent: 'center' },
   title: { fontSize: 26, fontFamily: theme.fonts.bodyBold, color: theme.colors.text, textAlign: 'center' },
   sub: { fontSize: 15, fontFamily: theme.fonts.body, color: theme.colors.text, textAlign: 'center', marginTop: 6 },

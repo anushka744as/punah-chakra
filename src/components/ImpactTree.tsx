@@ -1,8 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useState } from 'react';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { theme } from '../theme/theme';
-import { ProceduralTree } from './ProceduralTree';
+import { Tree3D } from './Tree3D';
 import { useReducedMotion } from '../hooks/useTreeProgress';
 import type { useTreeProgress } from '../hooks/useTreeProgress';
 import { MAX_STAGE_INDEX, TREE_STAGES, TreePickup, journeyFraction, stageIndexOf } from '../utils/treeGrowth';
@@ -95,41 +95,6 @@ export const ImpactTree = ({ tree, onSchedule }: { tree: Tree; onSchedule: () =>
   const [sheetOpen, setSheetOpen] = useState(false);
   const [focusId, setFocusId] = useState<string | null>(null);
 
-  const scale = useRef(new Animated.Value(0.6)).current;
-  const sway = useRef(new Animated.Value(0)).current;
-  const bob = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    scale.setValue(reduced ? 1 : 0.6);
-    if (!reduced) Animated.spring(scale, { toValue: 1, useNativeDriver: true, bounciness: 14 }).start();
-  }, [idx, leaves.length, reduced, scale]);
-
-  useEffect(() => {
-    if (reduced) {
-      sway.setValue(0);
-      bob.setValue(0);
-      return;
-    }
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(sway, { toValue: 1, duration: 2200, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-        Animated.timing(sway, { toValue: 0, duration: 2200, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-      ])
-    );
-    const bobLoop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(bob, { toValue: 1, duration: 1100, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-        Animated.timing(bob, { toValue: 0, duration: 1100, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-      ])
-    );
-    loop.start();
-    bobLoop.start();
-    return () => {
-      loop.stop();
-      bobLoop.stop();
-    };
-  }, [reduced, sway, bob]);
-
   const openSheet = (pickupId?: string) => {
     setFocusId(pickupId || null);
     setSheetOpen(true);
@@ -158,26 +123,10 @@ export const ImpactTree = ({ tree, onSchedule }: { tree: Tree; onSchedule: () =>
             <Text style={styles.newBadgeText}>+{newLeaves} new leaf{newLeaves === 1 ? '' : 'ves'}</Text>
           </View>
         )}
-        <Animated.View
-          style={{
-            transform: [
-              { scale },
-              { translateY: bob.interpolate({ inputRange: [0, 1], outputRange: [0, isSeed ? -5 : 0] }) },
-              { rotate: sway.interpolate({ inputRange: [0, 1], outputRange: isSeed ? ['0deg', '0deg'] : ['-2deg', '2deg'] }) },
-            ],
-          }}
-        >
-          <Pressable onPress={isSeed ? undefined : () => openSheet()}>
-            <ProceduralTree
-              seed={seed}
-              kg={kg}
-              leaves={leaves}
-              highlightIds={glowIds}
-              width={220}
-              onLeafPress={id => openSheet(id)}
-            />
-          </Pressable>
-        </Animated.View>
+        <View style={styles.art3d}>
+          <Tree3D seed={tree.seed} pickups={pickups} newIds={glowIds} height={isSeed ? 170 : 260} reduced={reduced} />
+          {!isSeed && <Pressable style={StyleSheet.absoluteFill} onPress={() => openSheet()} accessibilityLabel="See what you donated" />}
+        </View>
       </View>
 
       <Text style={styles.stage}>
@@ -273,7 +222,8 @@ const styles = StyleSheet.create({
   eyebrow: { fontSize: 11, letterSpacing: 0.8, fontFamily: theme.fonts.bodyBold, color: theme.colors.textSecondary },
   levelPill: { backgroundColor: theme.colors.primaryContainer, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
   levelText: { fontSize: 12, fontFamily: theme.fonts.bodyBold, color: theme.colors.primaryDark },
-  artWrap: { alignItems: 'center', marginTop: 6 },
+  artWrap: { marginTop: 8 },
+  art3d: { width: '100%' },
   newBadge: { position: 'absolute', right: 0, top: 0, zIndex: 2, backgroundColor: '#FFC83D', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
   newBadgeText: { fontSize: 11, fontFamily: theme.fonts.bodyBold, color: '#5A4300' },
   stage: { fontSize: 20, fontFamily: theme.fonts.bodyBold, color: theme.colors.text, textAlign: 'center', marginTop: 2 },
