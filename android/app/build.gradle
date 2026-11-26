@@ -73,6 +73,23 @@ def enableProguardInReleaseBuilds = false
  */
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
+// Release signing secrets come from the git-ignored project-root .env (MYAPP_UPLOAD_*), falling back
+// to environment variables or Gradle properties (e.g. in CI). Nothing secret is committed.
+def dotenv = [:]
+def dotenvFile = rootProject.file('../.env')
+if (dotenvFile.exists()) {
+    dotenvFile.eachLine { raw ->
+        def line = raw.trim()
+        if (line && !line.startsWith('#') && line.contains('=')) {
+            def i = line.indexOf('=')
+            dotenv[line.substring(0, i).trim()] = line.substring(i + 1).trim().replaceAll(/^["']|["']$/, '')
+        }
+    }
+}
+def uploadProp = { String key ->
+    dotenv[key] ?: System.getenv(key) ?: (project.hasProperty(key) ? project.property(key) : null)
+}
+
 android {
     ndkVersion rootProject.ext.ndkVersion
     buildToolsVersion rootProject.ext.buildToolsVersion
@@ -88,11 +105,11 @@ android {
     }
     signingConfigs {
         release {
-            if (project.hasProperty("MYAPP_UPLOAD_STORE_FILE")) {
-                storeFile file(MYAPP_UPLOAD_STORE_FILE)
-                storePassword MYAPP_UPLOAD_STORE_PASSWORD
-                keyAlias MYAPP_UPLOAD_KEY_ALIAS
-                keyPassword MYAPP_UPLOAD_KEY_PASSWORD
+            if (uploadProp("MYAPP_UPLOAD_STORE_FILE")) {
+                storeFile file(uploadProp("MYAPP_UPLOAD_STORE_FILE"))
+                storePassword uploadProp("MYAPP_UPLOAD_STORE_PASSWORD")
+                keyAlias uploadProp("MYAPP_UPLOAD_KEY_ALIAS")
+                keyPassword uploadProp("MYAPP_UPLOAD_KEY_PASSWORD")
             }
         }
 
