@@ -1108,3 +1108,13 @@ export async function adminCancelDonation(donation: DonationItem) {
     } catch {}
   }
 }
+
+// Admin analytics: total non-admin users, and how many joined in the last 7 days.
+export async function fetchUserCounts(): Promise<{ total: number; newThisWeek: number }> {
+  const since = new Date(Date.now() - 7 * 864e5).toISOString();
+  const [all, recent] = await Promise.all([
+    supabase.from('profiles').select('id', { count: 'exact', head: true }).neq('role', 'admin'),
+    supabase.from('profiles').select('id', { count: 'exact', head: true }).neq('role', 'admin').gte('created_at', since),
+  ]);
+  return { total: all.count ?? 0, newThisWeek: recent.count ?? 0 };
+}

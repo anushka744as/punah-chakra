@@ -49,6 +49,8 @@ import { toDayKey } from '../utils/dayKey';
 import { stripAddressMeta } from '../utils/address';
 import { useAppData } from '../data/AppDataContext';
 import { theme } from '../theme/theme';
+import { Bouncy } from '../components/Bouncy';
+import { SuccessOverlay } from '../components/SuccessOverlay';
 
 const deriveSelectedItems = (donation?: DonationItem) => {
   if (!donation) return ['clothes'];
@@ -72,6 +74,7 @@ export const DonateScreen = ({ navigation, route }: any) => {
   const isEditing = Boolean(editDonation);
   const timeSlots = useTimeSlots();
 
+  const [success, setSuccess] = useState<{ title: string; message: string; go: string; button: string } | null>(null);
   const [selectedItems, setSelectedItems] = useState<string[]>(() => deriveSelectedItems(editDonation));
   const [quantity, setQuantity] = useState(editDonation?.weight_kg || 5);
   const [pickupDate, setPickupDate] = useState(getToday());
@@ -418,8 +421,7 @@ export const DonateScreen = ({ navigation, route }: any) => {
           address: fullAddress,
         });
         setSubmitting(false);
-        Alert.alert('Pickup Updated', 'Your donation pickup request has been updated!');
-        navigation.navigate('Profile');
+        setSuccess({ title: 'Pickup updated!', message: 'Your donation pickup request has been updated.', go: 'Profile', button: 'Done' });
         return;
       }
 
@@ -436,8 +438,7 @@ export const DonateScreen = ({ navigation, route }: any) => {
         user.id
       );
       setSubmitting(false);
-      Alert.alert('Pickup Scheduled', 'Your donation pickup has been scheduled!');
-      navigation.navigate('Home');
+      setSuccess({ title: 'Pickup scheduled!', message: 'Thank you for giving your items a second chance.', go: 'Home', button: 'Back to Home' });
     } catch (err: any) {
       setSubmitting(false);
       Alert.alert('Error Scheduling Pickup', err?.message || 'Could not save donation request. Please try again.');
@@ -576,11 +577,10 @@ export const DonateScreen = ({ navigation, route }: any) => {
           {ITEM_TYPES.map((item) => {
             const isSelected = selectedItems.includes(item.id);
             return (
-              <TouchableOpacity
+              <Bouncy
                 key={item.id}
                 style={[styles.itemCard, isSelected && styles.itemCardSelected]}
                 onPress={() => toggleItem(item.id)}
-                activeOpacity={0.8}
               >
                 <Icon
                   name={item.icon}
@@ -593,7 +593,7 @@ export const DonateScreen = ({ navigation, route }: any) => {
                 <View style={[styles.itemCheckbox, isSelected && styles.itemCheckboxSelected]}>
                   {isSelected && <Icon name="check" size={12} color={theme.colors.textInverse} />}
                 </View>
-              </TouchableOpacity>
+              </Bouncy>
             );
           })}
         </View>
@@ -798,6 +798,13 @@ export const DonateScreen = ({ navigation, route }: any) => {
         )}
 
         {/* Fullscreen Map Modal */}
+        <SuccessOverlay
+          visible={!!success}
+          title={success?.title || ''}
+          message={success?.message || ''}
+          buttonText={success?.button}
+          onDone={() => { const go = success?.go || 'Home'; setSuccess(null); navigation.navigate(go); }}
+        />
         <Modal
           visible={showMapModal}
           animationType="slide"

@@ -133,6 +133,12 @@
           <span id="switch-text"></span>
           <button type="button" id="switch-btn" class="link strong"></button>
         </p>
+
+        <!-- TEMPORARY dev bypass: only shown on localhost, skips OTP. Remove before launch. -->
+        <div id="dev-bypass" hidden style="display:flex;gap:10px;justify-content:center;margin-top:14px">
+          <button type="button" id="bypass-user" class="btn btn-outline">Bypass → User</button>
+          <button type="button" id="bypass-admin" class="btn btn-outline">Bypass → Admin</button>
+        </div>
       </div>
     </div>
   </main>
@@ -298,6 +304,7 @@
   <div id="admin" class="view portal admin">
     <header class="p-top green" id="a-top">
       <button class="p-back" id="a-back" aria-label="Back" hidden>←</button>
+      <span class="a-logo" id="a-logo" aria-hidden="true"><img src="assets/logo_transparent.png" alt="PunahChakra" /></span>
       <h2 class="p-title" id="a-title">Routes</h2>
       <button class="p-avatar p-bell" data-atab="alerts" aria-label="Alerts">
         <svg viewBox="0 0 24 24"><path d="M12 22a2 2 0 0 0 2-2h-4a2 2 0 0 0 2 2m6-6v-5a6 6 0 0 0-5-5.9V4a1 1 0 0 0-2 0v1.1A6 6 0 0 0 6 11v5l-2 2v1h16v-1zm-2 1H8v-6a4 4 0 0 1 8 0z"/></svg><i id="a-bell-dot" hidden></i>
@@ -308,8 +315,11 @@
     </header>
     <div class="p-body">
       <section class="a-pane" id="apane-routes">
-        <div class="white-card"><h3 class="card-h">Collection dashboard</h3><p class="muted">Today's logistics &amp; recovery ops.</p>
-          <div class="a-stats"><div><small>ASSIGNED</small><b id="a-assigned">0</b></div><div><small>TOTAL WEIGHT</small><b id="a-weight">0 kg</b></div></div></div>
+        <button type="button" class="a-link-card" data-atab="areas">
+          <svg viewBox="0 0 24 24" width="26" height="26"><path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7m0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5" fill="currentColor"/></svg>
+          <span class="a-link-t"><b>Pincode requests</b><small>Areas people asked us to serve</small></span>
+          <i class="a-new" id="a-areas-dot" hidden>New</i><span class="a-chev">›</span>
+        </button>
         <div class="a-row"><h4 class="eyebrow" style="margin:0">ALL PICKUPS</h4><select id="a-area" class="a-select"></select></div>
         <div id="a-pickups"></div>
       </section>
@@ -338,6 +348,7 @@
         <div class="seg a-seg2" id="a-drive-seg"><button class="active" data-v="drives">Drives</button><button data-v="dropoff">Drop-off points</button></div>
         <div id="a-drives-view"></div><div id="a-drop-view" hidden></div>
       </section>
+      <section class="a-pane" id="apane-analytics"><div id="a-analytics"></div></section>
       <section class="a-pane" id="apane-alerts"><div id="a-alerts"></div></section>
       <section class="a-pane" id="apane-profile">
         <div class="white-card" id="a-profile-card"></div>
@@ -350,8 +361,8 @@
       <button data-atab="routes" class="on"><span><svg viewBox="0 0 24 24"><path d="M20 8h-3V4H3a2 2 0 0 0-2 2v11h2a3 3 0 0 0 6 0h6a3 3 0 0 0 6 0h2v-5zM6 18.5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3m13.5-9 1.96 2.5H17V9.5zM18 18.5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3" fill="currentColor"/></svg></span>Routes</button>
       <button data-atab="map"><span><svg viewBox="0 0 24 24"><path d="M15 5 9 3 3 5v16l6-2 6 2 6-2V3zm-1 14-4-1.3V5l4 1.3zM5 6.4l3-1v12.2l-3 1zm14 11.2-3 1V6.4l3-1z" fill="currentColor"/></svg></span>Map</button>
       <button data-atab="calendar"><span><svg viewBox="0 0 24 24"><path d="M17 12h-5v5h5zM16 1v2H8V1H6v2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-1V1zm3 18H5V8h14z" fill="currentColor"/></svg></span>Calendar</button>
-      <button data-atab="areas"><span><svg viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7m0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5" fill="currentColor"/></svg></span>Areas<i id="a-areas-dot" hidden></i></button>
       <button data-atab="drives"><span><svg viewBox="0 0 24 24"><path d="m12 17.3 6.2 3.7-1.6-7L22 9.2l-7.2-.6L12 2 9.2 8.6 2 9.2 7.5 14l-1.7 7z" fill="currentColor"/></svg></span>Drives</button>
+      <button data-atab="analytics"><span><svg viewBox="0 0 24 24"><path d="M5 9.2h3V19H5zM10.6 5h2.8v14h-2.8zm5.6 8H19v6h-2.8z" fill="currentColor"/></svg></span>Stats</button>
     </nav>
     <div class="modal" id="a-modal" hidden><div class="modal-card a-modal-card" id="a-modal-card"></div></div>
     <div class="toast" id="a-toast" hidden></div>

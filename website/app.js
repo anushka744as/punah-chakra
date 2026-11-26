@@ -156,3 +156,15 @@ window.resetAuth = () => {
 
 setMode('signin');
 step('phone');
+
+// TEMPORARY dev bypass (localhost only): opens each panel without OTP for UI preview.
+// There is no Supabase session, so RLS returns no data and writes fail; remove before launch.
+if (['localhost', '127.0.0.1', '[::1]'].includes(location.hostname)) {
+  $('dev-bypass').hidden = false;
+  const fake = { id: '00000000-0000-0000-0000-000000000000', phone: '+910000000000', email: '' };
+  $('bypass-user').addEventListener('click', () => {
+    window.showView('portal');
+    window.enterPortal({ ...fake, __bypass: true });
+  });
+  $('bypass-admin').addEventListener('click', () => window.enterAdmin({ ...fake, __bypass: true }));
+}

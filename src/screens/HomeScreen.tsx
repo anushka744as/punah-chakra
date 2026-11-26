@@ -1,5 +1,5 @@
-import React, { useCallback, useState } from 'react';
-import { useFocusEffect } from '@react-navigation/native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -17,6 +17,11 @@ import { useAppData } from '../data/AppDataContext';
 import { getStatusLabel, cancelDonationRequest, fetchUnreadNotificationCount, DonationItem } from '../services/api';
 import { stripAddressMeta } from '../utils/address';
 import { theme } from '../theme/theme';
+import { ImpactTree, PickupsSheet } from '../components/ImpactTree';
+import { GrowthModal, LevelUpModal } from '../components/TreeCelebrations';
+import { useTreeProgress } from '../hooks/useTreeProgress';
+import type { Reveal } from '../hooks/useTreeProgress';
+import { Bouncy } from '../components/Bouncy';
 
 const categoryIcon = (category: string) => {
   const c = (category || '').toLowerCase();
@@ -58,6 +63,34 @@ export const HomeScreen = ({ navigation }: any) => {
       refreshDonations();
     }, [refreshDonations])
   );
+
+  // Impact tree: grows with every completed pickup. When new pickups have completed since the user
+  // last looked, show the Before → Now screen (then a level-up moment if a stage was crossed).
+  const isFocused = useIsFocused();
+  const tree = useTreeProgress(authUser?.id, donations);
+  const [reveal, setReveal] = useState<Reveal | null>(null);
+  const [step, setStep] = useState<'none' | 'growth' | 'level'>('none');
+  const [donatedSheet, setDonatedSheet] = useState(false);
+
+  useEffect(() => {
+    if (step !== 'none' || !isFocused || !tree.ready || tree.pending.length === 0) return;
+    const r = tree.makeReveal();
+    if (r) {
+      setReveal(r);
+      setStep('growth');
+    }
+  }, [step, isFocused, tree.ready, tree.pending.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const finishGrowth = (openDonated: boolean) => {
+    if (!reveal) return;
+    tree.acknowledge(reveal.added.map(p => p.id));
+    if (reveal.levelUp) {
+      setStep('level');
+    } else {
+      setStep('none');
+      if (openDonated) setDonatedSheet(true);
+    }
+  };
 
   const latestPickup = donations.find(
     (d) => d.status === 'pending' || d.status === 'scheduled' || d.status === 'assigned'
@@ -163,12 +196,12 @@ export const HomeScreen = ({ navigation }: any) => {
           <Text style={styles.collectTitle}>We currently collect:</Text>
           <View style={styles.collectRow}>
             {CATEGORIES.map((cat) => (
-              <View key={cat.label} style={styles.collectItem}>
+              <Bouncy key={cat.label} style={styles.collectItem} onPress={() => navigation.navigate('Donate')} scaleTo={0.88}>
                 <View style={styles.collectIconBg}>
                   <Icon name={cat.icon} size={24} color={theme.colors.primaryDark} />
                 </View>
                 <Text style={styles.collectLabel}>{cat.label}</Text>
-              </View>
+              </Bouncy>
             ))}
           </View>
         </View>
@@ -191,6 +224,27 @@ export const HomeScreen = ({ navigation }: any) => {
           <Text style={styles.schedulePickupBtnText}>SCHEDULE PICKUP</Text>
           <Icon name="arrow-right" size={16} color={theme.colors.textInverse} />
         </TouchableOpacity>
+
+        <ImpactTree tree={tree} onSchedule={() => navigation.navigate('Donate')} />
+        <GrowthModal
+          visible={step === 'growth'}
+          reveal={reveal}
+          seed={tree.seed}
+          onSeeDonated={() => finishGrowth(true)}
+          onClose={() => finishGrowth(false)}
+        />
+        <LevelUpModal
+          visible={step === 'level'}
+          reveal={reveal}
+          seed={tree.seed}
+          name={tree.name}
+          onSaveName={tree.setName}
+          onClose={() => {
+            if (reveal) tree.markCelebrated(reveal.stageNow);
+            setStep('none');
+          }}
+        />
+        <PickupsSheet visible={donatedSheet} pickups={tree.pickups} onClose={() => setDonatedSheet(false)} />
 
         {donations.length === 0 ? (
           <>

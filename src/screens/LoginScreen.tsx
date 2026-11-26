@@ -191,6 +191,18 @@ export const LoginScreen = ({ navigation, route }: any) => {
                   <Text style={styles.signupText}>{isSignUp ? 'Login' : 'Sign Up'}</Text>
                 </TouchableOpacity>
               </View>
+
+              {/* TEMPORARY dev bypass: __DEV__ only, so it never appears in release builds. No session, so data is empty. Remove before launch. */}
+              {__DEV__ && (
+                <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 12, marginTop: 16 }}>
+                  <TouchableOpacity onPress={() => navigation.replace('MainTabs')} style={styles.bypassBtn}>
+                    <Text style={styles.signupText}>Bypass → User</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => navigation.replace('CollectorDashboard')} style={styles.bypassBtn}>
+                    <Text style={styles.signupText}>Bypass → Admin</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -200,6 +212,7 @@ export const LoginScreen = ({ navigation, route }: any) => {
 };
 
 const styles = StyleSheet.create({
+  bypassBtn: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 10, borderWidth: 1.5, borderColor: '#2E7D32' },
   bgImage: {
     flex: 1,
   },

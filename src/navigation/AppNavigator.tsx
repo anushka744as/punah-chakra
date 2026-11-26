@@ -18,6 +18,7 @@ import { CollectorDashboardScreen } from '../screens/CollectorDashboardScreen';
 import { CollectorProfileScreen } from '../screens/CollectorProfileScreen';
 import { AdminAvailabilityScreen } from '../screens/AdminAvailabilityScreen';
 import { AdminAreasScreen } from '../screens/AdminAreasScreen';
+import { AdminAnalyticsScreen } from '../screens/AdminAnalyticsScreen';
 import { AdminDrivesScreen } from '../screens/AdminDrivesScreen';
 
 // Modals & Action Screens
@@ -184,6 +185,7 @@ export const AppNavigator = () => {
         <Stack.Screen name="AdminAvailability" component={AdminAvailabilityScreen} />
         <Stack.Screen name="AdminAreas" component={AdminAreasScreen} />
         <Stack.Screen name="AdminDrives" component={AdminDrivesScreen} />
+        <Stack.Screen name="AdminAnalytics" component={AdminAnalyticsScreen} />
 
         {/* Action & Modal Screens */}
         <Stack.Screen name="Confirmation" component={ConfirmationScreen} />

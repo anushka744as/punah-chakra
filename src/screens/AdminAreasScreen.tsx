@@ -14,7 +14,6 @@ import {
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useFocusEffect } from '@react-navigation/native';
 import { theme } from '../theme/theme';
-import { AdminTabBar } from '../components/AdminTabBar';
 import { useAppData } from '../data/AppDataContext';
 import {
   AreaRequest,
@@ -26,6 +25,7 @@ export const AdminAreasScreen = ({ navigation }: any) => {
   const { serviceablePincodes, addServiceablePincode } = useAppData();
   const [loading, setLoading] = useState(true);
   const [requests, setRequests] = useState<AreaRequest[]>([]);
+  const [selectedPin, setSelectedPin] = useState<string | null>(null);
 
 
 
@@ -53,6 +53,8 @@ export const AdminAreasScreen = ({ navigation }: any) => {
       return acc;
     }, {})
   ).sort((a, b) => b[1] - a[1]);
+
+  const visibleRequests = selectedPin ? requests.filter(r => r.pincode === selectedPin) : requests;
 
   const startService = (pin: string) =>
     Alert.alert(`Start service in ${pin}?`, 'This makes the pincode serviceable, so donors there can book pickups.', [
@@ -89,23 +91,57 @@ export const AdminAreasScreen = ({ navigation }: any) => {
         <ActivityIndicator style={{ marginTop: 40 }} color={theme.colors.primary} />
       ) : (
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          {(
+          <View style={styles.hero}>
+            <View style={styles.heroTile}>
+              <Text style={styles.heroLabel}>PINCODES ASKED</Text>
+              <Text style={styles.heroNum}>{demand.length}</Text>
+            </View>
+            <View style={styles.heroTile}>
+              <Text style={styles.heroLabel}>TOTAL REQUESTS</Text>
+              <Text style={styles.heroNum}>{requests.length}</Text>
+            </View>
+          </View>
+          <Text style={styles.hint}>Pincodes people tried to book from but we don't serve yet. Tap "Start service" to add one.</Text>
+
+          {requests.length === 0 ? (
+            <View style={styles.emptyBox}>
+              <Icon name="map-marker-check-outline" size={44} color={theme.colors.primary} />
+              <Text style={styles.empty}>No requests yet.</Text>
+            </View>
+          ) : (
             <>
-              <Text style={styles.hint}>Pincodes people tried to book from but we don't serve yet. Tap "Start service" to add one.</Text>
+              <Text style={styles.section}>Most requested</Text>
               {demand.map(([pin, count]) => (
-                <View key={pin} style={styles.card}>
+                <TouchableOpacity
+                  key={pin}
+                  style={[styles.card, selectedPin === pin && styles.cardSelected]}
+                  activeOpacity={0.85}
+                  onPress={() => setSelectedPin(selectedPin === pin ? null : pin)}
+                >
+                  <View style={styles.pinBadge}>
+                    <Icon name="map-marker-radius" size={20} color={theme.colors.primary} />
+                  </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.cardTitle}>{pin}</Text>
                     <Text style={styles.cardSub}>{count} request{count === 1 ? '' : 's'}</Text>
                   </View>
-                  <TouchableOpacity style={styles.chip} onPress={() => startService(pin)} activeOpacity={0.8}>
-                    <Text style={styles.chipText}>Start service</Text>
+                  <TouchableOpacity style={styles.startBtn} onPress={() => startService(pin)} activeOpacity={0.8}>
+                    <Text style={styles.startBtnText}>Start service</Text>
                   </TouchableOpacity>
-                </View>
+                </TouchableOpacity>
               ))}
-              {requests.length === 0 && <Text style={styles.empty}>No requests yet.</Text>}
-              {requests.length > 0 && <Text style={[styles.section, { marginTop: theme.spacing.sm }]}>Individual requests</Text>}
-              {requests.map(r => (
+              <View style={[styles.filterRow, { marginTop: theme.spacing.sm }]}>
+                <Text style={styles.section}>
+                  {selectedPin ? `Requests for ${selectedPin} (${visibleRequests.length})` : 'Individual requests'}
+                </Text>
+                {selectedPin && (
+                  <TouchableOpacity onPress={() => setSelectedPin(null)} style={styles.clearChip} activeOpacity={0.8}>
+                    <Text style={styles.clearChipText}>Show all</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+              {!selectedPin && demand.length > 0 && <Text style={styles.hint}>Tap a pincode above to see only its requests.</Text>}
+              {visibleRequests.map(r => (
                 <View key={r.id} style={styles.card}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.cardTitle}>{r.full_name || 'Unnamed donor'} · {r.pincode}</Text>
@@ -126,7 +162,6 @@ export const AdminAreasScreen = ({ navigation }: any) => {
 
         </ScrollView>
       )}
-      <AdminTabBar active="areas" />
     </SafeAreaView>
   );
 };
@@ -158,7 +193,7 @@ const styles = StyleSheet.create({
   content: { padding: theme.spacing.md, gap: theme.spacing.sm, paddingBottom: theme.spacing.xxl },
   section: { fontSize: 16, fontFamily: theme.fonts.bodyBold, color: theme.colors.text },
   hint: { fontSize: 13, fontFamily: theme.fonts.body, color: theme.colors.textSecondary },
-  empty: { textAlign: 'center', marginTop: theme.spacing.lg, color: theme.colors.textSecondary, fontFamily: theme.fonts.body },
+  empty: { textAlign: 'center', color: theme.colors.textSecondary, fontFamily: theme.fonts.body },
   chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   chip: { backgroundColor: theme.colors.primaryContainer, borderRadius: theme.radius.full, paddingHorizontal: 12, paddingVertical: 6 },
   chipText: { fontSize: 12, fontFamily: theme.fonts.bodySemiBold, color: theme.colors.primary },
@@ -167,11 +202,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: theme.spacing.sm,
     backgroundColor: theme.colors.surface,
-    borderRadius: theme.radius.md,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: theme.colors.border,
     padding: theme.spacing.md,
   },
+  cardSelected: { borderColor: theme.colors.primary, backgroundColor: theme.colors.primaryContainer },
+  filterRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  clearChip: { backgroundColor: theme.colors.primaryContainer, borderRadius: theme.radius.full, paddingHorizontal: 12, paddingVertical: 6 },
+  clearChipText: { fontSize: 12, fontFamily: theme.fonts.bodyBold, color: theme.colors.primary },
+  hero: { flexDirection: 'row', gap: 10 },
+  heroTile: { flex: 1, backgroundColor: theme.colors.surface, borderRadius: 18, borderWidth: 1, borderColor: theme.colors.border, paddingVertical: 14, paddingHorizontal: 12 },
+  heroLabel: { fontSize: 10, letterSpacing: 0.8, fontFamily: theme.fonts.bodyBold, color: theme.colors.textSecondary },
+  heroNum: { fontSize: 30, fontFamily: theme.fonts.bodyBold, color: theme.colors.text, marginTop: 4 },
+  emptyBox: { alignItems: 'center', gap: 8, paddingVertical: 40 },
+  pinBadge: { width: 40, height: 40, borderRadius: 20, backgroundColor: theme.colors.primaryContainer, alignItems: 'center', justifyContent: 'center' },
+  startBtn: { backgroundColor: theme.colors.primary, borderRadius: theme.radius.full, paddingHorizontal: 14, paddingVertical: 8 },
+  startBtnText: { fontSize: 12, fontFamily: theme.fonts.bodyBold, color: theme.colors.surface },
   cardTitle: { fontSize: 14, fontFamily: theme.fonts.bodySemiBold, color: theme.colors.text },
   cardSub: { fontSize: 13, fontFamily: theme.fonts.body, color: theme.colors.textSecondary, marginTop: 2 },
   cardMeta: { fontSize: 12, fontFamily: theme.fonts.body, color: theme.colors.textSecondary, marginTop: 4 },

@@ -18,7 +18,7 @@
   const fmtSlot = (m) => { const h24 = Math.floor(m / 60); return `${h24 % 12 === 0 ? 12 : h24 % 12}:${String(m % 60).padStart(2, '0')} ${h24 >= 12 ? 'PM' : 'AM'}`; };
   const SLOT_CHOICES = []; for (let m = 6 * 60; m <= 21 * 60 + 30; m += 30) SLOT_CHOICES.push(fmtSlot(m));
   let TIME_SLOTS = []; for (let m = 11 * 60; m < 17 * 60 + 30; m += 30) TIME_SLOTS.push(fmtSlot(m));
-  const TITLES = { routes: 'Routes', map: 'Pickup Routes & Map', calendar: 'Calendar', areas: 'Pincode requests', drives: 'Collection Drives', alerts: 'Alerts', profile: 'Profile' };
+  const TITLES = { routes: 'Routes', map: 'Pickup Routes & Map', calendar: 'Calendar', areas: 'Pincode requests', drives: 'Collection Drives', analytics: 'Analytics', alerts: 'Alerts', profile: 'Profile' };
 
   const S = {
     user: null, profile: null, tab: 'routes', donations: [], serviceable: [], area: 'all',
@@ -47,13 +47,15 @@
     document.querySelectorAll('.a-pane').forEach((p) => p.classList.toggle('on', p.id === `apane-${tab}`));
     document.querySelectorAll('#a-tabbar button').forEach((b) => b.classList.toggle('on', b.dataset.atab === tab));
     $('a-title').textContent = TITLES[tab];
-    $('a-back').hidden = ['routes', 'map', 'calendar', 'areas', 'drives'].includes(tab);
+    $('a-back').hidden = ['routes', 'map', 'calendar', 'drives', 'analytics'].includes(tab);
+    $('a-logo').hidden = !$('a-back').hidden;
     window.scrollTo(0, 0);
     if (tab === 'routes') loadRoutes();
     if (tab === 'map') renderMap();
     if (tab === 'calendar') renderCalendar();
     if (tab === 'areas') loadAreas();
     if (tab === 'drives') loadDrives();
+    if (tab === 'analytics') loadAnalytics();
     if (tab === 'alerts') loadAlerts();
     if (tab === 'profile') renderProfile();
   }
@@ -102,9 +104,6 @@
 
   function renderRoutes() {
     const list = visible();
-    const open = list.filter((d) => !isDone(d));
-    $('a-assigned').textContent = open.length;
-    $('a-weight').textContent = `${open.reduce((s, d) => s + Number(d.weight_kg || d.estimated_quantity_kg || 10), 0).toFixed(1)} kg`;
     $('a-pickups').innerHTML = list.length ? list.map((d, i) => {
       const done = isDone(d);
       return `<div class="white-card a-pick ${done ? 'done' : ''}">
@@ -352,14 +351,21 @@
     try { localStorage.setItem('pc_seen_area_pins', JSON.stringify([...new Set(S.requests.map((r) => r.pincode))])); } catch (_) {}
     $('a-areas-dot').hidden = true;
     const demand = Object.entries(S.requests.reduce((a, r) => { if (!S.serviceable.includes(r.pincode)) a[r.pincode] = (a[r.pincode] || 0) + 1; return a; }, {})).sort((a, b) => b[1] - a[1]);
+    if (S.areaPin && !demand.some(([p]) => p === S.areaPin)) S.areaPin = '';
+    const shown = S.areaPin ? S.requests.filter((r) => r.pincode === S.areaPin) : S.requests;
     $('a-areas').innerHTML =
-      demand.map(([pin, n]) => `<div class="white-card contrib"><div><b>${pin}</b><span>${n} request${n === 1 ? '' : 's'}</span></div><button class="btn btn-outline small" data-start="${pin}">Start service</button></div>`).join('') +
-      (S.requests.length ? '<h4 class="eyebrow">INDIVIDUAL REQUESTS</h4>' : '<div class="white-card"><p class="muted center">No requests yet.</p></div>') +
-      S.requests.map((r) => `<div class="white-card contrib"><div><b>${esc(r.full_name || 'Unnamed donor')} · ${esc(r.pincode)}</b>${r.phone ? `<span>${esc(r.phone)}</span>` : ''}${r.address ? `<span>${esc(r.address)}</span>` : ''}<span>${new Date(r.created_at).toLocaleDateString('en-IN')}</span></div>
+      `<div class="a-hero a-hero2"><div><small>PINCODES ASKED</small><b>${demand.length}</b></div><div><small>TOTAL REQUESTS</small><b>${S.requests.length}</b></div></div>` +
+      demand.map(([pin, n]) => `<div class="white-card contrib a-pin ${S.areaPin === pin ? 'sel' : ''}" data-pinsel="${pin}"><div><b>${pin}</b><span>${n} request${n === 1 ? '' : 's'}</span></div><button class="btn btn-primary small" data-start="${pin}">Start service</button></div>`).join('') +
+      (S.requests.length
+        ? `<div class="a-row"><h4 class="eyebrow" style="margin:0">${S.areaPin ? `REQUESTS FOR ${S.areaPin} (${shown.length})` : 'INDIVIDUAL REQUESTS'}</h4>${S.areaPin ? '<button class="btn btn-outline small" data-pinclear="1">Show all</button>' : ''}</div>${!S.areaPin && demand.length ? '<p class="muted a-note">Tap a pincode above to see only its requests.</p>' : ''}`
+        : '<div class="white-card"><p class="muted center">No requests yet.</p></div>') +
+      shown.map((r) => `<div class="white-card contrib"><div><b>${esc(r.full_name || 'Unnamed donor')} · ${esc(r.pincode)}</b>${r.phone ? `<span>${esc(r.phone)}</span>` : ''}${r.address ? `<span>${esc(r.address)}</span>` : ''}<span>${new Date(r.created_at).toLocaleDateString('en-IN')}</span></div>
         ${r.latitude != null && r.longitude != null ? `<a class="link strong" target="_blank" rel="noopener" href="https://www.google.com/maps?q=${r.latitude},${r.longitude}">Map</a>` : ''}</div>`).join('');
   }
   $('a-areas').addEventListener('click', async (e) => {
-    const pin = e.target.dataset.start; if (!pin) return;
+    if (e.target.dataset.pinclear) { S.areaPin = ''; return loadAreas(); }
+    const pin = e.target.dataset.start;
+    if (!pin) { const card = e.target.closest('[data-pinsel]'); if (card) { S.areaPin = S.areaPin === card.dataset.pinsel ? '' : card.dataset.pinsel; loadAreas(); } return; }
     if (!confirm(`Start service in ${pin}? Donors there will be able to book pickups.`)) return;
     const { error } = await sb.from('serviceable_pincodes').insert([{ pincode: pin }]);
     if (error) return toast(error.message || 'Could not add.');
@@ -489,15 +495,114 @@
     if (rows.some((n) => !n.is_read)) { await sb.from('notifications').update({ is_read: true }).eq('user_id', S.user.id).eq('is_read', false); $('a-bell-dot').hidden = true; }
   }
 
+  // ---------- analytics ----------
+  // "Completed" = not cancelled and the pickup's due date/time has passed (auto), or already marked picked up.
+  const A = { rows: [], users: 0, newUsers: 0, range: '30', pin: '', cat: 'all' };
+  const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+  function dueDate(d) {
+    const created = d.created_at ? new Date(d.created_at) : new Date();
+    const m = String(d.pickup_day || '').match(/([A-Za-z]{3})[a-z]*\s+(\d{1,2})/);
+    let due = new Date(created);
+    if (m && MONTHS.includes(m[1].toLowerCase())) {
+      due = new Date(created.getFullYear(), MONTHS.indexOf(m[1].toLowerCase()), parseInt(m[2], 10));
+      if (due - created < -150 * 864e5) due.setFullYear(due.getFullYear() + 1);
+    }
+    due.setHours(0, 0, 0, 0);
+    due.setMinutes(slotToMinutes(d.time_slot || '11:00 AM'));
+    return due;
+  }
+  const orderState = (d) => (d.status === 'cancelled' ? 'cancelled' : (isDone(d) || dueDate(d) <= new Date() ? 'completed' : 'upcoming'));
+  const pinOf = (d) => d.pincode || (String(d.address || '').match(/\b\d{6}\b/) || [])[0] || 'Unknown';
+
+  async function loadAnalytics() {
+    const box = $('a-analytics');
+    box.innerHTML = '<div class="white-card"><p class="muted">Loading analytics…</p></div>';
+    const cnt = async (q) => { const { count } = await q; return count ?? 0; };
+    const since = new Date(Date.now() - 7 * 864e5).toISOString();
+    const [users, newUsers, { data: rows }] = await Promise.all([
+      cnt(sb.from('profiles').select('id', { count: 'exact', head: true }).neq('role', 'admin')),
+      cnt(sb.from('profiles').select('id', { count: 'exact', head: true }).neq('role', 'admin').gte('created_at', since)),
+      sb.from('donations').select('*').order('created_at', { ascending: false }),
+    ]);
+    A.rows = rows || []; A.users = users; A.newUsers = newUsers;
+    renderAnalytics();
+  }
+
+  function renderAnalytics() {
+    const box = $('a-analytics');
+    const pins = [...new Set(A.rows.map(pinOf))].sort();
+    const cats = [...new Set(A.rows.map((d) => d.category).filter(Boolean))].sort();
+    const from = A.range === 'all' ? 0 : Date.now() - Number(A.range) * 864e5;
+    const rows = A.rows.filter((d) => (!from || new Date(d.created_at) >= from) && (!A.pin || pinOf(d).includes(A.pin)) && (A.cat === 'all' || d.category === A.cat));
+    const st = rows.map(orderState);
+    const n = (s) => st.filter((x) => x === s).length;
+    const total = rows.length, cancelled = n('cancelled'), completed = n('completed'), upcoming = n('upcoming');
+    const pct = (x) => (total ? `${Math.round((x / total) * 100)}%` : '0%');
+    const kg = rows.filter((d, i) => st[i] === 'completed').reduce((s, d) => s + Number(d.weight_kg || d.estimated_quantity_kg || 10), 0);
+    const donors = new Set(rows.map((d) => d.donor_id)).size;
+    const span = A.range === 'all' ? 14 : Math.min(Number(A.range), 14);
+    const days = [...Array(span)].map((_, i) => { const d = new Date(); d.setDate(d.getDate() - (span - 1 - i)); return d; });
+    const perDay = days.map((d) => ({ d, n: rows.filter((x) => x.created_at && dayKey(new Date(x.created_at)) === dayKey(d)).length }));
+    const max = Math.max(1, ...perDay.map((x) => x.n));
+    const group = (keyFn) => {
+      const g = {};
+      rows.forEach((d, i) => { const k = keyFn(d) || 'Other'; const o = (g[k] ||= { t: 0, c: 0, x: 0 }); o.t++; if (st[i] === 'completed') o.c++; if (st[i] === 'cancelled') o.x++; });
+      return Object.entries(g).sort((a, b) => b[1].t - a[1].t).slice(0, 8);
+    };
+    const table = (list) => list.length ? `<div class="a-tbl"><div class="a-tr h"><span></span><span>Orders</span><span>Done</span><span>Cancel</span></div>${list.map(([k, v]) => `<div class="a-tr"><b>${esc(k)}</b><span>${v.t}</span><span>${v.c}</span><span>${v.x}</span></div>`).join('')}</div>` : '<p class="muted">No orders for these filters.</p>';
+    const sel = (id, val, opts, all) => `<select id="${id}" class="a-select grow">${[['all', all], ...opts.map((o) => [o, o])].map(([v, l]) => `<option value="${esc(v)}" ${v === val ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
+    const range = [['7', '7 days'], ['30', '30 days'], ['90', '90 days'], ['all', 'All time']];
+    box.innerHTML = `
+      <div class="a-hero">
+        <div><small>TOTAL ORDERS</small><b>${total}</b></div>
+        <div class="ok"><small>COMPLETED</small><b>${completed}</b><em>${pct(completed)}</em></div>
+        <div class="bad"><small>CANCELLED</small><b>${cancelled}</b><em>${pct(cancelled)}</em></div>
+      </div>
+      <p class="muted a-note">Completed = pickup date passed without being cancelled.</p>
+      <div class="a-row a-filters">
+        <label class="a-dd"><small>PERIOD</small><select id="a-range" class="a-select grow">${range.map(([v, l]) => `<option value="${v}" ${A.range === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+        <label class="a-dd"><small>CATEGORY</small>${sel('a-f-cat', A.cat, cats, 'All categories')}</label>
+      </div>
+      <div class="a-row" style="margin:0 0 14px"><input id="a-f-pin" class="a-select grow" inputmode="numeric" maxlength="6" placeholder="Search pincode" value="${esc(A.pin)}" list="a-pin-list"><datalist id="a-pin-list">${pins.map((p) => `<option value="${esc(p)}">`).join('')}</datalist></div>
+      <div class="white-card"><h3 class="card-h">More details</h3>
+        <div class="a-stats">
+          <div><small>UPCOMING</small><b>${upcoming}</b></div>
+          <div><small>WASTE DIVERTED</small><b>${kg >= 1000 ? `${(kg / 1000).toFixed(2)} t` : `${kg.toFixed(1)} kg`}</b></div></div>
+        <div class="a-stats">
+          <div><small>USERS IN APP</small><b>${A.users}</b><em>+${A.newUsers} this week</em></div>
+          <div><small>ACTIVE DONORS</small><b>${donors}</b></div></div></div>
+      <div class="white-card"><h3 class="card-h">Orders per day</h3>
+        <div class="a-bars">${perDay.map((x) => `<div><i style="height:${Math.max(3, (x.n / max) * 84)}px"></i><small>${x.n}</small><small class="muted">${span <= 7 ? x.d.toLocaleDateString('en-US', { weekday: 'short' }) : x.d.getDate()}</small></div>`).join('')}</div></div>
+      <div class="white-card"><h3 class="card-h">By pincode</h3>${table(group(pinOf))}</div>
+      <div class="white-card"><h3 class="card-h">By category</h3>${table(group((d) => d.category))}</div>`;
+    $('a-range').onchange = (e) => { A.range = e.target.value; renderAnalytics(); };
+    const pi = $('a-f-pin');
+    pi.oninput = (e) => { A.pin = e.target.value.replace(/\D/g, ''); A.refocus = true; renderAnalytics(); };
+    if (A.refocus) { pi.focus(); pi.setSelectionRange(pi.value.length, pi.value.length); A.refocus = false; }
+    $('a-f-cat').onchange = (e) => { A.cat = e.target.value; renderAnalytics(); };
+  }
+
   // ---------- profile ----------
   async function renderProfile() {
     await fetchDonations();
     window.mountSettings($('a-settings'), () => ({ user: S.user, profile: S.profile }), (np) => { S.profile = np; renderProfile(); });
     const p = S.profile || {};
+    const cnt = async (q) => { const { count } = await q; return count ?? 0; };
+    const since = new Date(Date.now() - 7 * 864e5).toISOString();
+    const [users, newUsers, orders, pending, cancelled, newOrders] = await Promise.all([
+      cnt(sb.from('profiles').select('id', { count: 'exact', head: true }).neq('role', 'admin')),
+      cnt(sb.from('profiles').select('id', { count: 'exact', head: true }).neq('role', 'admin').gte('created_at', since)),
+      cnt(sb.from('donations').select('id', { count: 'exact', head: true })),
+      cnt(sb.from('donations').select('id', { count: 'exact', head: true }).eq('status', 'pending')),
+      cnt(sb.from('donations').select('id', { count: 'exact', head: true }).eq('status', 'cancelled')),
+      cnt(sb.from('donations').select('id', { count: 'exact', head: true }).gte('created_at', since)),
+    ]);
     const done = S.donations.filter(isDone);
     const kg = done.reduce((s, d) => s + Number(d.weight_kg || d.estimated_quantity_kg || 10), 0);
     $('a-profile-card').innerHTML = `<h3 class="card-h">${esc(p.full_name || 'Collector')}</h3><p class="muted">${esc(p.phone || S.user.phone || '')}</p>${p.email ? `<p class="muted">${esc(p.email)}</p>` : ''}
-      <div class="a-stats"><div><small>WASTE DIVERTED</small><b>${kg >= 1000 ? `${(kg / 1000).toFixed(2)} t` : `${kg.toFixed(1)} kg`}</b></div><div><small>PICKUPS COMPLETED</small><b>${done.length}</b></div></div>`;
+      <div class="a-stats"><div><small>WASTE DIVERTED</small><b>${kg >= 1000 ? `${(kg / 1000).toFixed(2)} t` : `${kg.toFixed(1)} kg`}</b></div><div><small>PICKUPS COMPLETED</small><b>${done.length}</b></div></div>
+      <div class="a-stats"><div><small>TOTAL USERS</small><b>${users}</b><em>+${newUsers} this week</em></div><div><small>TOTAL ORDERS</small><b>${orders}</b><em>+${newOrders} this week</em></div></div>
+      <div class="a-stats"><div><small>PENDING</small><b>${pending}</b></div><div><small>CANCELLED</small><b>${cancelled}</b></div></div>`;
     $('a-activity').innerHTML = done.length ? done.slice(0, 10).map((d) => `<div class="white-card"><div class="contrib"><div><b>${esc(d.category || 'Recycling')} Pickup</b><span>${esc(d.pickup_day || 'Today')} • ${esc(stripMeta(d.address).split(',')[0])}</span></div></div></div>`).join('')
       : '<div class="white-card"><p class="muted">No completed pickup activity yet.</p></div>';
   }
@@ -513,7 +618,7 @@
     await sb.auth.signOut();
     S.user = null;
     window.resetAuth();
-    window.showView('landing');
+    window.showView('auth');
   });
 
   // Live refresh: new bookings, cancellations and seat changes from donors land at any moment.

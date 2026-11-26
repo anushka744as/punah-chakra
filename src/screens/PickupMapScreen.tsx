@@ -16,6 +16,7 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import * as Location from 'expo-location';
 import { useAppData } from '../data/AppDataContext';
 import { getStatusLabel } from '../services/api';
 import { stripAddressMeta } from '../utils/address';
@@ -29,6 +30,7 @@ export const PickupMapScreen = ({ navigation, route }: any) => {
   const [mapType, setMapType] = useState<'street' | 'satellite'>('street');
   const [areaPincode, setAreaPincode] = useState<string>('all');
   const [areaPickerOpen, setAreaPickerOpen] = useState(false);
+  const [gps, setGps] = useState<{ lat: number; lng: number } | null>(null);
   const [pincodeCenter, setPincodeCenter] = useState<{ lat: number; lng: number } | null>(null);
 
   const mode = route.params?.mode === 'admin' ? 'admin' : 'user';
@@ -92,13 +94,19 @@ export const PickupMapScreen = ({ navigation, route }: any) => {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(
-          `https://nominatim.openstreetmap.org/search?postalcode=${encodeURIComponent(focusPincode)}&country=India&format=json&limit=1`
-        );
-        const results = await res.json();
-        const first = Array.isArray(results) ? results[0] : null;
-        if (!cancelled && first?.lat && first?.lon) {
-          setPincodeCenter({ lat: parseFloat(first.lat), lng: parseFloat(first.lon) });
+        // Postal-code search is patchy on OSM, so fall back to a free-text query for the pincode.
+        const urls = [
+          `https://nominatim.openstreetmap.org/search?postalcode=${encodeURIComponent(focusPincode)}&country=India&format=json&limit=1`,
+          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(`${focusPincode}, India`)}&format=json&limit=1`,
+        ];
+        for (const url of urls) {
+          const res = await fetch(url);
+          const results = await res.json();
+          const first = Array.isArray(results) ? results[0] : null;
+          if (first?.lat && first?.lon) {
+            if (!cancelled) setPincodeCenter({ lat: parseFloat(first.lat), lng: parseFloat(first.lon) });
+            return;
+          }
         }
       } catch {
         // Falls back to the default center below — no network / geocoder unavailable.
@@ -110,8 +118,16 @@ export const PickupMapScreen = ({ navigation, route }: any) => {
     };
   }, [focusPincode]);
 
-  const defaultCenter = pincodeCenter || { lat: 28.5833, lng: 77.3167 };
+  // Where "your area" is, most personal first: the donor's pincode, then where their latest pickup
+  // is, then their phone's GPS. Only if none of those exist do we fall back to the generic default.
+  const ownPickupCoords = (() => {
+    if (mode !== 'user') return null;
+    const d = confirmedDonations.find(x => /Lat:\s*[0-9.-]+,\s*Long:\s*[0-9.-]+/i.test(x.address || ''));
+    return d ? parseCoords(d.address) : null;
+  })();
+  const defaultCenter = pincodeCenter || ownPickupCoords || gps || { lat: 28.5833, lng: 77.3167 };
   const initialCenter = targetDonation ? parseCoords(targetDonation.address) : defaultCenter;
+  const areaLabel = focusPincode ? `Your area · ${focusPincode}` : 'Your area';
 
   const showEmptyState = mode === 'user' && confirmedDonations.length === 0;
 
@@ -132,6 +148,7 @@ export const PickupMapScreen = ({ navigation, route }: any) => {
         const phoneLabel = item.donor_phone ? ` &bull; ${item.donor_phone}` : '';
         return `
           (function() {
+            window.__pts.push([${lat}, ${lng}]);
             var marker = L.marker([${lat}, ${lng}]).addTo(map)
               .bindPopup("<div class='popup-title'>${donorLabel}</div><div class='popup-sub'>${cleanAddress.replace(/"/g, '\\"')}${phoneLabel}</div><span class='popup-badge'>${item.category} &bull; ${weight} kg &bull; ${item.time_slot} &bull; ${getStatusLabel(item.status).toUpperCase()}</span>");
             ${isTarget ? 'marker.openPopup();' : ''}
@@ -167,6 +184,25 @@ export const PickupMapScreen = ({ navigation, route }: any) => {
     requestLocationPermission();
   }, []);
 
+  // Phone location, used only as a last-resort map center when the donor has no pincode on file.
+  useEffect(() => {
+    if (mode !== 'user' || !locationGranted || focusPincode) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const perm = await Location.requestForegroundPermissionsAsync();
+        if (perm.status !== 'granted') return;
+        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        if (!cancelled) setGps({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+      } catch {
+        // No GPS fix — keep the default center.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [mode, locationGranted, focusPincode]);
+
   const html = useMemo(
     () => `<!DOCTYPE html>
 <html>
@@ -176,6 +212,7 @@ export const PickupMapScreen = ({ navigation, route }: any) => {
   <style>
     html, body, #map { height: 100%; margin: 0; padding: 0; background: ${theme.colors.background}; }
     .leaflet-popup-content-wrapper { border-radius: 16px; padding: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+    .zone-label { background: rgba(255,255,255,0.9); border: 0; border-radius: 10px; font-size: 11px; font-weight: 800; color: ${theme.colors.primaryDark}; box-shadow: none; }
     .popup-title { font-size: 14px; font-weight: 800; color: ${theme.colors.text}; margin-bottom: 2px; }
     .popup-sub { font-size: 12px; color: ${theme.colors.textSecondary}; margin-bottom: 6px; }
     .popup-badge { display: inline-block; background: ${theme.colors.primaryContainer}; color: ${theme.colors.primary}; font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 10px; }
@@ -220,14 +257,17 @@ export const PickupMapScreen = ({ navigation, route }: any) => {
     });
 
     // Active Zone
-    L.circle([${defaultCenter.lat}, ${defaultCenter.lng}], { color: '${theme.colors.primary}', fillColor: '${theme.colors.primaryContainer}', fillOpacity: 0.2, radius: 700 }).addTo(map);
+    var zone = L.circle([${defaultCenter.lat}, ${defaultCenter.lng}], { color: '${theme.colors.primary}', fillColor: '${theme.colors.primaryContainer}', fillOpacity: 0.2, radius: 700 }).addTo(map);
+    ${mode === 'user' ? `zone.bindTooltip(${JSON.stringify(areaLabel)}, { permanent: true, direction: 'center', className: 'zone-label' });` : ''}
+    window.__pts = [];
 
     // Dynamic Real Donor Markers from Supabase
     ${markersJs}
+    ${!targetDonationId ? "if (window.__pts.length > 1) map.fitBounds(window.__pts, { padding: [50, 50], maxZoom: 16 });" : ''}
   </script>
 </body>
 </html>`,
-    [mapType, initialCenter.lat, initialCenter.lng, defaultCenter.lat, defaultCenter.lng, markersJs, targetDonation, focusPincode],
+    [mapType, initialCenter.lat, initialCenter.lng, defaultCenter.lat, defaultCenter.lng, markersJs, targetDonation, focusPincode, targetDonationId, mode, areaLabel],
   );
 
   return (
@@ -475,6 +515,7 @@ export const PickupMapScreen = ({ navigation, route }: any) => {
       {mode === 'user' && (
         <View style={styles.bottomInfoPanel}>
           <Text style={styles.infoHeading}>YOUR PICKUP ACTIVITY</Text>
+          {!!focusPincode && <Text style={styles.infoBody}>Showing your area, pincode {focusPincode}.</Text>}
           <Text style={styles.infoBody}>
             {confirmedDonations.length === 0
               ? 'No scheduled pickups yet.'

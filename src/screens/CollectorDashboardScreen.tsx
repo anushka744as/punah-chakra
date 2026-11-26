@@ -7,6 +7,7 @@ import {
   ScrollView,
   TouchableOpacity,
   StatusBar,
+  Image,
   Alert,
   Linking,
   Modal,
@@ -15,7 +16,7 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useAppData } from '../data/AppDataContext';
-import { markDonationCompleted, fetchUnreadNotificationCount, adminUpdateDonation, adminCancelDonation, DonationItem } from '../services/api';
+import { markDonationCompleted, fetchUnreadNotificationCount, fetchNewAreaRequestPincodes, adminUpdateDonation, adminCancelDonation, DonationItem } from '../services/api';
 import { stripAddressMeta } from '../utils/address';
 import { theme } from '../theme/theme';
 import { useTimeSlots } from '../hooks/useTimeSlots';
@@ -24,6 +25,17 @@ import { AdminTabBar } from '../components/AdminTabBar';
 export const CollectorDashboardScreen = ({ navigation }: any) => {
   const { donations, authUser, refreshDonations, serviceablePincodes } = useAppData();
   const [unreadCount, setUnreadCount] = useState(0);
+  const [newAreaRequests, setNewAreaRequests] = useState(0);
+
+  // Badge on the Pincode requests card: pincodes people asked for that the admin hasn't opened yet.
+  useFocusEffect(
+    useCallback(() => {
+      const tick = () => fetchNewAreaRequestPincodes(serviceablePincodes).then(p => setNewAreaRequests(p.length)).catch(() => {});
+      tick();
+      const timer = setInterval(tick, 15000);
+      return () => clearInterval(timer);
+    }, [serviceablePincodes])
+  );
   const [areaPincode, setAreaPincode] = useState<string>('all');
   const [areaPickerOpen, setAreaPickerOpen] = useState(false);
 
@@ -135,11 +147,6 @@ export const CollectorDashboardScreen = ({ navigation }: any) => {
     return areaPincode === 'all' ? notCancelled : notCancelled.filter(d => d.pincode === areaPincode);
   }, [donations, areaPincode]);
 
-  const pendingCount = allDonations.filter(item => !item.is_picked_up && item.status !== 'completed').length;
-  const totalWeight = allDonations
-    .filter(item => !item.is_picked_up && item.status !== 'completed')
-    .reduce((sum, item) => sum + Number(item.weight_kg || item.estimated_quantity_kg || 10), 0);
-
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={theme.colors.primary} />
@@ -147,7 +154,9 @@ export const CollectorDashboardScreen = ({ navigation }: any) => {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Icon name="recycle" size={26} color={theme.colors.surface} />
+          <View style={styles.logoChip}>
+            <Image source={require('../assets/logo_transparent.png')} style={styles.logoImg} resizeMode="contain" />
+          </View>
           <Text style={styles.headerTitle}>Routes</Text>
         </View>
         <View style={styles.headerRight}>
@@ -167,23 +176,6 @@ export const CollectorDashboardScreen = ({ navigation }: any) => {
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         
-        {/* Main Dashboard Card */}
-        <View style={styles.dashboardCard}>
-          <Text style={styles.dashTitle}>Collection dashboard</Text>
-          <Text style={styles.dashSub}>Today's logistics & recovery ops.</Text>
-          
-          <View style={styles.dashStatsRow}>
-            <View style={styles.dashStat}>
-              <Text style={styles.dashStatLabel}>ASSIGNED</Text>
-              <Text style={styles.dashStatValue}>{pendingCount}</Text>
-            </View>
-            <View style={styles.dashStat}>
-              <Text style={styles.dashStatLabel}>TOTAL WEIGHT</Text>
-              <Text style={styles.dashStatValue}>{totalWeight.toFixed(1)} kg</Text>
-            </View>
-          </View>
-        </View>
-
         {/* Route Map Button */}
         <TouchableOpacity 
           style={styles.routeMapBtn}
@@ -198,6 +190,25 @@ export const CollectorDashboardScreen = ({ navigation }: any) => {
             </View>
           </View>
           <Icon name="arrow-right" size={24} color={theme.colors.surface} />
+        </TouchableOpacity>
+
+        {/* Pincode requests (opens its own page; not a tab) */}
+        <TouchableOpacity style={styles.areasBtn} activeOpacity={0.85} onPress={() => navigation.navigate('AdminAreas')}>
+          <View style={styles.routeMapLeft}>
+            <Icon name="map-marker-radius-outline" size={26} color={theme.colors.primary} />
+            <View>
+              <Text style={styles.areasTitle}>Pincode requests</Text>
+              <Text style={styles.areasSub}>Areas people asked us to serve</Text>
+            </View>
+          </View>
+          <View style={styles.areasRight}>
+            {newAreaRequests > 0 && (
+              <View style={styles.areasBadge}>
+                <Text style={styles.areasBadgeText}>{newAreaRequests > 9 ? '9+' : newAreaRequests} new</Text>
+              </View>
+            )}
+            <Icon name="chevron-right" size={24} color={theme.colors.textSecondary} />
+          </View>
         </TouchableOpacity>
 
         <View style={styles.pickupsHeaderRow}>
@@ -450,6 +461,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
   },
+  logoChip: { width: 38, height: 38, borderRadius: 19, backgroundColor: theme.colors.surface, alignItems: 'center', justifyContent: 'center' },
+  logoImg: { width: 28, height: 28 },
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -492,41 +505,22 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingBottom: 40,
   },
-  dashboardCard: {
-    backgroundColor: theme.colors.primary,
+  areasBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
     borderRadius: 20,
-    padding: 24,
-    marginBottom: 16,
-  },
-  dashTitle: {
-    fontSize: 24,
-    fontFamily: theme.fonts.bodyBold,
-    color: theme.colors.surface,
-    marginBottom: 4,
-  },
-  dashSub: {
-    fontSize: 14,
-    color: theme.colors.primaryContainer,
-    fontFamily: theme.fonts.bodyMedium,
+    padding: 16,
     marginBottom: 24,
   },
-  dashStatsRow: {
-    flexDirection: 'row',
-    gap: 40,
-  },
-  dashStat: {},
-  dashStatLabel: {
-    fontSize: 11,
-    fontFamily: theme.fonts.bodyBold,
-    color: theme.colors.primaryContainer,
-    marginBottom: 4,
-    letterSpacing: 0.5,
-  },
-  dashStatValue: {
-    fontSize: 28,
-    fontFamily: theme.fonts.bodyBold,
-    color: theme.colors.surface,
-  },
+  areasTitle: { fontSize: 16, fontFamily: theme.fonts.bodyBold, color: theme.colors.text },
+  areasSub: { fontSize: 12, fontFamily: theme.fonts.body, color: theme.colors.textSecondary },
+  areasRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  areasBadge: { backgroundColor: theme.colors.error, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 },
+  areasBadgeText: { fontSize: 11, fontFamily: theme.fonts.bodyBold, color: theme.colors.surface },
   routeMapBtn: {
     backgroundColor: theme.colors.primaryDark,
     borderRadius: 20,
@@ -534,7 +528,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 28,
+    marginBottom: 12,
   },
   routeMapLeft: {
     flexDirection: 'row',
