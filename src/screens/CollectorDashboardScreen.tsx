@@ -21,6 +21,7 @@ import { stripAddressMeta } from '../utils/address';
 import { theme } from '../theme/theme';
 import { useTimeSlots } from '../hooks/useTimeSlots';
 import { AdminTabBar } from '../components/AdminTabBar';
+import { isPickupDone } from '../utils/orderAnalytics';
 
 export const CollectorDashboardScreen = ({ navigation }: any) => {
   const { donations, authUser, refreshDonations, serviceablePincodes } = useAppData();
@@ -234,7 +235,7 @@ export const CollectorDashboardScreen = ({ navigation }: any) => {
           </View>
         ) : (
           allDonations.map((item, index) => {
-            const isPickedUp = Boolean(item.is_picked_up || item.status === 'completed' || item.status === 'collected');
+            const isPickedUp = isPickupDone(item);
             const reqId = item.request_id || `#REC-982${index + 1}`;
 
             return (

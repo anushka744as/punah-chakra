@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AccessibilityInfo } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DonationItem } from '../services/api';
+import { isPickupDone, slotEnd } from '../utils/orderAnalytics';
 import {
   TreePickup,
   leavesOf,
@@ -47,7 +48,20 @@ export const useReducedMotion = () => {
 
 export function useTreeProgress(userId: string | undefined, donations: DonationItem[]) {
   const uid = userId || 'anon';
-  const pickups = useMemo(() => toTreePickups(donations), [donations]);
+  // A pickup counts once its slot is over, so re-check as the clock moves while the app is open.
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setTick(x => x + 1), 30000);
+    return () => clearInterval(t);
+  }, []);
+  const pickups = useMemo(() => toTreePickups(donations), [donations, tick]); // eslint-disable-line react-hooks/exhaustive-deps
+  const upcoming = useMemo(() => {
+    const now = new Date();
+    const next = donations
+      .filter(d => d.status !== 'cancelled' && !isPickupDone(d, now))
+      .sort((a, b) => slotEnd(a).getTime() - slotEnd(b).getTime())[0];
+    return next ? { day: next.pickup_day, slot: next.time_slot } : null;
+  }, [donations, tick]); // eslint-disable-line react-hooks/exhaustive-deps
   const [store, setStore] = useState<Stored>({ loaded: false, seen: null, celebrated: 0, glow: null, name: '' });
 
   // Load everything remembered for this user.
@@ -156,6 +170,7 @@ export function useTreeProgress(userId: string | undefined, donations: DonationI
   return {
     seed: seedFromString(uid),
     pickups,
+    upcoming,
     leaves,
     kg,
     items,

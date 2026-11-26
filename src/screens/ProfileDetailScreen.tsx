@@ -6,6 +6,7 @@ import { useAppData } from '../data/AppDataContext';
 import { theme } from '../theme/theme';
 import { getStatusLabel, type UserProfile } from '../services/api';
 import { stripAddressMeta } from '../utils/address';
+import { displayStatus } from '../utils/orderAnalytics';
 
 const formatDate = (value: string) =>
   new Intl.DateTimeFormat('en-IN', {
@@ -102,7 +103,7 @@ export const ProfileDetailScreen = ({ navigation, route }: any) => {
                     <Text style={styles.historyText}>{stripAddressMeta(item.address)}</Text>
                     <Text style={styles.historyMeta}>Requested {item.created_at ? formatDate(item.created_at) : 'Unknown'}</Text>
                   </View>
-                  <Text style={styles.status}>{getStatusLabel(item.status).toUpperCase()}</Text>
+                  <Text style={styles.status}>{displayStatus(item).toUpperCase()}</Text>
                 </View>
               ))
             )}

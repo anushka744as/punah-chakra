@@ -1,14 +1,44 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { theme } from '../theme/theme';
 import { Confetti } from './SuccessOverlay';
-import { Tree3D } from './Tree3D';
-import { MilestoneBar } from './ImpactTree';
+import { File, Paths } from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
+import { EMBLEM_DATA_URI, WORDMARK_DATA_URI } from '../utils/shareLogos';
+import { Tree3D, Tree3DHandle } from './Tree3D';
 import { useReducedMotion } from '../hooks/useTreeProgress';
 import type { Reveal } from '../hooks/useTreeProgress';
-import { TREE_STAGES, journeyFraction, stageIndexOf } from '../utils/treeGrowth';
+import { TREE_STAGES, TreePickup, stageIndexOf, totalItems } from '../utils/treeGrowth';
 
 const fmt = (n: number) => (n % 1 === 0 ? `${n}` : n.toFixed(1));
+
+// Shares a finished picture of the user's tree (made by the 3D scene); falls back to text if that's not possible.
+const shareTree = async (tree: Tree3DHandle | null, stageName: string, kg: number, now: TreePickup[], name?: string) => {
+  try {
+    const b64 = await tree?.snapshot({
+      kg: fmt(kg),
+      stage: stageName,
+      name: name || TREE_STAGES[stageIndexOf(kg)].treeName,
+      items: totalItems(now),
+      pickups: now.length,
+      emblem: EMBLEM_DATA_URI,
+      wordmark: WORDMARK_DATA_URI,
+    });
+    if (b64) {
+      const file = new File(Paths.cache, 'my-impact-tree.png');
+      if (file.exists) file.delete();
+      file.create();
+      file.write(b64, { encoding: 'base64' });
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(file.uri, { mimeType: 'image/png', dialogTitle: 'Share my impact tree' });
+        return;
+      }
+    }
+  } catch {
+    // fall through to the text share
+  }
+  shareText(stageName, kg);
+};
 
 const shareText = (stageName: string, kg: number) =>
   Share.share({ message: `My PunahChakra tree is now a ${stageName.toLowerCase()}: ${fmt(kg)} kg rescued from landfill. Give your items a second chance!` }).catch(() => {});
@@ -17,13 +47,15 @@ type GrowthProps = {
   visible: boolean;
   reveal: Reveal | null;
   seed: number;
+  name?: string;
   onSeeDonated: () => void;
   onClose: () => void;
 };
 
 // After a pickup is completed: the tree before, and now, with the new leaves growing in one by one.
-export const GrowthModal = ({ visible, reveal, seed, onSeeDonated, onClose }: GrowthProps) => {
+export const GrowthModal = ({ visible, reveal, seed, name, onSeeDonated, onClose }: GrowthProps) => {
   const reduced = useReducedMotion();
+  const treeRef = useRef<Tree3DHandle>(null);
   const [holdBefore, setHoldBefore] = useState(false);
   const [playKey, setPlayKey] = useState(0);
 
@@ -36,11 +68,7 @@ export const GrowthModal = ({ visible, reveal, seed, onSeeDonated, onClose }: Gr
 
   if (!reveal) return null;
   const newIds = reveal.added.map(p => p.id);
-  const oldPct = Math.round(journeyFraction(reveal.kgBefore) * 100);
-  const newPct = Math.round(journeyFraction(reveal.kgNow) * 100);
-  const idx = stageIndexOf(reveal.kgNow);
-  const next = idx < TREE_STAGES.length - 1 ? TREE_STAGES[idx + 1] : null;
-  const stage = TREE_STAGES[idx];
+  const stage = TREE_STAGES[stageIndexOf(reveal.kgNow)];
 
   return (
     <Modal visible={visible} animationType="slide" statusBarTranslucent onRequestClose={onClose}>
@@ -51,6 +79,7 @@ export const GrowthModal = ({ visible, reveal, seed, onSeeDonated, onClose }: Gr
 
           <View style={g.treeCard}>
             <Tree3D
+              ref={treeRef}
               seed={seed}
               pickups={reveal.now}
               fromPickups={reveal.before}
@@ -75,7 +104,7 @@ export const GrowthModal = ({ visible, reveal, seed, onSeeDonated, onClose }: Gr
           </View>
 
           <Text style={g.leafLine}>
-            +{reveal.itemsAdded} new leaf cluster{reveal.itemsAdded === 1 ? '' : 's'}, one per item you gave
+            +{reveal.itemsAdded} new {reveal.itemsAdded === 1 ? 'item' : 'items'} on your tree
           </Text>
 
           <View style={g.tiles}>
@@ -93,15 +122,9 @@ export const GrowthModal = ({ visible, reveal, seed, onSeeDonated, onClose }: Gr
             </View>
           </View>
 
-          <View style={g.progress}>
-            <MilestoneBar kg={reveal.kgNow} old={reveal.kgBefore} />
-            <Text style={g.pct}>{oldPct}% → {newPct}%</Text>
-            <Text style={g.next}>
-              {next ? `${fmt(Math.max(0, Math.ceil((next.min - reveal.kgNow) * 10) / 10))} kg more to become a ${next.name.toLowerCase()}` : `You reached ${stage.name}!`}
-            </Text>
-          </View>
+          <Text style={g.stageLine}>Your tree is now a {stage.name.toLowerCase()}</Text>
 
-          <TouchableOpacity style={g.btnPrimary} onPress={() => shareText(stage.name, reveal.kgNow)} activeOpacity={0.85}>
+          <TouchableOpacity style={g.btnPrimary} onPress={() => shareTree(treeRef.current, stage.name, reveal.kgNow, reveal.now, name)} activeOpacity={0.85}>
             <Text style={g.btnPrimaryText}>Share my growth</Text>
           </TouchableOpacity>
           <TouchableOpacity style={g.btnGhost} onPress={onSeeDonated} activeOpacity={0.85}>
@@ -128,6 +151,7 @@ type LevelProps = {
 // Full-screen moment when a pickup pushes the tree into a new stage.
 export const LevelUpModal = ({ visible, reveal, seed, name, onSaveName, onClose }: LevelProps) => {
   const reduced = useReducedMotion();
+  const treeRef = useRef<Tree3DHandle>(null);
   const [naming, setNaming] = useState(false);
   const [draft, setDraft] = useState(name);
   const [playKey, setPlayKey] = useState(0);
@@ -143,9 +167,10 @@ export const LevelUpModal = ({ visible, reveal, seed, name, onSaveName, onClose 
   if (!reveal) return null;
   const from = TREE_STAGES[reveal.stageBefore];
   const to = TREE_STAGES[reveal.stageNow];
-  const next = reveal.stageNow < TREE_STAGES.length - 1 ? TREE_STAGES[reveal.stageNow + 1] : null;
   const title =
-    reveal.stageBefore === 0 ? 'Your seed sprouted!' : `Your ${from.name.toLowerCase()} grew into a ${to.name.toLowerCase()}!`;
+    reveal.stageBefore === 0 && reveal.stageNow === 1
+      ? 'Your seed sprouted!'
+      : `Your ${from.name.toLowerCase()} grew into a ${to.name.toLowerCase()}!`;
 
   return (
     <Modal visible={visible} animationType="fade" statusBarTranslucent onRequestClose={onClose}>
@@ -153,11 +178,10 @@ export const LevelUpModal = ({ visible, reveal, seed, name, onSaveName, onClose 
         {visible && !reduced && <Confetti count={40} />}
         <Text style={l.level}>LEVEL {to.level} UNLOCKED</Text>
         <View style={l.art}>
-          <Tree3D seed={seed} pickups={reveal.now} fromPickups={reveal.before} newIds={reveal.added.map(p => p.id)} playKey={playKey} height={260} reduced={reduced} />
+          <Tree3D ref={treeRef} seed={seed} pickups={reveal.now} fromPickups={reveal.before} newIds={reveal.added.map(p => p.id)} playKey={playKey} height={260} reduced={reduced} />
         </View>
         <Text style={l.title}>{title}</Text>
         <Text style={l.sub}>{fmt(reveal.kgNow)} kg of donated items got a second life.</Text>
-        {next && <Text style={l.next}>Next stop: {next.name} at {next.min} kg.</Text>}
 
         {naming ? (
           <View style={l.nameBox}>
@@ -183,7 +207,7 @@ export const LevelUpModal = ({ visible, reveal, seed, name, onSaveName, onClose 
           </View>
         ) : (
           <View style={l.btns}>
-            <TouchableOpacity style={l.btnPrimary} onPress={() => shareText(to.name, reveal.kgNow)} activeOpacity={0.85}>
+            <TouchableOpacity style={l.btnPrimary} onPress={() => shareTree(treeRef.current, to.name, reveal.kgNow, reveal.now, name)} activeOpacity={0.85}>
               <Text style={l.btnPrimaryText}>Share my {to.name.toLowerCase()}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={l.btnGhost} onPress={() => setNaming(true)} activeOpacity={0.85}>
@@ -204,7 +228,7 @@ const g = StyleSheet.create({
   content: { padding: 20, paddingTop: 56, paddingBottom: 32 },
   title: { fontSize: 24, fontFamily: theme.fonts.bodyBold, color: theme.colors.text, textAlign: 'center' },
   sub: { fontSize: 15, fontFamily: theme.fonts.body, color: theme.colors.textSecondary, textAlign: 'center', marginTop: 2, marginBottom: 16 },
-  treeCard: { backgroundColor: theme.colors.surface, borderRadius: 22, borderWidth: 1, borderColor: theme.colors.border, padding: 8 },
+  treeCard: { backgroundColor: 'transparent' },
   holdRow: { alignItems: 'center', marginTop: 8, marginBottom: 2 },
   holdBtn: { borderRadius: 999, borderWidth: 1.5, borderColor: theme.colors.primary, paddingHorizontal: 18, paddingVertical: 8 },
   holdBtnOn: { backgroundColor: theme.colors.primary },
@@ -218,6 +242,7 @@ const g = StyleSheet.create({
   tile: { flex: 1, backgroundColor: theme.colors.primaryContainer, borderRadius: 16, paddingVertical: 12, alignItems: 'center' },
   tileNum: { fontSize: 20, fontFamily: theme.fonts.bodyBold, color: theme.colors.text },
   tileLabel: { fontSize: 11, fontFamily: theme.fonts.bodySemiBold, color: theme.colors.textSecondary },
+  stageLine: { textAlign: 'center', fontSize: 15, fontFamily: theme.fonts.bodyBold, color: theme.colors.text, marginTop: 16 },
   progress: { marginTop: 18, backgroundColor: theme.colors.surface, borderRadius: 20, borderWidth: 1, borderColor: theme.colors.border, padding: 16 },
   pct: { textAlign: 'center', fontSize: 16, fontFamily: theme.fonts.bodyBold, color: theme.colors.text, marginTop: 10 },
   next: { textAlign: 'center', fontSize: 12, fontFamily: theme.fonts.bodySemiBold, color: theme.colors.primaryDark, marginTop: 4 },

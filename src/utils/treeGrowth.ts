@@ -1,4 +1,5 @@
 import { DonationItem } from '../services/api';
+import { isPickupDone } from './orderAnalytics';
 
 // All growth tuning lives here. `min` = total kg donated needed to unlock the stage.
 export const TREE_STAGES = [
@@ -12,8 +13,6 @@ export const TREE_STAGES = [
 ] as const;
 
 export const MAX_STAGE_INDEX = TREE_STAGES.length - 1;
-// A pickup counts toward the tree once it has actually been collected.
-export const COMPLETED_STATUSES = ['collected', 'assessed', 'completed'];
 
 export const stageIndexOf = (kg: number): number => {
   let idx = 0;
@@ -50,9 +49,9 @@ const itemsOf = (category?: string): string[] =>
     .filter(Boolean);
 
 // Completed pickups, oldest first (so leaf N always belongs to the same pickup).
-export const toTreePickups = (donations: DonationItem[]): TreePickup[] =>
+export const toTreePickups = (donations: DonationItem[], now: Date = new Date()): TreePickup[] =>
   donations
-    .filter(d => COMPLETED_STATUSES.includes(d.status))
+    .filter(d => isPickupDone(d, now))
     .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')))
     .map(d => {
       const items = itemsOf(d.category);

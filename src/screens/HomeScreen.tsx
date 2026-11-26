@@ -16,6 +16,7 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useAppData } from '../data/AppDataContext';
 import { getStatusLabel, cancelDonationRequest, fetchUnreadNotificationCount, DonationItem } from '../services/api';
 import { stripAddressMeta } from '../utils/address';
+import { displayStatus } from '../utils/orderAnalytics';
 import { theme } from '../theme/theme';
 import { ImpactTree, PickupsSheet } from '../components/ImpactTree';
 import { GrowthModal, LevelUpModal } from '../components/TreeCelebrations';
@@ -230,6 +231,7 @@ export const HomeScreen = ({ navigation }: any) => {
           visible={step === 'growth'}
           reveal={reveal}
           seed={tree.seed}
+          name={tree.name}
           onSeeDonated={() => finishGrowth(true)}
           onClose={() => finishGrowth(false)}
         />
@@ -266,7 +268,7 @@ export const HomeScreen = ({ navigation }: any) => {
                   <Icon name="calendar-check-outline" size={20} color={theme.colors.primaryDark} />
                 </View>
                 <View style={styles.latestPickupTextCol}>
-                  <Text style={styles.latestPickupStatus}>{getStatusLabel(latestPickup.status)}</Text>
+                  <Text style={styles.latestPickupStatus}>{displayStatus(latestPickup)}</Text>
                   <Text style={styles.latestPickupMeta}>
                     {latestPickup.pickup_day} · {latestPickup.time_slot}
                   </Text>
@@ -299,7 +301,7 @@ export const HomeScreen = ({ navigation }: any) => {
                 <View style={styles.cardHeaderRow}>
                   <Text style={styles.itemTitle}>{item.category || 'Donation'}</Text>
                   <View style={styles.statusBadge}>
-                    <Text style={styles.statusText}>{getStatusLabel(item.status)}</Text>
+                    <Text style={styles.statusText}>{displayStatus(item)}</Text>
                   </View>
                 </View>
                 <Text style={styles.itemMeta}>

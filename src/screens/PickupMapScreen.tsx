@@ -22,6 +22,7 @@ import { getStatusLabel } from '../services/api';
 import { stripAddressMeta } from '../utils/address';
 import { theme } from '../theme/theme';
 import { AdminTabBar } from '../components/AdminTabBar';
+import { displayStatus, isPickupDone } from '../utils/orderAnalytics';
 
 export const PickupMapScreen = ({ navigation, route }: any) => {
   const insets = useSafeAreaInsets();
@@ -59,7 +60,7 @@ export const PickupMapScreen = ({ navigation, route }: any) => {
       return donations.filter((d) => d.donor_id === authUser?.id);
     }
     // Completed pickups are deliberately excluded — marking a pickup done removes its pin.
-    const active = donations.filter((d) => d.status !== 'completed' && d.status !== 'cancelled');
+    const active = donations.filter((d) => d.status !== 'cancelled' && !isPickupDone(d));
     const confirmed = active.filter((d) => ['assigned', 'in_transit'].includes(d.status));
     const base = confirmed.length > 0 ? confirmed : active;
     return areaPincode === 'all' ? base : base.filter((d) => d.pincode === areaPincode);
@@ -150,7 +151,7 @@ export const PickupMapScreen = ({ navigation, route }: any) => {
           (function() {
             window.__pts.push([${lat}, ${lng}]);
             var marker = L.marker([${lat}, ${lng}]).addTo(map)
-              .bindPopup("<div class='popup-title'>${donorLabel}</div><div class='popup-sub'>${cleanAddress.replace(/"/g, '\\"')}${phoneLabel}</div><span class='popup-badge'>${item.category} &bull; ${weight} kg &bull; ${item.time_slot} &bull; ${getStatusLabel(item.status).toUpperCase()}</span>");
+              .bindPopup("<div class='popup-title'>${donorLabel}</div><div class='popup-sub'>${cleanAddress.replace(/"/g, '\\"')}${phoneLabel}</div><span class='popup-badge'>${item.category} &bull; ${weight} kg &bull; ${item.time_slot} &bull; ${displayStatus(item).toUpperCase()}</span>");
             ${isTarget ? 'marker.openPopup();' : ''}
           })();
         `;
@@ -503,7 +504,7 @@ export const PickupMapScreen = ({ navigation, route }: any) => {
                       {item.donor_phone ? ` · ${item.donor_phone}` : ''}
                     </Text>
                   </View>
-                  <Text style={styles.areaOrderStatus}>{getStatusLabel(item.status).toUpperCase()}</Text>
+                  <Text style={styles.areaOrderStatus}>{displayStatus(item).toUpperCase()}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>

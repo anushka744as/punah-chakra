@@ -27,11 +27,30 @@ export function dueDate(d: DonationItem): Date {
   return due;
 }
 
-// Completed = not cancelled and the pickup's due date/time has passed (auto), or already marked picked up.
+// Pickup slots are 30 minutes long (see constants/timeSlots).
+export const SLOT_MINUTES = 30;
+
+export function slotEnd(d: DonationItem): Date {
+  return new Date(dueDate(d).getTime() + SLOT_MINUTES * 60000);
+}
+
+// THE rule for "this pickup happened": it was not cancelled, and either someone already marked it
+// done, or its time slot is over. Nobody has to mark pickups completed by hand.
+export function isPickupDone(d: DonationItem, now: Date = new Date()): boolean {
+  if (d.status === 'cancelled') return false;
+  if (d.is_picked_up || d.status === 'completed' || d.status === 'collected' || d.status === 'assessed') return true;
+  return slotEnd(d) <= now;
+}
+
 export function orderState(d: DonationItem): OrderState {
   if (d.status === 'cancelled') return 'cancelled';
-  const done = d.is_picked_up || d.status === 'completed' || d.status === 'collected';
-  return done || dueDate(d) <= new Date() ? 'completed' : 'upcoming';
+  return isPickupDone(d) ? 'completed' : 'upcoming';
+}
+
+// What the user sees as the pickup's status.
+export function displayStatus(d: DonationItem): string {
+  if (d.status === 'cancelled') return 'Cancelled';
+  return isPickupDone(d) ? 'Completed' : 'Pickup Scheduled';
 }
 
 export const pincodeOf = (d: DonationItem): string =>

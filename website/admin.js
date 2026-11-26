@@ -83,7 +83,8 @@
     if (error) { toast('Could not load pickups.'); return; }
     S.donations = (data || []).map(({ profiles, ...r }) => ({ ...r, donor_name: profiles?.full_name, donor_phone: profiles?.phone }));
   }
-  const isDone = (d) => Boolean(d.is_picked_up || d.status === 'completed' || d.status === 'collected');
+  // A pickup counts as done once its 30-minute slot is over (and it was not cancelled): nobody marks it by hand.
+  const isDone = (d) => d.status !== 'cancelled' && Boolean(d.is_picked_up || d.status === 'completed' || d.status === 'collected' || d.status === 'assessed' || dueDate(d).getTime() + 30 * 60000 <= Date.now());
 
   function areaOptions() {
     const sel = $('a-area');
@@ -511,7 +512,7 @@
     due.setMinutes(slotToMinutes(d.time_slot || '11:00 AM'));
     return due;
   }
-  const orderState = (d) => (d.status === 'cancelled' ? 'cancelled' : (isDone(d) || dueDate(d) <= new Date() ? 'completed' : 'upcoming'));
+  const orderState = (d) => (d.status === 'cancelled' ? 'cancelled' : (isDone(d) ? 'completed' : 'upcoming'));
   const pinOf = (d) => d.pincode || (String(d.address || '').match(/\b\d{6}\b/) || [])[0] || 'Unknown';
 
   async function loadAnalytics() {

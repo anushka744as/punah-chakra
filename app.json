@@ -2,6 +2,7 @@
   "name": "PunahChakra",
   "displayName": "PunahChakra",
   "plugins": [
-    "expo-font"
+    "expo-font",
+    "expo-sharing"
   ]
 }

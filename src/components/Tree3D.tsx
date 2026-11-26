@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { TREE3D_HTML } from './tree3dHtml';
@@ -17,20 +17,30 @@ type Props = {
   playKey?: number;
   /** Instantly show the `fromPickups` state (hold-to-see-before). */
   showBefore?: boolean;
+  /** Grow the tree in from a seed the first time it is shown. */
+  intro?: boolean;
 };
 
-const READY_TIMEOUT_MS = 10000;
+const READY_TIMEOUT_MS = 25000; // first load after boot can be slow; real failures report an error sooner
 
-const toPayload = (seed: number, pickups: TreePickup[], newIds: string[], reduced: boolean) => ({
+const toPayload = (seed: number, pickups: TreePickup[], newIds: string[], reduced: boolean, intro = false) => ({
   seed,
   pickups: pickups.map(p => ({ id: p.id, items: p.itemsCount, kg: p.kg })),
   newIds,
   reduced,
+  intro,
 });
 
 // 3D tree in a WebView (three.js). Falls back to the flat SVG tree if 3D can't start.
-export const Tree3D = ({ seed, pickups, newIds = [], height, reduced = false, fromPickups, playKey, showBefore }: Props) => {
+export type ShareMeta = { kg: number | string; stage: string; name?: string; items: number; pickups: number; emblem?: string; wordmark?: string };
+export type Tree3DHandle = { snapshot: (meta: ShareMeta) => Promise<string | null> };
+
+export const Tree3D = forwardRef<Tree3DHandle, Props>(function Tree3D(
+  { seed, pickups, newIds = [], height, reduced = false, fromPickups, playKey, showBefore, intro = false },
+  ref
+) {
   const web = useRef<any>(null);
+  const pendingSnap = useRef<((v: string | null) => void) | null>(null);
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
   const playedKey = useRef<number | undefined>(undefined);
@@ -44,7 +54,25 @@ export const Tree3D = ({ seed, pickups, newIds = [], height, reduced = false, fr
     return () => clearTimeout(t);
   }, [ready, failed]);
 
-  const nowPayload = useMemo(() => JSON.stringify(toPayload(seed, pickups, newIds, reduced)), [seed, pickups, newIds, reduced]);
+  // Ask the 3D scene for a finished share picture (base64 PNG); null if 3D isn't running.
+  useImperativeHandle(ref, () => ({
+    snapshot: (meta: ShareMeta) =>
+      new Promise<string | null>(resolve => {
+        if (!ready || failed || !web.current) return resolve(null);
+        pendingSnap.current = resolve;
+        web.current.injectJavaScript(
+          `try{window.__tree.snapshot(${JSON.stringify(meta)},function(d){window.ReactNativeWebView.postMessage('snapshot:'+(d||''));});}catch(e){window.ReactNativeWebView.postMessage('snapshot:');};true;`
+        );
+        setTimeout(() => {
+          if (pendingSnap.current === resolve) {
+            pendingSnap.current = null;
+            resolve(null);
+          }
+        }, 8000);
+      }),
+  }));
+
+  const nowPayload = useMemo(() => JSON.stringify(toPayload(seed, pickups, newIds, reduced, intro)), [seed, pickups, newIds, reduced, intro]);
   const fromPayload = useMemo(
     () => (fromPickups ? JSON.stringify(toPayload(seed, fromPickups, [], reduced)) : null),
     [seed, fromPickups, reduced]
@@ -93,6 +121,11 @@ export const Tree3D = ({ seed, pickups, newIds = [], height, reduced = false, fr
         onMessage={(e: { nativeEvent: { data: string } }) => {
           const m = e.nativeEvent.data;
           if (m === 'ready') setReady(true);
+          else if (m.startsWith('snapshot:')) {
+            const done = pendingSnap.current;
+            pendingSnap.current = null;
+            done?.(m.length > 9 ? m.slice(9) : null);
+          }
           else if (m.startsWith('error:')) {
             if (__DEV__) console.warn('Tree3D', m);
             if (!ready) setFailed(true);
@@ -103,10 +136,10 @@ export const Tree3D = ({ seed, pickups, newIds = [], height, reduced = false, fr
       />
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
-  box: { width: '100%', borderRadius: 18, overflow: 'hidden', backgroundColor: '#eef8f1' },
+  box: { width: '100%' },
   web: { flex: 1, backgroundColor: 'transparent' },
   fallback: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
 });

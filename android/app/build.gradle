@@ -100,8 +100,8 @@ android {
         applicationId "com.vivaan.punahchakra"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 16
-        versionName "1.8"
+        versionCode 17
+        versionName "1.9"
     }
     signingConfigs {
         release {

@@ -17,6 +17,7 @@ import { USER_LOGGED_IN_KEY, LAST_ROLE_KEY } from '../navigation/AppNavigator';
 import { supabase, fetchUserProfile, fetchUserDonations, getStatusLabel, type UserProfile, type DonationItem } from '../services/api';
 import { stripAddressMeta } from '../utils/address';
 import { theme } from '../theme/theme';
+import { displayStatus } from '../utils/orderAnalytics';
 
 export const ProfileScreen = ({ navigation }: any) => {
   const insets = useSafeAreaInsets();
@@ -135,7 +136,7 @@ export const ProfileScreen = ({ navigation }: any) => {
                           item.status === 'completed' && styles.activityStatusCompleted,
                         ]}
                       >
-                        {getStatusLabel(item.status)}
+                        {displayStatus(item)}
                       </Text>
                     </View>
                     <Text style={styles.activityMeta}>{item.pickup_day} · {stripAddressMeta(item.address)}</Text>

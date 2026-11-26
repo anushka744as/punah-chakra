@@ -5,42 +5,12 @@ import { theme } from '../theme/theme';
 import { Tree3D } from './Tree3D';
 import { useReducedMotion } from '../hooks/useTreeProgress';
 import type { useTreeProgress } from '../hooks/useTreeProgress';
-import { MAX_STAGE_INDEX, TREE_STAGES, TreePickup, journeyFraction, stageIndexOf } from '../utils/treeGrowth';
+import { TREE_STAGES, TreePickup, stageIndexOf } from '../utils/treeGrowth';
 
 type Tree = ReturnType<typeof useTreeProgress>;
 
 const fmt = (n: number) => (n % 1 === 0 ? `${n}` : n.toFixed(1));
 const leafText = (n: number) => `${n} ${n === 1 ? 'leaf' : 'leaves'}`;
-
-export const MilestoneBar = ({ kg, old }: { kg: number; old?: number }) => {
-  const idx = stageIndexOf(kg);
-  const frac = journeyFraction(kg);
-  const oldFrac = old === undefined ? frac : Math.min(frac, journeyFraction(old));
-  return (
-    <View style={bar.wrap}>
-      <View style={bar.track}>
-        {/* newly added part (yellow) sits under the part that was already there (green) */}
-        <View style={[bar.fill, { width: `${frac * 100}%`, backgroundColor: '#FFC83D' }]} />
-        <View style={[bar.fill, { width: `${oldFrac * 100}%`, backgroundColor: theme.colors.primary }]} />
-      </View>
-      {TREE_STAGES.map((s, i) => {
-        const reached = i < idx;
-        const current = i === idx;
-        return (
-          <View
-            key={s.level}
-            style={[
-              bar.dot,
-              { left: `${(i / MAX_STAGE_INDEX) * 100}%` },
-              reached && bar.dotOn,
-              current && bar.dotCurrent,
-            ]}
-          />
-        );
-      })}
-    </View>
-  );
-};
 
 export const PickupsSheet = ({
   visible,
@@ -89,7 +59,6 @@ export const ImpactTree = ({ tree, onSchedule }: { tree: Tree; onSchedule: () =>
   const { kg, leaves, pickups, items, glowIds, seed } = tree;
   const idx = stageIndexOf(kg);
   const stage = TREE_STAGES[idx];
-  const next = idx < MAX_STAGE_INDEX ? TREE_STAGES[idx + 1] : null;
   const isSeed = kg <= 0 && leaves.length === 0;
   const treeName = tree.name || stage.treeName;
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -112,19 +81,16 @@ export const ImpactTree = ({ tree, onSchedule }: { tree: Tree; onSchedule: () =>
     <>
       <View style={styles.headRow}>
         <Text style={styles.eyebrow}>YOUR IMPACT TREE</Text>
-        <View style={styles.levelPill}>
-          <Text style={styles.levelText}>Level {stage.level}/{TREE_STAGES.length}</Text>
-        </View>
       </View>
 
       <View style={styles.artWrap}>
         {newLeaves > 0 && (
           <View style={styles.newBadge}>
-            <Text style={styles.newBadgeText}>+{newLeaves} new leaf{newLeaves === 1 ? '' : 'ves'}</Text>
+            <Text style={styles.newBadgeText}>+{newLeaves} new {newLeaves === 1 ? 'leaf' : 'leaves'}</Text>
           </View>
         )}
         <View style={styles.art3d}>
-          <Tree3D seed={tree.seed} pickups={pickups} newIds={glowIds} height={isSeed ? 170 : 260} reduced={reduced} />
+          <Tree3D seed={tree.seed} pickups={pickups} newIds={glowIds} height={isSeed ? 190 : 280} reduced={reduced} intro />
           {!isSeed && <Pressable style={StyleSheet.absoluteFill} onPress={() => openSheet()} accessibilityLabel="See what you donated" />}
         </View>
       </View>
@@ -134,26 +100,14 @@ export const ImpactTree = ({ tree, onSchedule }: { tree: Tree; onSchedule: () =>
         {!!treeName && <Text style={styles.treeName}>  “{treeName}”</Text>}
       </Text>
       <Text style={styles.sub}>
-        {isSeed ? 'Your first pickup plants your seed' : `${stage.name} · ${leafText(leaves.length)}`}
+        {isSeed ? (tree.upcoming ? '' : 'Your first pickup plants your seed') : `${stage.name} · ${leafText(leaves.length)}`}
       </Text>
       {!isSeed && <Text style={styles.sub2}>{fmt(kg)} kg rescued from landfill</Text>}
-
-      <MilestoneBar kg={kg} />
-      <View style={styles.thresholdRow}>
-        {TREE_STAGES.map(s => (
-          <Text key={s.level} style={[styles.thresholdText, s.level - 1 === idx && styles.thresholdTextOn]}>
-            {s.min}
-          </Text>
-        ))}
-      </View>
-
-      <Text style={styles.next}>
-        {isSeed
-          ? '0 / 1 kg'
-          : next
-          ? `${fmt(Math.max(0, Math.ceil((next.min - kg) * 10) / 10))} kg more to grow into a ${next.name.toLowerCase()}`
-          : 'Fully grown. Thank you for giving!'}
-      </Text>
+      {!!tree.upcoming && (
+        <Text style={styles.waiting}>
+          Pickup booked for {tree.upcoming.day}, {tree.upcoming.slot}. Your tree grows once it's done.
+        </Text>
+      )}
 
       {!isSeed && (
         <View style={styles.tiles}>
@@ -190,38 +144,16 @@ export const ImpactTree = ({ tree, onSchedule }: { tree: Tree; onSchedule: () =>
   );
 };
 
-const bar = StyleSheet.create({
-  wrap: { width: '100%', height: 22, justifyContent: 'center', marginTop: 14 },
-  track: { height: 8, borderRadius: 4, backgroundColor: theme.colors.primaryContainer, overflow: 'hidden' },
-  fill: { position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: 4 },
-  dot: {
-    position: 'absolute',
-    width: 14,
-    height: 14,
-    marginLeft: -7,
-    borderRadius: 7,
-    backgroundColor: theme.colors.surface,
-    borderWidth: 2,
-    borderColor: theme.colors.border,
-  },
-  dotOn: { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
-  dotCurrent: { width: 20, height: 20, marginLeft: -10, borderRadius: 10, borderWidth: 4, borderColor: theme.colors.primary },
-});
-
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    padding: 18,
+    // no box: the tree stands directly on the app background
+    backgroundColor: 'transparent',
+    padding: 6,
     marginTop: 18,
     marginBottom: 18,
   },
   headRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   eyebrow: { fontSize: 11, letterSpacing: 0.8, fontFamily: theme.fonts.bodyBold, color: theme.colors.textSecondary },
-  levelPill: { backgroundColor: theme.colors.primaryContainer, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
-  levelText: { fontSize: 12, fontFamily: theme.fonts.bodyBold, color: theme.colors.primaryDark },
   artWrap: { marginTop: 8 },
   art3d: { width: '100%' },
   newBadge: { position: 'absolute', right: 0, top: 0, zIndex: 2, backgroundColor: '#FFC83D', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
@@ -229,11 +161,8 @@ const styles = StyleSheet.create({
   stage: { fontSize: 20, fontFamily: theme.fonts.bodyBold, color: theme.colors.text, textAlign: 'center', marginTop: 2 },
   treeName: { fontSize: 16, fontFamily: theme.fonts.bodySemiBold, color: theme.colors.primaryDark },
   sub: { fontSize: 13, fontFamily: theme.fonts.body, color: theme.colors.textSecondary, textAlign: 'center', marginTop: 2 },
+  waiting: { fontSize: 12, fontFamily: theme.fonts.bodySemiBold, color: theme.colors.primaryDark, textAlign: 'center', marginTop: 8, backgroundColor: theme.colors.primaryContainer, borderRadius: 12, paddingVertical: 6, paddingHorizontal: 10, overflow: 'hidden' },
   sub2: { fontSize: 13, fontFamily: theme.fonts.bodySemiBold, color: theme.colors.text, textAlign: 'center', marginTop: 2 },
-  thresholdRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 4, paddingHorizontal: 0 },
-  thresholdText: { fontSize: 10, fontFamily: theme.fonts.body, color: theme.colors.textSecondary },
-  thresholdTextOn: { fontFamily: theme.fonts.bodyBold, color: theme.colors.primaryDark },
-  next: { fontSize: 12, fontFamily: theme.fonts.bodySemiBold, color: theme.colors.primaryDark, textAlign: 'center', marginTop: 8 },
   tiles: { flexDirection: 'row', gap: 10, marginTop: 14 },
   tile: { flex: 1, backgroundColor: theme.colors.primaryContainer, borderRadius: 16, paddingVertical: 10, alignItems: 'center' },
   tileNum: { fontSize: 22, fontFamily: theme.fonts.bodyBold, color: theme.colors.text },
